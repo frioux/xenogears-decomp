@@ -1335,6 +1335,11 @@ void MenuApplySaveSlot(u32* pSrc) {
 //    cardRead;`), the `s32 noFd = -1` variable, and the explicit `pData = pBuffer + 0x100;` before
 //    the checksum arm are all load-bearing. Presets re-measured on the 90.42 body: 2.7.2 -O2 90.19,
 //    -O3 68.64, cdk -O3 68.48. */
+// ROUND 542 re-measured this body at the same 98.86 / 361 / 1444 and adds two dead ends to (a):
+// putting `result = 0;` FIRST in the arm is byte-identical too, an empty `do { } while (0);`
+// before it changes nothing (the barrier splits the region but the store is already first in the
+// new one), and the other plausible source order - the second `characterWindowBuilt = 0` AFTER
+// MenuLoadWindow2Text - is worse: 96.58% / 360 insns / 1440 bytes.
 /*
 u_char func_801CB304(void) {
     char path[0x40];
@@ -1490,6 +1495,7 @@ u_char func_801CB304(void) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
+
 
 
 
