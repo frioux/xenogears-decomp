@@ -91,6 +91,11 @@ extern u8 g_BattleWaitSkipFlag;
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleSlotFlag8000Mask;
 extern u8 *D_800D39F0;
+// D_800D39C0 and D_800D39C6 are row 7 of the screen slot table at
+// g_BattleTextSlotRects (0x800D39B8 - 0x800D3718 = 7 * 0x60): its pBuf at +0x8,
+// with the VRAM rect 8 bytes ahead of it, and its textWidth at +0xE. Spelled
+// through the row's fields because g_BattleTextSlotRects[7] puts the same
+// instructions on a folded g_BattleTextSlotRects+0x2A0 relocation.
 extern u_long *D_800D39C0[];
 extern u8 D_800D39C6;
 extern u8 *GetStringEntry(u8 *, s32);
