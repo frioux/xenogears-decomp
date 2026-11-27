@@ -757,13 +757,19 @@ extern void GamePartySyncStreamedData(void);
 //     D_800AFE64; g_MenuGfxEnvOtBuffer0[1] as +4 where retail names D_8005A4B0;
 //     the y/w/h stores as g_FieldColorFillRect+2/+4/+6 where retail names
 //     D_800AFE4E/50/52.
-// PRESET (measured with try_flags.sh --all, this round): under --gp -G0 this
-// function goes 88.93 -> 91.02 and EVERY other function of the unit keeps its
-// score exactly (all 100.00 except FieldUpdateRandomSkinSelection 99.83), so the
-// unit is a -G0 candidate but -G0 does not close it either; gcc-2.7.2-cdk 83.37,
-// cdk -G0 74.26.
+// PRESET (re-measured with try_flags.sh --all on THIS body): under --gp -G0 the
+// function goes 90.03 -> 91.89 and every other function of the unit keeps its
+// score exactly (all 100.00 except FieldUpdateRandomSkinSelection 99.83 under
+// unit flags too), so the unit is a clean -G0 candidate - but even -G0 does not
+// close this function; gcc-2.7.2-cdk 83.37, cdk -G0 74.26.
 // TRIED, one line each (newest round first):
-//  - RE-MEASURED live this round: un-parked and diffed, 90.03% / 2644 bytes /
+//  - Store order vs the `la`: in retail the `la &g_FieldColorFillRect` sits at
+//    the TOP of each rect block, before the four field stores (that is what buys
+//    it `sh v0,0(s0)` for x and `lui $at` for +2/+4/+6); the compile puts the la
+//    after them, next to the MoveImage argument, so all four stores take the
+//    assembler's `lui $at`. cse folds an offset-0 symbolic store into a register
+//    only when that register is already live, and the source cannot order it.
+//  - RE-MEASURED live (un-parked and diffed twice): 90.03% / 2644 bytes /
 //    661 insns (retail 2680 / 670), compiles from the park text - the number is
 //    not stale.
 //  - RECT* pRect = &g_FieldColorFillRect used for the MoveImage arguments only
