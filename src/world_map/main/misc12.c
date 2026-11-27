@@ -219,7 +219,16 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
 // nAngle declared first among the locals 99.79 (identical); an explicit
 // `s32 nState = g_GameState.worldMapState & 0x1FFF;` local in front of the first switch
 // 99.79 (identical); 3-minute permuter PERMUTER_NONE base=25 best=25, 1545 iterations.
-// parked: 99.79% (868 bytes = retail's exact size); residual is 3 register lines, above.
+// parked: 99.79% / 868 bytes = retail's EXACT size; the whole residual is 3 lines - the head's
+// scriptAngle value takes $a0 here and $v1 in retail (lui/lhu/sh a0 against lui/lhu/sh v1), and
+// retail reuses $v1 for the first switch's andi dispatch result, so the load pseudo simply died
+// in the register the andi then took. Every other instruction is identical, so the qty structure
+// is identical and only the allocator's processing order differs.
+// Round 538 re-measured the park at 99.79 (868 bytes, unchanged) and closed two more routes:
+// the chained spelling pPlayer->angle = nAngle = g_GameState.scriptAngle at the load with the
+// later store deleted compiles BYTE-IDENTICALLY (99.79), so the embedded-assignment lever does
+// not reach a caller-saved one-ref tie here; and a 4-minute permuter run is PERMUTER_NONE
+// base=25 best=25 (1791 iterations), the third run on this body (round 516 4-min, round 529 3-min).
 /*
 s32 func_8008E190(s32 idx) {
     WorldMapPlayer *pPlayer;
