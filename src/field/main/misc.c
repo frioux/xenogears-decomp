@@ -2252,12 +2252,9 @@ typedef struct {
 // group (the block-barrier knob that closed func_8008C180, above) - byte-identical,
 // 70 differing lines before and after, so the barrier does not reach a caller-saved
 // hand-out; reverted.
-/*
 void func_8008C334(void) {
     s32 loadState;
     s32 partyIndex;
-    s32 member;
-    s32 skin;
     PartyDataChunk* pSrc;
     PartyDataChunk* pDst;
     PartyDataChunk* pEnd;
@@ -2290,12 +2287,15 @@ void func_8008C334(void) {
                     pSrc++;
                     pDst++;
                 } while (pSrc != pEnd);
-                member = g_PartySlots->slot1;
-                skin = g_PartySkins->slot1;
-                g_PartySlots->slot1 = FIELD_PARTY_SLOT_NONE;
-                g_PartySkins->slot1 = FIELD_PARTY_SLOT_NONE;
-                g_PartySlots->slot0 = member;
-                g_PartySkins->slot0 = skin;
+                {
+                    s32 nextMember = g_PartySlots->slot1;
+                    s32 nextSkin = g_PartySkins->slot1;
+
+                    g_PartySlots->slot1 = FIELD_PARTY_SLOT_NONE;
+                    g_PartySkins->slot1 = FIELD_PARTY_SLOT_NONE;
+                    g_PartySlots->slot0 = nextMember;
+                    g_PartySkins->slot0 = nextSkin;
+                }
                 g_pGameState->gearRide[0] = g_pGameState->gearRide[1];
                 if (g_PartySlots->slot2 != FIELD_PARTY_SLOT_NONE) {
                     pSrc = g_FieldSavedFramebuffer1;
@@ -2306,12 +2306,15 @@ void func_8008C334(void) {
                         pSrc++;
                         pDst++;
                     } while (pSrc != pEnd);
-                    member = g_PartySlots->slot2;
-                    skin = g_PartySkins->slot2;
-                    g_PartySlots->slot2 = FIELD_PARTY_SLOT_NONE;
-                    g_PartySkins->slot2 = FIELD_PARTY_SLOT_NONE;
-                    g_PartySlots->slot1 = member;
-                    g_PartySkins->slot1 = skin;
+                    {
+                        s32 nextMember = g_PartySlots->slot2;
+                        s32 nextSkin = g_PartySkins->slot2;
+
+                        g_PartySlots->slot2 = FIELD_PARTY_SLOT_NONE;
+                        g_PartySkins->slot2 = FIELD_PARTY_SLOT_NONE;
+                        g_PartySlots->slot1 = nextMember;
+                        g_PartySkins->slot1 = nextSkin;
+                    }
                     g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
                 }
                 break;
@@ -2330,12 +2333,15 @@ void func_8008C334(void) {
                     pSrc++;
                     pDst++;
                 } while (pSrc != pEnd);
-                member = g_PartySlots->slot2;
-                skin = g_PartySkins->slot2;
-                g_PartySlots->slot2 = FIELD_PARTY_SLOT_NONE;
-                g_PartySkins->slot2 = FIELD_PARTY_SLOT_NONE;
-                g_PartySlots->slot1 = member;
-                g_PartySkins->slot1 = skin;
+                {
+                    s32 nextMember = g_PartySlots->slot2;
+                    s32 nextSkin = g_PartySkins->slot2;
+
+                    g_PartySlots->slot2 = FIELD_PARTY_SLOT_NONE;
+                    g_PartySkins->slot2 = FIELD_PARTY_SLOT_NONE;
+                    g_PartySlots->slot1 = nextMember;
+                    g_PartySkins->slot1 = nextSkin;
+                }
                 g_pGameState->gearRide[1] = g_pGameState->gearRide[2];
                 g_pGameState->gearRide[2] = 0;
                 break;
@@ -2376,8 +2382,7 @@ void func_8008C334(void) {
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
+}
 
 
 
