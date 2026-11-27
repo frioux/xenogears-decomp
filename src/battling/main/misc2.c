@@ -715,6 +715,7 @@ s32 BattleAccumulateGaugePoints(Actor *p0, s32 arg1, s32 arg2) {
    are 98 and 99 (2 refs each over 3 and 4 insns) and both are block-local, so this
    is a local-alloc hand-out, not a global priority quotient: no C spelling of the
    test moves it. Park stands. */
+// Round 540: un-parked and re-measured 99.91% / 432 bytes / 108 insns (retail's exact size); the single differing line is still 'lbu a2,1(s1)' (retail) against 'lbu v1,1(s1)' (ours) with the same 'ori v0,0x10' and the same 'bne'. New shape this round: a two-case 'switch (p1[1]) { case 0x10: ... default: ... }' instead of the if/else - byte-identical, 99.91. 'try_flags --opt -O3' does not even produce a comparable object (0.0) and '--gp -G0' fails to compile the body in this unit, so the preset is out. A SIXTH permuter run from this exact body (2185 iterations, base=best=10) found nothing. Diagnosis unchanged and now backed by three levers: this is the local-alloc hand-out of a dying single-use temp (levers 'a-twin-port-cannot-fix-a-load-tie' and 'a-pluss-result-and-a-loads-dest-both-take-the-dying-base-register'), out of source reach. Park stands.
 /*
 void func_80073F34(Actor *p0, u8 *p1) {
     VECTOR vecA;
@@ -746,6 +747,7 @@ void func_80073F34(Actor *p0, u8 *p1) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073F34);
+
 
 
 extern s32 g_BattleDrawFlags;
