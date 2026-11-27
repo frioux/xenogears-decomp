@@ -569,29 +569,38 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     g_Menu->cardSlotState = MENU_CARD_SLOT_STATE_READY;
     return result;
 }
-// Best attempt: 86.49% (720 bytes vs retail's 736 = 184 insns; the old note's 84.07
-// was stale). Case 0 plus the two phase-2 "slti 0x1E" guards are still exact.
-// Residual, measured this round, same class as its three siblings (func_801CA480,
-// func_801CA1D4, func_801CA5F0): in EVERY case except 0 retail keeps a SEPARATE
-// induction register for the store value (case 1: a2 = i + 3 while a1 = i, both
-// `addiu ...,3`-ed in an un-inverted loop that ends "j test / slti / bnez / j loop",
-// with the store block laid out between continue and test so the continue needs its
-// own `j`), and retail RELOADS g_Menu->menuUnk2 (lw ...,812(a3)/0x32C(t0)) at the top
-// of every iteration while g_Menu itself stays in a saved register. This compile
-// hoists menuUnk2 out of the loop (outside the loop body entirely) and recomputes the
-// derived value each pass, so it emits 180 instructions against retail's 184: the
-// missing four are the continue-block `j` in each loop plus case 2's delay-slot
-// `lui v0,0x88888889` (retail puts the magic constant in the dispatch delay slot and
-// `addiu a1,a1,3` in the body; this compile does the reverse).
-// Tried: nothing new on this body this round beyond re-measuring it (the sibling
-// func_801CA5F0 was the one worked); the four attempts spent there are recorded in its
-// park. Screening: gcc-2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59,
-// 2.7.2-cdk 81.59 on the sibling).
-// Next lever: a spelling that makes gcc 2.6 keep the menuUnk2 load inside the loop
-// (retail's break block stores through *menuUnk2, so its loop.c could not hoist) AND
-// leaves the loop un-inverted; solve it once and all four siblings should fall.
+// Best attempt: 96.74% (736 bytes = retail's EXACT size, 184 = 184 insns; 34 differing
+// lines). 86.49 -> 96.74 this round with ONE change of shape, the same lever that took the
+// sibling func_801CA480 from 86.47 to 95.71.
+//
+// THE LEVER: the two-test loops must be written as an INVERTED fail path with an explicit
+// increment-and-continue, so that the store block lands physically INSIDE the loop's
+// instruction range. gcc 2.6 has no alias analysis, so a store between a loop's top and
+// its back edge makes the loop-invariant "lw 0x32C(g_Menu)" non-hoistable; that is exactly
+// what retail shows in every two-test loop here (case 1 phase 1: hit block 0x5084 between
+// the continue block 0x5078 and the test 0x508C). Case 1's phase 1 and phase 2 both became
+// "while (cond) { pMenu = g_Menu->menuUnk2; j = D_801E98xx[i]; if (== 0xFF || hasGameSave
+// == 0) { i += n; continue; } pMenu->selectedSlot = i + n; break; }" with the index the RAW
+// parameter and "+n" the tested/stored value; both loops came out instruction-identical
+// (case 1 phase 1 whole, including retail's loop-inversion copy "move a2,v1" and its
+// separate a2 induction). Case 0 and case 2 keep the non-inverted forms and were already
+// exact - do not touch them: their loops have a single test, retail hoists pMenu there too,
+// and their hit blocks sit outside the loop range in both compiles.
+// The earlier note on this function blamed "gcc 2.6 loop.c move_movables declining the hoist
+// on its savings/register-pressure threshold" and the four siblings were parked on it. That
+// reading was wrong: the hoist is alias-driven and the source shape controls it.
+//
+// NAMED RESIDUAL, 34 lines, no missing instruction: one register triple rotated in the LAST
+// loop (case 1 phase 2). Retail keeps {value a0, pMenu a1, table biv a2}; this build emits
+// {value a2, pMenu a0, table biv a1}, so the loop body is retail's line for line with a1/a2
+// swapped and the induction +1 going to a2 instead of a0. Same rotation as func_801CA480
+// (there: pMenu a1 vs a2), i.e. this build ranks the pointer biv above pMenu in local-alloc
+// where retail ranks it below. Second difference: case 0's phase-2 hit block is emitted at
+// +0x2a8 where retail has it at +0x258 (placement only - the shared store block; the branch
+// targets are the only lines that differ in that hunk).
 /*
 void func_801C9EF4(s32 a0, s32 a1) {
+    MenuUnk2* pMenu;
     s32 i;
     s32 j;
 
@@ -621,12 +630,16 @@ void func_801C9EF4(s32 a0, s32 a1) {
         }
         break;
     case 1:
-        for (i = a1; i + 3 < 0x1E; i += 3) {
+        i = a1;
+        while (i + 3 < 0x1E) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9828[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                g_Menu->menuUnk2->selectedSlot = i + 3;
-                break;
+            if (pMenu->slotRecordIndexes[j] == 0xFF || pMenu->slotHasGameSave[j] == 0) {
+                i += 3;
+                continue;
             }
+            pMenu->selectedSlot = i + 3;
+            break;
         }
         if (i + 3 < 0x1E) {
             break;
@@ -634,12 +647,15 @@ void func_801C9EF4(s32 a0, s32 a1) {
         i = g_Menu->menuUnk2->selectedSlot + 3;
         if (i < 0x1E) {
             if (i + 1 < 0x1E) {
-                for (; i + 1 < 0x1E; i++) {
+                while (i + 1 < 0x1E) {
+                    pMenu = g_Menu->menuUnk2;
                     j = D_801E9820[i];
-                    if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                        g_Menu->menuUnk2->selectedSlot = i + 1;
-                        break;
+                    if (pMenu->slotRecordIndexes[j] == 0xFF || pMenu->slotHasGameSave[j] == 0) {
+                        i++;
+                        continue;
                     }
+                    pMenu->selectedSlot = i + 1;
+                    break;
                 }
             }
         }
@@ -662,6 +678,7 @@ void func_801C9EF4(s32 a0, s32 a1) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
+
 
 /* Best attempt: 83.27% (668 bytes vs retail's 684). Structure is settled: each case
    is a step-3 search over D_801E9810 whose hit stores i - 3 and returns, followed --
@@ -751,28 +768,37 @@ void func_801CA1D4(s32 a0, s32 a1) {
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 
+// Best attempt: 95.71% (368 bytes = retail's exact size, 92 = 92 insns; 48 differing
+// lines). 86.47 -> 95.71 this round.
+//
+// THE LEVER THAT CLOSED 5.2%: THE STORE BLOCK MUST SIT INSIDE THE LOOP'S LINEAR
+// INSTRUCTION RANGE. gcc 2.6 has no alias analysis, so a store *physically* between
+// the loop top and its back edge makes the loop-invariant "lw 0x32C(g_Menu)"
+// non-hoistable (loop.c move_movables), which is what retail's case 1 shows: its hit
+// block at 0x5578 sits between the continue block 0x5570 and the test 0x5580. Writing
+// case 1 as an inverted fail path whose arm is "i++; continue;" and keeping the
+// store/break AFTER it puts the store block in range: 86.47 -> 91.68 at 88 insns (the
+// store still cross-jumped to case 2's). Spelling the index as retail's own raw
+// "i = a1" with "i + 1" as the tested and stored value (instead of "i = a1 + 1" with
+// "i < 0x1E") then reproduces retail's loop-inversion copy register a0 = v1, the
+// separate a0 induction and retail's exact instruction count: 91.68 -> 95.71.
+//
+// Measured dead this round, all under 2.6.0 -O2: "i = a1 + 1" with the non-inverted
+// && (85.82), the same with the inverted || (91.68), for (i = a1 + 1; i < 0x1E; i++)
+// with a bare continue in the || arm (85.82), an if (i < 0x1E) do {} while (i < 0x1E)
+// guard (identical to its while form), declaring pMenu after i/j (byte-identical), a
+// case-1-only second pointer pSlotMenu (92.59 / 356 / 89), reading g_Menu->menuUnk2
+// inline at all three sites (92.59 / 356 / 89), and j-before-pMenu in the loop body
+// (95.58). Keep the shared pMenu local: it is the whole difference at case 1.
+//
+// NAMED RESIDUAL: one register pair swapped. Retail keeps pMenu in a1 and the table
+// biv in a2; this build mirrors them, and since the same pseudo is shared by cases 0
+// and 2 their rotation follows (case 0 retail: value a2 / const a3 / pMenu a0; here
+// value a3 / const t0 / pMenu a2). pMenu's local-alloc priority is what disagrees;
+// neither the declaration order nor a second variable moves it. The parked note that
+// used to sit here blamed a loop.c savings threshold - that reading was wrong, the
+// hoist is alias-driven and the source fixes it.
 
-// Best attempt: 85.27% (364 bytes vs retail's 368 = 92 insns; the old note's 83.32 was stale).
-// 
-// All three cases share one register assignment; cases 0 and 2 are exact. Case 1 is short exactly one instruction: retail RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) at the top of every iteration and keeps a separate store-value register a0 = i+1, while this compile hoists menuUnk2 into a3 and drops the reload.
-// 
-// Diagnosis: this is gcc 2.6 loop.c move_movables declining the hoist on its savings/register-pressure threshold, not aliasing - case 0 in the same function hoists in BOTH compiles from the same C spelling, so case 1's source is already right and the residual is a pass heuristic. Tried this round: case 1 as for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1] and selectedSlot = i (retail's own parameterization) = 84.62% / 360 bytes / 90 insns, still hoists. Preset screened on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64).
-// Best attempt: 86.47% (356 bytes / 89 insns vs retail's 368 / 92; this is the pMenu-local body below). The three cases share one register assignment; cases 0 and 2 are exact, case 1 is 3 instructions short.
-// 
-// What got here from 85.27: assigning the menuUnk2 load to a case-local 'MenuUnk2* pMenu' as the FIRST statement of each loop body (and once in case 2) instead of spelling g_Menu->menuUnk2 inline - it moved the store value to a3 and the struct base to a2, i.e. retail's own assignment. This was found by the permuter (base 1349 -> 1029), but the candidate itself read new_var uninitialised in cases 1 and 2 - wrong code; the honest version initialises pMenu in every case and still measures 86.47.
-// 
-// Residual: retail case 1 keeps the store value as its OWN induction variable (addiu a0,a0,1 in an out-of-line continue block, loop test slti v0,a0,30 on it, no separate index increment - the table is a pointer biv stepping by 4) and RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) every iteration, while this compile recomputes addiu a3,a1,1 per pass and hoists menuUnk2. Cases 0 and 2 (single-test loops) hoist in both compiles, so the hoist/heuristic difference is the two-load && body: same residual as the three siblings (func_801CA1D4 85.81, func_801CA5F0 84.72, func_801C9EF4 86.49).
-// 
-// Tried this round (each measured): for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1], no pMenu, 84.62 / 360 / 90; same with pMenu, 85.82 / 352 / 88; two counters for (n = a1 + 1, i = a1; n < 0x1E; n++, i++), 86.30 / 352 / 88; pMenu body above, 86.47 / 356 / 89. Preset re-screened earlier on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64).
-// Best attempt: 86.47% (356 bytes / 89 insns vs retail's 368 / 92; this is the pMenu-local body below). The three cases share one register assignment; cases 0 and 2 are exact, case 1 is 3 instructions short.
-// 
-// What got here from 85.27: assigning the menuUnk2 load to a case-local MenuUnk2* pMenu as the FIRST statement of each loop body (and once in case 2) instead of spelling g_Menu->menuUnk2 inline - it moved the store value to a3 and the struct base to a2, i.e. retail's own assignment. The permuter led to it (base 1349 -> 1029) but its candidate read new_var uninitialised in cases 1 and 2, which is wrong code; the honest version initialises pMenu in every case and still measures 86.47.
-// 
-// Residual: retail case 1 keeps the store value as its OWN induction variable (addiu a0,a0,1 in an out-of-line continue block, loop test slti v0,a0,30 on it, no separate index increment - the table is a pointer biv stepping by 4) and RELOADS g_Menu->menuUnk2 (lw a1,812(a3)) every iteration, while this compile recomputes addiu a3,a1,1 per pass and hoists menuUnk2. Cases 0 and 2 (single-test loops) hoist in both compiles, so the difference is the two-load && body.
-// 
-// MECHANISM PROVEN by probe: inserting the self-assignment g_Menu->menuUnk2 = g_Menu->menuUnk2; as the loop body's third statement measures 88.64% at retail's exact 368 bytes / 92 insns - it makes the load non-invariant, which is the ONLY way found to stop the hoist (the hoist is loop.c invariant motion, not the savings heuristic: an invariant load that is redefined in the loop cannot be moved at all). The store is emitted (sw a0,812(t0) next to the lw) so the probe is one instruction too many and is not shippable C; nothing in retail's loop writes g_Menu->menuUnk2, so the retail source is NOT this. Park shape confirmed, spelling unknown.
-// 
-// Tried this round (each measured): for (i = a1 + 1; i < 0x1E; i++) with j = D_801E9820[i - 1], no pMenu, 84.62 / 360 / 90; same with pMenu, 85.82 / 352 / 88; two counters for (n = a1 + 1, i = a1; n < 0x1E; n++, i++), 86.30 / 352 / 88; pMenu body above, 86.47 / 356 / 89. Preset re-screened earlier on a sibling: 2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59, 2.7.2-cdk 81.59, -O1 61.64). Same wall as the three siblings (func_801CA1D4 85.81, func_801CA5F0 84.72, func_801C9EF4 86.49).
 /*
 void func_801CA480(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
@@ -791,13 +817,16 @@ void func_801CA480(s32 a0, s32 a1) {
         }
         break;
     case 1:
-        for (i = a1; i + 1 < 0x1E; i++) {
+        i = a1;
+        while (i + 1 < 0x1E) {
             pMenu = g_Menu->menuUnk2;
             j = D_801E9820[i];
-            if (pMenu->slotRecordIndexes[j] != 0xFF && pMenu->slotHasGameSave[j] != 0) {
-                pMenu->selectedSlot = i + 1;
-                break;
+            if (pMenu->slotRecordIndexes[j] == 0xFF || pMenu->slotHasGameSave[j] == 0) {
+                i++;
+                continue;
             }
+            pMenu->selectedSlot = i + 1;
+            break;
         }
         break;
     case 2:
@@ -810,6 +839,7 @@ void func_801CA480(s32 a0, s32 a1) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
+
 
 
 
