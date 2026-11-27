@@ -398,8 +398,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009D3A0);
 //     or assembler difference, not reachable from C.
 // Presets screened this round: unit flags 99.61, -O3 99.61, -G0 99.61, gcc-2.7.2 97.53,
 // gcc-2.7.2-cdk 89.66. The unit preset is right; do not re-brief the preset leg.
-// Permuter: round 504 found only a wrong-code `chance` retype; this round a 3-minute
-// 2-job run from this body (1196 iterations) gave RESULT PERMUTER_NONE base=420 best=420.
+// Permuter: round 504 found only a wrong-code `chance` retype; a 3-minute 2-job run
+// from this body (1196 iterations) gave RESULT PERMUTER_NONE base=420 best=420, and a
+// later 4-minute 2-job run (1308 iterations) the same base=420 best=420. Three runs on
+// this body, no find: the residual is the srl/sra pair and one add operand order, both
+// of which the permuter cannot reach because no live local selects them.
 /*
 s32 func_8009D3A0(void) {
     s32 penalty = 0;
