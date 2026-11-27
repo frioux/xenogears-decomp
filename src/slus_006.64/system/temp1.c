@@ -1135,51 +1135,71 @@ void SpritePlayAnimation(SpriteData* pSpriteData, s32 animId) {
     func_800223B0(pSpriteData, pSpriteData->field_0x80);
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
-/* Best attempt: 53.46%. Shape facts recovered from the asm: the switch table covers 0..14
-   (`sltiu $v0,$s1,0xF`), so cases 0-6 and 14 are explicit empty cases in the source, not a
-   default; the bodies come out in source order 12, 10, 13, 11, 7, 8, 9 (12 and 13 are
-   byte-identical duplicates that gcc did not cross-jump). `addiu $s2,$a0,0x1C` in the beqz
-   delay slot means the source takes &pAnimTask->task2 into a local before the switch. Open
-   gaps: the original copies the AnimTask argument to $a2 at entry (`addu $a2,$a0`) and passes
-   it with `addu $a0,$a2`; a source-level extra local gets gcc to copy too but into $a1, and
-   the position copies come out load-all-then-store-all instead of the original's interleaved
-   `lw %lo/%lo+4/%lo+8; sw` with `addiu $v0,$v0,%lo` in the delay slot.
-extern void BattleInitAnimTask(AnimTask* pAnimTask);
+// Best attempt: 82.67% (400 bytes / 100 insns; retail is 420 / 105).
+// Body shape is retail's: switch on (field_0x40 >> 13) & 0xF with the empty 0-6/14 cases
+// spelt out (that is what makes retail's `sltiu v0,s1,0xF` bound check), arms in source
+// order 12, 10, 13, 11, 7, 8, 9, the groupA position copy share-merged by the cross-jumper,
+// and three scalar position assignments per arm (a struct assignment emits load-all then
+// store-all through three registers instead of retail's one-register interleave).
+// Residual is all allocator, not shape:
+// 1) Retail's parameter pseudo lives in $a2 - `move a2,a0` at entry plus `move a0,a2`
+//    before each of the four func_800BC158 calls, while the two `addiu s0/s2,a0` address
+//    computations still read $a0. That copy is 5 of the 5 missing instructions. A second
+//    local alias at the top puts it in $a1 AND routes the addius through it (416 bytes);
+//    see lever a-a-surviving-copy-of-a-live-pointer-re-allocates-the-whole-function.
+// 2) Retail runs the arm type chain in $v0 (srl v0,v0,13 ... andi v0,v0,0xf) and copies it
+//    into $s1 last (`move s1,v0` after the `or`); this body masks straight into $s1 and
+//    shifts from $s1. A `newType` local plus `animType = newType` buys the copy back
+//    (408 bytes / 102 insns) but the scheduler hoists it above the `or`: 80.86%.
+// Header: spelling it as two statements (`animType = field >> 13; animType &= 0xF;`) is
+// what produces retail's `srl s1,v0,13 / andi s1,s1,0xf`.
+/*
+extern void func_800BC158(AnimTask* pAnimTask);
 extern void SpriteSetTaskHandler(WorkListEntry* pTask, s32 animType);
 extern IVEC3 g_BattleAnimPositionGroupA;
 extern IVEC3 g_BattleAnimPositionGroupB;
+
+#define ANIM_FIELD_TYPE_SHIFT 13
 
 void func_80024730(AnimTask* pAnimTask) {
     SpriteData* pSpriteData = &pAnimTask->spriteData;
     WorkListEntry* pTask = &pAnimTask->task2;
     s32 animType;
 
-    animType = (pSpriteData->field_0x40 >> 13) & 0xF;
+    animType = pSpriteData->field_0x40 >> ANIM_FIELD_TYPE_SHIFT;
+    animType &= 0xF;
     switch (animType) {
     case 12:
         pSpriteData->curSpriteFrame = 1;
-        animType = (animType - 2) & 0xF;
-        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
-        BattleInitAnimTask(pAnimTask);
-        pSpriteData->position = g_BattleAnimPositionGroupA;
+        animType = (((pSpriteData->field_0x40 >> ANIM_FIELD_TYPE_SHIFT) & 0xF) - 2) & 0xF;
+        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << ANIM_FIELD_TYPE_SHIFT);
+        func_800BC158(pAnimTask);
+        pSpriteData->position.x = g_BattleAnimPositionGroupA.x;
+        pSpriteData->position.y = g_BattleAnimPositionGroupA.y;
+        pSpriteData->position.z = g_BattleAnimPositionGroupA.z;
         break;
     case 10:
-        BattleInitAnimTask(pAnimTask);
+        func_800BC158(pAnimTask);
         pSpriteData->curSpriteFrame = 0;
-        pSpriteData->position = g_BattleAnimPositionGroupA;
+        pSpriteData->position.x = g_BattleAnimPositionGroupA.x;
+        pSpriteData->position.y = g_BattleAnimPositionGroupA.y;
+        pSpriteData->position.z = g_BattleAnimPositionGroupA.z;
         break;
     case 13:
         pSpriteData->curSpriteFrame = 1;
-        animType = (animType - 2) & 0xF;
-        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << 13);
-        BattleInitAnimTask(pAnimTask);
-        pSpriteData->position = g_BattleAnimPositionGroupA;
+        animType = (((pSpriteData->field_0x40 >> ANIM_FIELD_TYPE_SHIFT) & 0xF) - 2) & 0xF;
+        pSpriteData->field_0x40 = (pSpriteData->field_0x40 & 0xFFFE1FFF) | (animType << ANIM_FIELD_TYPE_SHIFT);
+        func_800BC158(pAnimTask);
+        pSpriteData->position.x = g_BattleAnimPositionGroupA.x;
+        pSpriteData->position.y = g_BattleAnimPositionGroupA.y;
+        pSpriteData->position.z = g_BattleAnimPositionGroupA.z;
         break;
     case 11:
-        BattleInitAnimTask(pAnimTask);
+        func_800BC158(pAnimTask);
         pSpriteData->curSpriteFrame = 0;
-        pSpriteData->position = g_BattleAnimPositionGroupB;
+        pSpriteData->position.x = g_BattleAnimPositionGroupB.x;
+        pSpriteData->position.y = g_BattleAnimPositionGroupB.y;
+        pSpriteData->position.z = g_BattleAnimPositionGroupB.z;
         break;
     case 7:
         TimerWorkListSetTaskCallback(pAnimTask, &AnimTaskCountedTimerTick);
@@ -1204,5 +1224,6 @@ void func_80024730(AnimTask* pAnimTask) {
         break;
     }
     SpriteSetTaskHandler(pTask, animType);
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80024730);
+
