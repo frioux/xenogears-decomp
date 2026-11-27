@@ -37,7 +37,7 @@ typedef struct {
 // Width of one battle text slot's string buffer (0x39 in misc3.c and misc17.c too).
 #define BATTLE_TEXT_SLOT_BUFFER_SIZE 0x39
 
-// Frames func_80071964 keeps drawing after it puts the skip text up.
+// Frames BattleShowWaitSkipText keeps drawing after it puts the skip text up.
 #define BATTLE_SKIP_WAIT_FRAMES 3
 
 // The command queue block g_BattleCommandQueue points at (the 0x2F8 bytes
@@ -90,7 +90,7 @@ extern void ArchiveReadFileToBuffer(s32, void *, u32, u32);
 extern u8 g_BattleWaitSkipFlag;
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleSlotFlag8000Mask;
-extern u8 *D_800D39F0;
+extern u8 *g_BattleSkipStringBank;
 // D_800D39C0 and D_800D39C6 are row 7 of the screen slot table at
 // g_BattleTextSlotRects (0x800D39B8 - 0x800D3718 = 7 * 0x60): its pBuf at +0x8,
 // with the VRAM rect 8 bytes ahead of it, and its textWidth at +0xE. Spelled
@@ -134,7 +134,7 @@ extern void BattleApplySlotMaskToEffects(u16);
 extern void BattleRunActiveSlotScripts(void);
 extern void BattleResetActorCountdown(void);
 extern void func_80079778(void);
-extern void func_80071964(void);
+extern void BattleShowWaitSkipText(void);
 extern void BattleApplyCommandCellFlags(void);
 extern void func_80080160(u8);
 extern void func_80080C94(u8);
@@ -576,12 +576,12 @@ void BattleResetActorCountdown(void) {
     g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex - 0xB] = g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex];
 }
 
-void func_80071964(void) {
+void BattleShowWaitSkipText(void) {
     u8 *pEntry;
     s32 i;
 
     if (g_BattleWaitSkipFlag != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
-        pEntry = GetStringEntry(D_800D39F0, g_BattleWaitSkipFlag);
+        pEntry = GetStringEntry(g_BattleSkipStringBank, g_BattleWaitSkipFlag);
         D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], BATTLE_TEXT_SLOT_BUFFER_SIZE, 1);
         LoadImage((RECT *)&D_800D39C0[-2], D_800D39C0[0]);
         for (i = BATTLE_SKIP_WAIT_FRAMES; i != 0; i--) {
@@ -751,7 +751,7 @@ void func_80071B94(u8 arg0) {
             (g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x1000) == 0) {
             func_80079778();
             BattleClearAllSlotFlagB4();
-            func_80071964();
+            BattleShowWaitSkipText();
             BattleWaitWhileStateIs8();
         }
         BattleClearAllSlotFlagB4();
@@ -793,7 +793,7 @@ void func_80071B94(u8 arg0) {
             g_BattleDisplayState->primRowCount = 0;
             BattleApplySlotMaskToEffects(0);
         }
-        func_80071964();
+        BattleShowWaitSkipText();
         BattleWaitWhileStateIs8();
         BattleClearAllSlotFlagB4();
         BattleSetOverlayArg(0);

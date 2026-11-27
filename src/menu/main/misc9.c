@@ -21,7 +21,7 @@
 // Scratch buffer one rendered item name image is built in before LoadImage.
 #define MENU_COLUMN_IMAGE_SIZE 0x618
 // Sprite records at the end of the 0x430 panel: 0x1C holds a copy of the selected
-// column's string, 0x1D..0x1F the three strings func_801DCE60 renders.
+// column's string, 0x1D..0x1F the three strings MenuBuildEquipmentColumn renders.
 #define MENU_PANEL_COLUMN_STRING 0x1C
 #define MENU_PANEL_HEADING_STRING 0x1E
 // Row sprite records at the start of the 0x430 panel; 0xE..0x1B is the shaded copy
@@ -96,7 +96,7 @@ typedef struct {
 } MenuEquipmentSlotRecord; // Size: 0x28
 
 void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1);
-void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
+void MenuBuildEquipmentColumn(u_char arg0, s32 arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
@@ -1014,7 +1014,7 @@ void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1) {
 // file-scope prototype follows this definition; func_801DD790's park wants u_char back
 // at its call site (retail masks $a1 there, 94.46 vs 94.14), so it must re-declare it
 // locally if that body is un-parked.
-void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
+void MenuBuildEquipmentColumn(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
     MenuEquipmentSlotRecord* pRecord;
     RECT rect;
@@ -1177,7 +1177,7 @@ void MenuSetUnk430PanelShading(u_char arg0) {
    case 4 compares characters[].hp/.maxHp (+0x2B8/+0x2BA) or gears[].hp (+0x9D8)
    against gears[characters[currentCharacterIDs[arg1]].gearId].maxHp (+0x9DC) and the
    second index really is arg1 (the equipment column). The declaration
-   'void func_801DCE60(u_char, u_char, u_char)' must stay: retail masks the second
+   'void MenuBuildEquipmentColumn(u_char, u_char, u_char)' must stay: retail masks the second
    argument at this call site. Switch case order is 5, 4, 1, 3 (retail's body order).
 */
 // ROUND 451: re-unparked and re-measured 95.96 / 1940 bytes / 485 insns vs retail 485 - the
@@ -1262,7 +1262,7 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
         MenuRenderFrame();
         if (refresh) {
             MenuBuildUnk430PanelColumns(slot, group);
-            func_801DCE60(slot, arg1, group);
+            MenuBuildEquipmentColumn(slot, arg1, group);
             MenuSetUnk430PanelShading(1);
             MenuBuildPartyCharacterPrims(group);
             refresh = 0;
@@ -1424,9 +1424,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    needsOpen spills to 0x38($sp) and the frame is 0x70 against retail's 0x68. The
    prologue, both dispatch sites, all eight case bodies, every call and every other
    delay slot are retail's.
-   GAINED THIS ROUND, and it is in the file for good: func_801DCE60's second
+   GAINED THIS ROUND, and it is in the file for good: MenuBuildEquipmentColumn's second
    parameter was declared s32 but is a u_char - retail masks it at this call site
-   (`andi a1,s1,0xff`) and func_801DCE60's own body masks $a1 before `sll` - so the
+   (`andi a1,s1,0xff`) and MenuBuildEquipmentColumn's own body masks $a1 before `sll` - so the
    declaration at the top of this file is now (u_char, u_char, u_char) and the
    function went 94.14 -> 94.46.
    Tried in earlier rounds (notes above): needsOpen/active/slot/kind declaration
@@ -1447,9 +1447,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    0x38(sp), which is exactly the extra saved word that makes the frame 0x70
    against retail's 0x68. Parked as is.
    ROUND 433: still 94.46 percent / 884 bytes / 221 insns = retail's exact size,
-   measured with the file-scope prototype of func_801DCE60 put back to
+   measured with the file-scope prototype of MenuBuildEquipmentColumn put back to
    (u_char, u_char, u_char): retail masks the second argument at this call site
-   (andi a1,s1,0xff) and the s32 declaration that func_801DCE60's own park needs
+   (andi a1,s1,0xff) and the s32 declaration that MenuBuildEquipmentColumn's own park needs
    costs 4 bytes here (94.14). Register map read both ways this round: retail
    spills `kind` (0x38, reloaded with lw in cases 0 and 2) and rematerialises the
    a6 constant 1 at each of the four window calls, which is what leaves s5 for
@@ -1469,7 +1469,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    MenuRunUnk430Panel 67.27, MenuEquipItemFromPanel 98.62,
    MenuRenderEquipmentSlotStrings 96.83, MenuReturnWeaponToInventory 98.11, all
    100.00 under 2.6.0). The u_char declaration is also what func_801DD790's park
-   wants; func_801DCE60's own parked body measured 482 insns / 1928 bytes with
+   wants; MenuBuildEquipmentColumn's own parked body measured 482 insns / 1928 bytes with
    s32 arg1, so reconcile the two when that one is un-parked.
    ROUND 446: un-parked and re-measured, still 94.46% / 884 bytes / 221 insns,
    retail's exact size, so the note stands and the tie is now PROVEN by the
@@ -1604,7 +1604,7 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
         }
         MenuBuildArrowCursorPrim(col, 0, 2, 0);
         if (col != prevCol) {
-            func_801DCE60(slot, col, arg2);
+            MenuBuildEquipmentColumn(slot, col, arg2);
             prevCol = col;
         }
         if (needsOpen) {
