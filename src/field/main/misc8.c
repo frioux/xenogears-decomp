@@ -571,190 +571,6 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_8008110C);
 
 
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
-/* R430 redo: 80.80% (ours 1672 bytes / 418 insns; retail 1636 / 409). Body written
-   fresh from the .s this round; the previous note had no body at all. STRUCTURE IS
-   SETTLED and every branch of the original is present: the two halves selected by
-   g_FieldPlayerActorPartySlot (s16, loaded with 'lh', hence the s16 view below), the
-   common guards (scriptFlags & 0x1000000, i == g_PlayerActorIndex, status & 0x20),
-   FieldCharacterIdToPartyId == -1, the 0x48-byte ring at D_800B14F0 indexed by the
-   per-party cursor g_FieldSpriteUpdateIndex[partyId] (18 volatile index reads: 17
-   ring accesses plus the trailing (x-1) & 0x1F), the moveInProgress == 1 / (ring
-   flags & 0x800) / curWalkmeshTriMaterial & 0x420000 / D_800C3910 == -1 gating of
-   the animation reset, the second animation sync from ring.animationId, the
-   walkmeshTriIds[4] copy loop, the flags 0x800 set/clear, and the tail that writes
-   transformMatrix.t[] then <<16 into sprite+actor position.
-   RESIDUALS, biggest first (all measured, none closed):
-   (1) retail re-forms '&g_FieldSpriteUpdateIndex[partyId]' at EVERY ring access
-       (sll v0,s2,2 / addu v0,v0,s6 / lw v1,0(v0) = 3 insns) where our
-       'volatile s32* pUpdateIndex' local keeps the pointer in s1 (1 insn) - about
-       36 instructions we do not spend, which is why the +45/-36 mismatch shows up
-       as 9 excess instructions overall and every branch offset is off by 4-8.
-   (2) retail hoists the two constant bases D_800B1520 (normal) and D_800B1510
-       (step) into s8/t1 at the loop preheader and then uses 'addu v0,v0,s8' +
-       'lw 0/4/8(v0)'; we emit 'lui at,%hi(sym) / addu at,at,v0 / lw %lo(sym)(at)'
-       per store (6 stores). gcc's loop-invariant constant choice, not source.
-   (3) retail's pFieldActor/pActorData live in a2/a0 through the guards and are
-       COPIED into s4/s0 for the body ('move s4,a2' / 'move s0,a0' in the bnez
-       delay slot), so each loop is 2 instructions longer than ours, where gcc
-       colours them call-saved from birth. A local declared at the top of the loop
-       gives s2 (75.87); one declared after the guards gives 79.28.
-   (4) 'pSpriteData' is loaded before the animation-id guards in retail
-       ('lw s3,4(s4)') and reused at the call; gcc sinks our local to the call.
-   (5) the ring scriptFlags mask is carried in a2 across the whole middle in retail
-       ('andi v0,a2,0x800' in two delay slots); we reload it per use.
-   Measured variations this round: guards written as 'g_FieldActors[i].field'
-   expressions 75.04 (3 volatile reloads of g_FieldActors per guard); pFieldActor
-   local from the top of the loop 75.87; locals assigned after the guards 79.28;
-   '&g_FieldActors[i]' -> offset-first '(FieldActor*)(i * sizeof(FieldActor) +
-   (int)g_FieldActors)' 79.28 -> 80.33 (retail's 'addu a2,s1,v0' operand order);
-   adding the ring.animationId sync block I had missed and making the ring's
-   animationId/rotation s16 so they load 'lh' -> 80.80.
-   FOR THE NEXT AGENT: drop the pUpdateIndex local and write the index expression
-   inline (residual 1) first - it is ~36 instructions of shape, and it also makes
-   the flags/anim blocks sit at retail's offsets. Excerpts of the ring struct usage
-   are above; the FieldActorRenderPacket typedef, the s16 cast on 0x10/0x12/0x14 and
-   the FieldPlayerActorPartySlotView decl in the stub's preamble are all needed.
-*/
-/*
-void func_800815F0(void) {
-    FieldActor* pFieldActor;
-    ActorData* pActorData;
-    SpriteData* pSpriteData;
-    volatile s32* pUpdateIndex;
-    u_int ringFlags;
-    int partyId;
-    int i;
-    int j;
-
-    if (g_FieldPlayerActorPartySlot.value != 0) {
-        for (i = 0; i < g_FieldActiveActorCount; i++) {
-            pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
-            if (!(pFieldActor->pActorData->scriptFlags.flags & 0x1000000)) {
-                continue;
-            }
-            if (i == g_PlayerActorIndex) {
-                continue;
-            }
-            if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
-                continue;
-            }
-            pActorData = pFieldActor->pActorData;
-            pSpriteData = pFieldActor->pSpriteData;
-            if (pActorData->curAnimationId != pActorData->defaultAnimationId) {
-                pActorData->curAnimationId = pActorData->defaultAnimationId;
-                if (pActorData->curAnimationId < 0) {
-                    pActorData->curAnimationId = 0;
-                }
-                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId, pFieldActor);
-            }
-        }
-    } else {
-        for (i = 0; i < g_FieldActiveActorCount; i++) {
-            pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
-            if (!(pFieldActor->pActorData->scriptFlags.flags & 0x1000000)) {
-                continue;
-            }
-            if (i == g_PlayerActorIndex) {
-                continue;
-            }
-            if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
-                continue;
-            }
-            pActorData = pFieldActor->pActorData;
-            pSpriteData = pFieldActor->pSpriteData;
-            partyId = FieldCharacterIdToPartyId(pActorData->characterId);
-            if (partyId == -1) {
-                continue;
-            }
-            pUpdateIndex = &g_FieldSpriteUpdateIndex[partyId];
-            FieldSetSpriteStepFromAngle(pSpriteData, D_800B14F0[pUpdateIndex[0]].rotation, pFieldActor);
-            ringFlags = D_800B14F0[pUpdateIndex[0]].scriptFlags;
-            if (g_FieldPartyMoveInProgress == 1) {
-                g_FieldSpriteUpdateIndex[0] = (g_FieldSpriteUpdateIndex[0] + 1) & 0x1F;
-            } else if (!(ringFlags & 0x800)) {
-                pActorData->flags &= ~0x1000;
-                if (!(pActorData->curWalkmeshTriMaterial & 0x420000)) {
-                    if (D_800C3910 == -1) {
-                        if (pSpriteData->field_0x84 == ((s16*)&pActorData->position)[3]) {
-                            if (pActorData->curAnimationId == 6) {
-                                pActorData->flags |= 0x1000;
-                                continue;
-                            }
-                            if (pActorData->curAnimationId != pActorData->defaultAnimationId) {
-                                pActorData->curAnimationId = pActorData->defaultAnimationId;
-                                if (pActorData->curAnimationId < 0) {
-                                    pActorData->curAnimationId = 0;
-                                }
-                                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId,
-                                    pFieldActor);
-                            }
-                            continue;
-                        }
-                    } else {
-                        int offset;
-
-                        if (partyId == 1) {
-                            offset = 10;
-                        } else {
-                            offset = 20;
-                        }
-                        if (((g_FieldSpriteUpdateIndex[0] + offset) & 0x1F) != pUpdateIndex[0]) {
-                            continue;
-                        }
-                    }
-                }
-            }
-            if (pUpdateIndex[0] == g_FieldSpriteUpdateIndex[0]) {
-                pActorData->scriptFlags.flags &= ~0x800;
-                pActorData->curAnimationId = pActorData->defaultAnimationId;
-                if (pActorData->curAnimationId < 0) {
-                    pActorData->curAnimationId = 0;
-                }
-                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId, pFieldActor);
-                continue;
-            }
-            if (ringFlags & 0x800) {
-                pActorData->scriptFlags.flags |= 0x800;
-            } else {
-                pActorData->scriptFlags.flags &= ~0x800;
-            }
-            if (D_800B14F0[pUpdateIndex[0]].animationId != pActorData->curAnimationId) {
-                s16 animId = D_800B14F0[pUpdateIndex[0]].animationId;
-
-                pActorData->curAnimationId = animId;
-                if (animId < 0) {
-                    pActorData->curAnimationId = 0;
-                }
-                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId, pFieldActor);
-            }
-            for (j = 0; j < 4; j++) {
-                pActorData->walkmeshTriIds[j] = D_800B14F0[pUpdateIndex[0]].walkmeshTriIds[j];
-            }
-            pActorData->walkmeshId = D_800B14F0[pUpdateIndex[0]].walkmeshId;
-            pActorData->curTriNormal.vx = D_800B14F0[pUpdateIndex[0]].normal.x;
-            pActorData->curTriNormal.vy = D_800B14F0[pUpdateIndex[0]].normal.y;
-            pActorData->curTriNormal.vz = D_800B14F0[pUpdateIndex[0]].normal.z;
-            pSpriteData->step.x = D_800B14F0[pUpdateIndex[0]].step.x;
-            pSpriteData->step.y = D_800B14F0[pUpdateIndex[0]].step.y;
-            pSpriteData->step.z = D_800B14F0[pUpdateIndex[0]].step.z;
-            pFieldActor->transformMatrix.t[0] = D_800B14F0[pUpdateIndex[0]].positionX;
-            pFieldActor->transformMatrix.t[1] = D_800B14F0[pUpdateIndex[0]].positionY;
-            pFieldActor->transformMatrix.t[2] = D_800B14F0[pUpdateIndex[0]].positionZ;
-            pSpriteData->position.x = pFieldActor->transformMatrix.t[0] << 16;
-            pActorData->position.vx = pFieldActor->transformMatrix.t[0] << 16;
-            pSpriteData->position.y = pFieldActor->transformMatrix.t[1] << 16;
-            pActorData->position.vy = pFieldActor->transformMatrix.t[1] << 16;
-            pSpriteData->position.z = pFieldActor->transformMatrix.t[2] << 16;
-            pActorData->position.vz = pFieldActor->transformMatrix.t[2] << 16;
-            pSpriteData->field_0x84 = D_800B14F0[pUpdateIndex[0]].spriteField84;
-            pActorData->rotation.vx = pActorData->rotation.vy = D_800B14F0[pUpdateIndex[0]].rotation;
-            pUpdateIndex[0] = (pUpdateIndex[0] - 1) & 0x1F;
-        }
-    }
-}
-*/
-
 typedef struct {
     /* 0x00 */ u_int scriptFlags;
     /* 0x04 */ u_int flags;
@@ -790,6 +606,207 @@ typedef struct {
 } FieldPlayerActorPartySlotView;
 
 extern FieldPlayerActorPartySlotView g_FieldPlayerActorPartySlot;
+
+/* R542 88.19% (1664 bytes / 416 insns; retail 1636 / 409). The parked body did
+//    NOT COMPILE as stored (every ring decl - FieldActorRenderPacket, D_800B14F0,
+//    g_FieldSpriteUpdateIndex, FieldPlayerActorPartySlotView - sat BELOW the stub,
+//    between it and func_80081C54's park); they are now moved above the stub, no
+//    other change, and the honest re-measure is the 80.80 the R430 note claimed.
+//    TWO EDITS SINCE, both kept:
+//    (1) 80.80 -> 84.68: drop the 'volatile s32* pUpdateIndex' local and write
+//        g_FieldSpriteUpdateIndex[partyId] inline at all 18 ring sites, as the R430
+//        note recommended. Retail re-forms the 3-insn index address per access.
+//    (2) 84.68 -> 88.19: the second animation sync loads the ring animationId ONCE
+//        into a block-local ('{ s16 animId = D_800B14F0[...].animationId; if (animId
+//        != pActorData->curAnimationId) ... }'). The old form re-read the ring inside
+//        the arm, and since the index is volatile that second read could not be CSE'd:
+//        +7 insns and a whole extra address form. This is retail's a0 (load) / v1
+//        (copy for the sh) / bgez a0 shape.
+//    RESIDUAL NOW: exactly 7 instructions, and SIX of them are the step+normal group
+//    (the only remaining 'lui at,%hi(D_800B1520) / addu at,at,v0 / lw %lo(at)' sites,
+//    6 accesses = +6). Retail la's D_800B1520 into fp at the loop preheader and
+//    D_800B1510 into t1 at first use, then 'addu v0,v0,<base>' + 'lw 0/4/8(v0)'; this
+//    body gets the  macro form per access, i.e. it is the loop.c GIV REDUCTION of
+//    lever a-loop-hoists-a-symbolic-table-base-but-straight-line-code-does-not, not a
+//    spelling of the load: both are the same address, and the reason this build
+//    declines the hoist is that it spends the register on the constant 1 for
+//    'g_FieldPartyMoveInProgress == 1' ('li s8,0x1' + 'bne v1,s8' where retail has
+//    'ori t1,zero,0x1' inline). Round 471's alias trick (two __asm__ aliases of the
+//    same symbol to bend the per-decl use count) is the next probe; the ring would
+//    need aliases for BOTH the 0x20 and 0x30 offsets.
+//    Also still differing, all register/order and none of them bytes: retail copies
+//    the loop's pFieldActor into s4 and pActorData into s0 in the guards' delay slots
+//    ('move s4,a2' / 'move s0,a0') where this body colours them s1/s0 from birth;
+//    retail loads pActorData->curWalkmeshTriMaterial (0x14) before the
+//    moveInProgress test, ours after it; retail's frame is 0x60, ours 0x58; and the
+//    'curAnimationId == 6' arm is a 'beq' to a block retail placed after the other arm
+//    where ours is a 'bne' over it (retail's block order, not a different test).
+//    Preset screens carried over from R432 and unchanged: whole unit Default is best
+//    (this function alone -O3 90.1, -G0 no change, 2.7.2-cdk 93.99, 2.6.0 93.29) and
+//    2.6.0 drops seven already-matched unit functions, so no preset lead. */
+/* R542b 89.40% (1644 bytes / 411 insns; retail 1636 / 409) - supersedes the
+//    R542 note below, which measured 88.19 with the same body minus the last edit.
+//    (3) 88.19 -> 89.40: the step+normal group (the last six 'lui at,%hi(D_800B1520)
+//    / addu at,at,v0 / lw %lo(at)' sites, +6 insns) now goes through a pointer local
+//    'FieldActorRenderPacket* pRing = D_800B14F0;' assigned once before the loop,
+//    which makes cc1 keep the table base in a callee-saved register and emit retail's
+//    5-insn 'sll/addu/sll/addu reg,reg,base/lw reg,<disp>' sequence. The only form
+//    difference left there is the displacement split: retail la's the ADDRESS
+//    D_800B1520 (= D_800B14F0+0x30) and stores at 0/4/8, this body holds the table
+//    base and loads at 0x30/0x34/0x38 - same effective address, different immediate,
+//    so objdiff can never read 100 on those six even when everything else matches.
+//    Remaining: exactly 2 excess instructions, plus register/ordering diffs (retail
+//    pFieldActor in s4 / pActorData in s0 copied in the guards' delay slots; retail's
+//    curWalkmeshTriMaterial (0x14) load sits before the moveInProgress test; frame 0x60
+//    vs 0x58; the 'curAnimationId == 6' arm is a 'beq' to a block retail placed after
+//    the other arm where ours is a 'bne' over it; retail compares
+//    g_FieldPartyMoveInProgress against an inline 'ori t1,zero,0x1' where ours spends
+//    a callee-saved s8 on the constant). Preset screens unchanged from R432 (Default
+//    is the unit's preset; 2.6.0 drops seven matched neighbours). */
+/*
+void func_800815F0(void) {
+    FieldActor* pFieldActor;
+    ActorData* pActorData;
+    SpriteData* pSpriteData;
+    FieldActorRenderPacket* pRing;
+    u_int ringFlags;
+    int partyId;
+    int i;
+    int j;
+
+    if (g_FieldPlayerActorPartySlot.value != 0) {
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
+            pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
+            if (!(pFieldActor->pActorData->scriptFlags.flags & 0x1000000)) {
+                continue;
+            }
+            if (i == g_PlayerActorIndex) {
+                continue;
+            }
+            if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
+                continue;
+            }
+            pActorData = pFieldActor->pActorData;
+            pSpriteData = pFieldActor->pSpriteData;
+            if (pActorData->curAnimationId != pActorData->defaultAnimationId) {
+                pActorData->curAnimationId = pActorData->defaultAnimationId;
+                if (pActorData->curAnimationId < 0) {
+                    pActorData->curAnimationId = 0;
+                }
+                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId, pFieldActor);
+            }
+        }
+    } else {
+        pRing = D_800B14F0;
+        for (i = 0; i < g_FieldActiveActorCount; i++) {
+            pFieldActor = (FieldActor*)(i * sizeof(FieldActor) + (int)g_FieldActors);
+            if (!(pFieldActor->pActorData->scriptFlags.flags & 0x1000000)) {
+                continue;
+            }
+            if (i == g_PlayerActorIndex) {
+                continue;
+            }
+            if (pFieldActor->status & ACTOR_STATUS_INVISIBLE) {
+                continue;
+            }
+            pActorData = pFieldActor->pActorData;
+            pSpriteData = pFieldActor->pSpriteData;
+            partyId = FieldCharacterIdToPartyId(pActorData->characterId);
+            if (partyId == -1) {
+                continue;
+            }
+            FieldSetSpriteStepFromAngle(pSpriteData, D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].rotation, pFieldActor);
+            ringFlags = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].scriptFlags;
+            if (g_FieldPartyMoveInProgress == 1) {
+                g_FieldSpriteUpdateIndex[0] = (g_FieldSpriteUpdateIndex[0] + 1) & 0x1F;
+            } else if (!(ringFlags & 0x800)) {
+                pActorData->flags &= ~0x1000;
+                if (!(pActorData->curWalkmeshTriMaterial & 0x420000)) {
+                    if (D_800C3910 == -1) {
+                        if (pSpriteData->field_0x84 == ((s16*)&pActorData->position)[3]) {
+                            if (pActorData->curAnimationId == 6) {
+                                pActorData->flags |= 0x1000;
+                                continue;
+                            }
+                            if (pActorData->curAnimationId != pActorData->defaultAnimationId) {
+                                pActorData->curAnimationId = pActorData->defaultAnimationId;
+                                if (pActorData->curAnimationId < 0) {
+                                    pActorData->curAnimationId = 0;
+                                }
+                                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId,
+                                    pFieldActor);
+                            }
+                            continue;
+                        }
+                    } else {
+                        int offset;
+
+                        if (partyId == 1) {
+                            offset = 10;
+                        } else {
+                            offset = 20;
+                        }
+                        if (((g_FieldSpriteUpdateIndex[0] + offset) & 0x1F) != g_FieldSpriteUpdateIndex[partyId]) {
+                            continue;
+                        }
+                    }
+                }
+            }
+            if (g_FieldSpriteUpdateIndex[partyId] == g_FieldSpriteUpdateIndex[0]) {
+                pActorData->scriptFlags.flags &= ~0x800;
+                pActorData->curAnimationId = pActorData->defaultAnimationId;
+                if (pActorData->curAnimationId < 0) {
+                    pActorData->curAnimationId = 0;
+                }
+                FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId, pFieldActor);
+                continue;
+            }
+            if (ringFlags & 0x800) {
+                pActorData->scriptFlags.flags |= 0x800;
+            } else {
+                pActorData->scriptFlags.flags &= ~0x800;
+            }
+            {
+                s16 animId = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].animationId;
+
+                if (animId != pActorData->curAnimationId) {
+                    pActorData->curAnimationId = animId;
+                    if (animId < 0) {
+                        pActorData->curAnimationId = 0;
+                    }
+                    FieldSetGearModelAnimationForActor(pSpriteData, pActorData->curAnimationId, pFieldActor);
+                }
+            }
+            for (j = 0; j < 4; j++) {
+                pActorData->walkmeshTriIds[j] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].walkmeshTriIds[j];
+            }
+            pActorData->walkmeshId = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].walkmeshId;
+            pActorData->curTriNormal.vx = pRing[g_FieldSpriteUpdateIndex[partyId]].normal.x;
+            pActorData->curTriNormal.vy = pRing[g_FieldSpriteUpdateIndex[partyId]].normal.y;
+            pActorData->curTriNormal.vz = pRing[g_FieldSpriteUpdateIndex[partyId]].normal.z;
+            pSpriteData->step.x = pRing[g_FieldSpriteUpdateIndex[partyId]].step.x;
+            pSpriteData->step.y = pRing[g_FieldSpriteUpdateIndex[partyId]].step.y;
+            pSpriteData->step.z = pRing[g_FieldSpriteUpdateIndex[partyId]].step.z;
+            pFieldActor->transformMatrix.t[0] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionX;
+            pFieldActor->transformMatrix.t[1] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionY;
+            pFieldActor->transformMatrix.t[2] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionZ;
+            pSpriteData->position.x = pFieldActor->transformMatrix.t[0] << 16;
+            pActorData->position.vx = pFieldActor->transformMatrix.t[0] << 16;
+            pSpriteData->position.y = pFieldActor->transformMatrix.t[1] << 16;
+            pActorData->position.vy = pFieldActor->transformMatrix.t[1] << 16;
+            pSpriteData->position.z = pFieldActor->transformMatrix.t[2] << 16;
+            pActorData->position.vz = pFieldActor->transformMatrix.t[2] << 16;
+            pSpriteData->field_0x84 = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].spriteField84;
+            pActorData->rotation.vx = pActorData->rotation.vy = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].rotation;
+            g_FieldSpriteUpdateIndex[partyId] = (g_FieldSpriteUpdateIndex[partyId] - 1) & 0x1F;
+        }
+    }
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
+
+
+
+
 
 /* R440 redo: 92.75% (768 bytes / 192 insns; retail 776 / 194). Ring layout is
    settled: 32 entries of 0x48 at D_800B14F0, every singleton store is
