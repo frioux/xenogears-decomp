@@ -130,8 +130,8 @@ extern void func_80080C94(u8);
 extern void func_800BFE48(void);
 extern u8 BattleBuildTargetCandidateListByRow(u8);
 extern s32 BattleActorPosXGreaterThan(u8, u8);
-extern u16 BattleFindMinValueOtherSlot(u8);
-extern void BattleLoadActorSlotAnimation(u16);
+extern s32 BattleFindMinValueOtherSlot(u8);
+extern void BattleLoadActorSlotAnimation(s32);
 extern void BattleBeginActorStatAnimation(u8);
 extern u8 g_BattleTextSlotCount;
 extern u8 g_BattleSpriteColorTaskSlot;
@@ -646,23 +646,51 @@ void BattleWaitWhileStateIs8(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
-// 81.13% under 2.6.0 (1724 bytes / 431 insns against retail 1756 / 439). All 35 calls, both branch arms and the tail are retail order; the 8-instruction gap and the diff are five independent spelling residuals, each measured.
-// 
-// WHY THIS BODY IS THE BEST ONE SO FAR (three measured finds, all kept):
-// 1. The action-row quad is a typed block view: BattleDrawWorkBlock (rows at +0x63D0, stride 0x18) makes cc1 emit retail per-store shape sll/addu/sll + g_BattleGraphicsWork with the +0x63D0 as the store displacement. The old body had a raw pQuad = gfxWork + 0x63D0 pointer local, and cc1 folded that constant into a register (addu $7,$10,25552) and stored at 0(reg). Struct size must be 0x18 (stride), not 0x10.
-// 2. The eight prim-index reads are cast-away volatile: *(volatile s32 *)&g_BattlePrimStartIndex at the 8 row indexes reproduces retail fresh lw before every sh (79.85 with the raw pointer form). The declaration itself must stay non-volatile (BattleRenderActorValueDigits drops to 99.45).
-// 3. The skip flag store and the countdown clear go through one BattleScriptFlagBlock view of D_800D2CA4, which is 81.13 vs 81.05 for the plain D_800D2CA4[0xB] spelling.
-// 
+
+// 83.82% under 2.6.0 (1728 bytes / 432 insns against retail's 1756 / 439). Round 536
+// measured four new finds, all kept in the body below:
+// 1. The skip flag is reached through an ARRAY VIEW of its symbol:
+//      extern u8 g_BattleWaitSkipFlag_bytes[] __asm__("g_BattleWaitSkipFlag");
+//    an array's decay is a real address value, so cc1 keeps ONE la s0 and emits
+//    retail's sb zero,0(s0); the plain u8 extern folds the constant store into the
+//    symbol store (lui at,%hi / sb zero,%lo(at)) and the later la lands elsewhere.
+//    The clear loop then derives its biv from that same register, as retail does.
+//    81.13 -> 83.02. Same trick as D_800C48EA_bytes, 60 lines up.
+// 2. The countdown clear as a decreasing pointer: pClear = pFlags - 7;
+//    for (i = 4; i >= 0; i--) *pClear-- = 0;  gives retail's addiu x,s0,-7 plus
+//    addiu x,x,-1 in the back-edge delay slot; pFlags[i - 0xB] = 0 recomputes the
+//    index with addu instead. 83.02 -> 83.36, left with a0 where retail keeps v1.
+// 3. The two +0x10 quad stores want the constant added to the SCREEN ORIGIN first:
+//    origins[...] + 0x10 + actorIndex * 0x60 emits retail's addiu before the addu.
+//    83.29 -> 83.82. The +0x28 pair already has retail's order.
+// 4. BattleFindMinValueOtherSlot returns s32 (its definition, misc11.c:786) and
+//    BattleLoadActorSlotAnimation takes s32 (misc29.c:1056); with the real
+//    prototypes the call is retail's move a0,v0 instead of andi a0,v0,0xffff.
 // REMAINING, in the order they cost:
-// A. The flag address is not the register retail keeps. Retail holds &g_BattleWaitSkipFlag in s0 across the calls, stores sb zero,0(s0) and derives the clear loop biv as addiu v1,s0,-7. Any spelling whose base is D_800D2CA4+0 gives la s0,D_800D2CA4, the +0xB store through $at and a biv s0+4 (431 insns, the current body). That means the original code expressed BOTH accesses off the g_BattleWaitSkipFlag symbol with a negative index. UNTRIED: u8 *p = &D_800D2CA4[0xB]; *p = 0; then for (i = 4; i >= 0; i--) p[i - 0xB] = 0; - mechanical, but it is the shape retail has.
-// B. Per-store ORDER in the quad block: retail does [lw prim idx][sll/addu/sll][addu a0,a0,a3 base LAST][screen-origin load][sh], the body does the value first and emits addu base first (addu $5,$7,$5) because pDraw is a pointer local. UNTRIED: drop pDraw and write ((BattleDrawWorkBlock *)g_BattleGraphicsWork)->rows[idx].xN inline (lever a-addu-index-first-is-the-legitimiser: plain spellings give index-first).
-// C. Both tail loops (D_800C3D1A[i * 4] and D_800C3EBA[i * 0x1C]) - retail keeps the SCALED INDEX in the register and re-forms the absolute base with lui/$at every iteration; cc1 2.6.0 strength-reduces the body into a pointer accumulator (lui/addiu + addiu s0,s0,4). The known-unsolved class in AGENTS 3.4.
-// D. addu operand order in the command-queue tail: retail addu v1,v1,a1 for ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C], the body emits addu v1,a1,v1. UNTRIED: the two-statement pSlot = base; pSlot += i * 0x40; form (lever b-inplace-flips-pointer-base-but-hoists-mem-base).
-// E. BattleFindMinValueOtherSlot result: retail move a0,v0, the body andi a0,v0,0xffff - a u16 local for the return value before the call is the UNTRIED spelling.
-// 
-// Also tried and worse: plain g_BattleWaitSkipFlag = 0 with a separate D_800D2CA4[] clear loop (81.05); volatile DECLARATION of g_BattlePrimStartIndex (79.70, breaks a neighbour); -O1 77.11, -O3 compile-fails, gcc 2.7.2 80.54, cdk 73.77, -G0 compile-fails - the preset XenoBattle260 is right.
+// A. CLOSED by find 1.
+// B. The two tail loops (D_800C3D1A[i * 4], D_800C3EBA[i * 0x1C]): retail keeps the
+//    SCALED INDEX in a register and re-forms the absolute base with lui/$at every
+//    iteration; cc1 2.6.0 strength-reduces the base into a pointer accumulator
+//    (la s0 in the preheader, addiu s0,s0,4 in the latch). AGENTS 3.4's unsolved class.
+// C. The prim quad block: retail interleaves the prim-index load, the row sum and the
+//    origin load in another order and loads g_BattleCommandQueue into t0 BEFORE
+//    g_BattleGraphicsWork. Dropping the pDraw local for the inline typed subscript is
+//    byte-identical (83.36 either way), so the local is not the cause.
+// D. The queue loop's addu order: retail addu v1,v1,a1, the body addu v1,a1,v1.
+//    MEASURED WORSE: the two-statement pSlot = g_BattleCommandQueue; pSlot += i * 0x40;
+//    form (lever b-inplace-flips-pointer-base-but-hoists-mem-base) gives 80.32 / 1736.
+// E. CLOSED by find 4.
+// F. Retail hoists the else-arm loop init (li v0,0x1C) into the bnez delay slot of the
+//    sltiu test and reuses that register as the loop counter; the body emits li s1,0x1c
+//    at the loop head.
+// Also tried and worse: plain g_BattleWaitSkipFlag = 0 with a separate D_800D2CA4[]
+// clear (81.05), volatile DECLARATION of g_BattlePrimStartIndex (79.70, breaks a
+// neighbour), -O1 (77.11), -O3 (compile fails), gcc 2.7.2 (80.54), cdk (73.77), -G0
+// (compile fails) - the preset XenoBattle260 is right.
 /*
+// The same byte as an array: its decay is a real address value, so cc1 keeps one
+// `la` in a register instead of folding the constant store into a symbol store.
+extern u8 g_BattleWaitSkipFlag_bytes[] __asm__("g_BattleWaitSkipFlag");
 // The eight vertex words of the action row's quad at +0x63D0 of the battle draw
 // work block, per prim start index (the block's prim rows are 0x18 bytes apart).
 typedef struct {
@@ -679,29 +707,27 @@ typedef struct {
 
 // The action row quads of the battle draw work block.
 typedef struct {
-    u8 unk0000[0x63D0];
-
+    u8 unk0000[0x63D0]; // 0x0000
     BattleScrollRowQuad rows[8]; // 0x63D0, one per action row index
 } BattleDrawWorkBlock; // Size: 0x6418
 
 // The 0xC-byte script flag block at D_800D2CA4: the five countdown bytes, then
 // the skip flag g_BattleWaitSkipFlag.
 typedef struct {
-    u8 countdown[5]; // 0x0
-
-    u8 unk5[6]; // 0x5
-
-    u8 skip; // 0xB
+     u8 countdown[5]; // 0x0
+     u8 unk5[6]; // 0x5
+     u8 skip; // g_BattleWaitSkipFlag // 0xB
 } BattleScriptFlagBlock; // Size: 0xC
 
 void func_80071B94(u8 arg0) {
     BattleDrawWorkBlock *pDraw;
-    BattleScriptFlagBlock *pFlags;
+    u8 *pClear;
+    u8 *pFlags;
     s32 i;
 
     g_BattleTextSlotCount = 1;
-    pFlags = (BattleScriptFlagBlock *)D_800D2CA4;
-    pFlags->skip = 0;
+    pFlags = g_BattleWaitSkipFlag_bytes;
+    *pFlags = 0;
     if (g_BattleCommandQueue->actorIndex == 0) {
         return;
     }
@@ -712,8 +738,9 @@ void func_80071B94(u8 arg0) {
     g_BattleSpriteColorTaskSlot = g_BattleCommandQueue->actorIndex;
     g_BattleCommandQueue->count = 0;
     g_BattleCommandQueue->commandFinished = 0;
+    pClear = pFlags - 7;
     for (i = 4; i >= 0; i--) {
-        pFlags->countdown[i] = 0;
+        *pClear-- = 0;
     }
     g_BattleActionSlotMask = 0;
     BattleDecrementSlotConditionTimers(g_BattleCommandQueue->actorIndex);
@@ -745,8 +772,8 @@ void func_80071B94(u8 arg0) {
         }
         pDraw = (BattleDrawWorkBlock *)g_BattleGraphicsWork;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].x0 =
-            g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
-            g_BattleCommandQueue->actorIndex * 0x60 + 0x10;
+            g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] + 0x10 +
+            g_BattleCommandQueue->actorIndex * 0x60;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].y0 = 8;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].x1 =
             g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
@@ -754,7 +781,7 @@ void func_80071B94(u8 arg0) {
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].y1 = 8;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].x2 =
             g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
-            g_BattleCommandQueue->actorIndex * 0x60 + 0x10;
+            0x10 + g_BattleCommandQueue->actorIndex * 0x60;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].y2 = 0x20;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].x3 =
             g_BattleSlotScreenOrigins[g_BattleSlotPageIndex * 3 + g_BattleCommandQueue->actorIndex] +
@@ -807,6 +834,9 @@ void func_80071B94(u8 arg0) {
     BattleResetActorCountdown();
     g_BattleCountdownsEnabled = 1;
 }*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
+
+
 
 /* 72.24% - body is exact except the flag store: gcc hoists `li s3,1` out of the
    loop (loop.c invariant) and then schedules the g_BattleDisplayState store before the sh,
