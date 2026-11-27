@@ -246,6 +246,18 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007E020);
 // `&pOt[sz >> 4]`, base-first `pOt + sz`, a `masked` shared by more than one
 // group (94.48 / 92.43, 568 bytes - the pseudo then lives across groups and
 // costs a callee-saved save).
+// round 546: the in-place OR IS reachable by source, but not in-situ.
+// cc1_probe of the insertion alone (Default flags): one group = in-place
+// (`lw $5 / or $5,$5,$2 / sw $5,0($3)`); three groups sharing one `link` =
+// NO tie (`or $2,$7,$4`, the group-3 result even reuses the dying constant's
+// $4); three groups with per-group variables = in-place in all three AND
+// retail's exact map ($2 pLink / $4 link / $3 masked). So the tie is decided
+// by what else is live: in the loop all nine t registers plus a2/a3 are held,
+// and the per-group body re-measured here at 98.63 (556 bytes, 24 differing
+// lines) with group 2's a0/v1 the retail way and groups 1 and 3 swapped -
+// i.e. a symmetric {link, masked} = {a0, v1} allocator choice, not a shape.
+// Also re-measured dead: `0x03000000 | link` (identical 99.78 / 556) and the
+// shared `link |= 0x03000000; *pTag = link;` (93.51 / 568, one live variable).
 // NEXT LEAD: none left in the allocator-nudge family. If this is picked up
 // again, start from the -dg/-dl dumps of the two bodies (build/src/<unit>.c.i
 // .greg/.lreg) and compare the OR-result allocno's refs and live length rather
