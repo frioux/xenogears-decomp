@@ -209,6 +209,17 @@ s32 WorldMapFindStepDirection(s32 *pPos, s32 *pDir, s32 nSpeed) {
 // the state store where retail interleaves [lw Position][lw Rotation][sw x][lw PositionZ]
 // [nop][sw z]; retail's PositionZ/PositionY/Queued loads all reuse $v0, so its serial
 // schedule follows from register reuse and no source order reproduced it (sched1 wall).
+// Round 529 re-measured this body: 99.79% / 868 bytes = retail's size, and the WHOLE residual
+// is three lines - the head's scriptAngle value uses $a0 here and $v1 in retail (`lui/lhu/sh
+// a0` against `lui/lhu/sh v1`). The first switch's `andi` dispatch takes $v1 in BOTH, so
+// retail simply reused $v1 for the dying load; the emitted instructions are otherwise
+// identical, which means the qty structure is identical too and only the allocator's
+// processing order differs (the switch temp is live out of the entry block, the load is not).
+// Measured this round, every one at retail's 868 bytes: `u32 nAngle` 99.52 (worse, 74 lines);
+// nAngle declared first among the locals 99.79 (identical); an explicit
+// `s32 nState = g_GameState.worldMapState & 0x1FFF;` local in front of the first switch
+// 99.79 (identical); 3-minute permuter PERMUTER_NONE base=25 best=25, 1545 iterations.
+// parked: 99.79% (868 bytes = retail's exact size); residual is 3 register lines, above.
 /*
 s32 func_8008E190(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -320,6 +331,7 @@ s32 func_8008E190(s32 idx) {
     return nY;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_8008E190);
+
 
 
 // objdiff reads 99.80% here and always will: the two differences are both spellings of
