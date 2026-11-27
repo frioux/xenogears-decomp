@@ -612,15 +612,33 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 //  *    ArchiveConsolidateStreamFileEntry call kills the register.
 //  *
 //  * Residual (named):
-//  *  - CALLEE-SAVED MAP ROTATION. Retail desc priority: pDataOut(fp),
-//  *    pSectionOut(s7), nSections(s6), pData(s5), nOffset(s4), pHeaders(s3),
-//  *    pSection(s2), i(s1), pScratch(s0). Ours: pSectionOut is FIFTH (s4) and
-//  *    i/pSection are swapped (s2/s1) - i.e. retail's map with pSectionOut
-//  *    demoted. pSectionOut has 4 refs over the whole function, nSections 2, so
-//  *    by the documented priority both builds should hand it s7; no source
-//  *    spelling tried so far moves it. Declaration-order swaps of i/pSection:
-//  *    byte-identical 86.08. id-store reorderings around the nRemaining
-//  *    computation: 82.51 and 83.51.
+//  *  - CALLEE-SAVED MAP ROTATION - PROVEN UNREACHABLE FROM SOURCE (round 531),
+//  *    read off this body's own allocation dump (cpp with -DSKIP_ASM, then
+//  *    tools/gcc-2.6.0-psx/cc1 <build.ninja cc_flags> -O2 -G8 -da -dl -dg in the
+//  *    container; the .greg "N regs to allocate" list and .lreg "used X times
+//  *    across Y insns" lines give levers.md's quotient
+//  *    floor_log2(refs)*refs*10000*size/live):
+//  *      pScratch  77  11 refs / 19 insns  = 69473 -> s0
+//  *      pSection  74  21 / 72              = 46666 -> s1
+//  *      i         73  27 / 115             = 37565 -> s2
+//  *      pHeaders  75   9 / 202             =  5346 -> s3
+//  *      pSectionOut 72  7 / 211            =  2654 -> s4
+//  *      nOffset   80   3 / 51              =  2352 -> s5
+//  *      pData     76   6 / 207             =  2318 -> s6
+//  *      nSections 78   5 / 203             =  1970 -> s7
+//  *      pDataOut  71   2 / 216             =   370 -> fp
+//  *    (the hand-out is ascending s0..s7 along that descending order, fp last,
+//  *    exact match with the dump's dispositions). Retail's map needs
+//  *    77,73,74,75,80,76,78,72 - two deltas, both arithmetic: (a) i must outrank
+//  *    pSection, 37565 vs 46666 (1.24x) = 36 refs or a 90-insn pSection range on
+//  *    a 72-insn def-to-last-use; (b) pSectionOut must fall below nSections, 2654
+//  *    vs 1970 (1.35x) = at most 5 refs (two fewer `*pSectionOut = 0`) or a
+//  *    285-insn range on a 211-insn one. Retail's own stream pins five source
+//  *    stores (its four machine stores are five minus one cross-jump merge), so
+//  *    no spelling of the statements retail has reaches it - read as closed, do
+//  *    not re-brief the hand-out. Measured dead before the dump: declaration-order
+//  *    swaps of i/pSection byte-identical 86.08, id-store reorderings around the
+//  *    nRemaining computation 82.51 and 83.51.
 //  *  - the three reset seeks: retail merges all three (0x918, -0x28, -0x20)
 //  *    into ONE block at 0x8002924C with a1 set per site and a taken branch
 //  *    from each; this compile merges only the -0x28/-0x20 pair and inlines the
