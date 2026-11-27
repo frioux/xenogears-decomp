@@ -242,6 +242,44 @@ s32 WorldMapProbeCellEdgeZFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pP
 #define WORLD_MAP_CELL_SHIFT 19
 
 // best: 79.24% (mine 1876 bytes / 469 insns vs retail's 1896). The score is 3.3 points below the note this park carried (82.51) and the body is the CLOSER one: retail's jump table at 0x80070C50 has 11 entries starting at mask 0 (0, 3 and 7 point at the tail .L80095124), so the switch needs an explicit `case 0` - without it cc1 biases the table by -1 (addiu + sltiu <10) and emits 10 words, i.e. 40 bytes against retail's 44, which puts misc14's second table jtbl_80070C80 (owned by the func_80095414 stub) at 0x1188 instead of 0x1190 and shifts the whole overlay. With case 0 the dispatch is retail's: sltiu <11, sll, 11-word table ending at 0x118C (the next table's .align 3 pads it to 0x1190). Case order is by mask value: 1, 2, 4, 5, 6, 8, 9, 10 - the Z_NEG arm (.L80094BD0) belongs AFTER the two Z-positive corners. What is left: (1) edges lands in $a2 and state in $v1; retail has edges in $t0 and state in $a2, so retail's state=0 is in the first compare's delay slot (addu a2,zero,zero) and mine sinks it into the jr's slot. Measured no change: declaration order (state before edges), edges=0 as a declaration initialiser instead of a statement, edges=0 placed before the cell stores. (2) mine is 15 instructions short, and about 11 of them are retail's leftover load-delay nops that this compiler FILLS (maspsx #nop slots), plus the four corner arms' clip computation re-scheduled (same ops, near.z/far.z order swapped). Presets measured on this body: gcc-2.7.2-cdk 77.21, gcc-2.6.0 81.86, -G0 82.51 (identical with the old 10-word table), -O3 does not compile. The WorldMapProbe clip/cell fields and the WORLD_MAP_EDGE / WORLD_MAP_CELL defines above belong to this body.
+// best: 94.97% (1864 bytes / 466 insns against retail's 1868 / 467). The 4-byte gap is ONE
+// instruction, retail's prologue load-delay nop: retail has 'lw a1,0(s0); nop; sra a1,a1,0x13;
+// lui at; sh a1,160(at)' (cell[0].vx) while every spelling here lets the scheduler put
+// 'lw v0,8(s0)' in that slot and sink the cell[0].vx store after the 'slt'.
+// ROUND 550: 79.24 -> 94.97, three source finds, all keepers.
+//  (a) 's32 state = 0;' as a DECLARATION INITIALISER, not a statement (80.00). That one change
+//      moves state from $v1 to $a2 and edges from $a2 to $t0 - retail's allocation, 'move a2,zero'
+//      in the first compare's delay slot and 'li t0,2' - and it also buys retail's 'mflo $9'
+//      (retail's $8 is held by edges). 's32 state;' plus 'state = 0;' before the switch gives 79.24.
+//  (b) the multi-call corner arms need an EXPLICIT early return, 'if (state != 0) return state;'
+//      between the two calls, instead of 'if (state == 0) state = other();'. With the if-form gcc
+//      threads each arm's exit straight to the epilogue and pays a 'move v0,a2' at all EIGHT
+//      sites (1896 bytes, seven too many); with the return the call result is still in $v0, so
+//      retail's 'bnez a2,<epilogue>' needs no copy (1864 bytes). Worth 80 -> 94.97.
+//  (c) the arms' five clip statements are in the order near.x, near.z, far.x, far.z, clip[1]
+//      (a 120-permutation sweep: 92.73 as the best of the size-1896 shapes); after (b) all four
+//      corner arms are instruction-identical to retail.
+// WHAT IS LEFT, three scheduler decisions (the other ~150 differing lines are label and reloc
+// spellings: 'j .L80095124' vs 'j <func>' and the jtbl/.rodata operand, both link-identical):
+//  1. the prologue nop above, i.e. the whole 4-byte gap.
+//  2. the Z cell compare: retail loads cell[0].vz then cell[1].vz and tests 'slt v1,a0' first,
+//     this body loads them in the other order and tests 'slt a0,v1' first - same branch, same
+//     target, same count.
+//  3. case 6 (X_NEG|Z_POS) ends with one extra ZFromPosition call block after the shared
+//     XFromPosition tail while being one instruction shorter overall in that region.
+// MEASURED THIS ROUND, all no-change or worse: cell statement order xFrom,xTo,zTo,zFrom (94.97),
+// retail's cell store order cell0.vx/cell1.vx/cell1.vz/cell0.vz (94.97), clip[1] first (76.63 at
+// retail's exact 1868 bytes - size right, arms broken), nClip declared first (79.24), edges
+// declared first (79.24), state=0 moved before the x compare (80.00), four delta locals for the
+// clip differences (80.05, 1820 bytes).
+// PRESETS re-screened on the 94.97 body: gcc-2.7.2-cdk 78.07, gcc-2.6.0 will not compile, so the
+// unit preset (XenoWorldMapDiv) is right.
+// STILL TRUE from earlier rounds: retail's jump table at 0x80070C50 has 11 entries starting at
+// mask 0, so the switch needs an explicit 'case 0' (without it cc1 biases the table by -1 and
+// emits 40 bytes instead of 44, which shifts jtbl_80070C80 and the whole overlay). Case order is
+// by mask value: 1, 2, 4, 5, 6, 8, 9, 10 - the Z_NEG arm belongs AFTER the two Z-positive corners.
+// The WorldMapProbe clip/cell fields and the WORLD_MAP_EDGE / WORLD_MAP_CELL defines above belong
+// to this body.
 /*
 s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     WorldMapProbe* pProbe = (WorldMapProbe*)0x1F800000;
@@ -249,7 +287,7 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     s32 zFrom;
     s32 xTo;
     s32 zTo;
-    s32 state;
+    s32 state = 0;
     s32 edges = 0;
     s32 nClip;
 
@@ -273,7 +311,6 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     } else if (pProbe->cell[0].vz < pProbe->cell[1].vz) {
         edges |= WORLD_MAP_EDGE_Z_POS;
     }
-    state = 0;
     switch (edges) {
     case 0:
         break;
@@ -290,23 +327,25 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
         pProbe->v.x = (pPos->x & WORLD_MAP_CELL_MASK) + WORLD_MAP_CELL_SIZE;
         pProbe->v.z = (pPos->z & WORLD_MAP_CELL_MASK) + WORLD_MAP_CELL_SIZE;
         pProbe->near.x = (pPos->x - pProbe->v.x) >> 12;
-        pProbe->clip[1] = 0;
+        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
         pProbe->far.x = (pProbe->target.x - pProbe->v.x) >> 12;
         pProbe->far.z = (pProbe->target.z - pProbe->v.z) >> 12;
-        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
+        pProbe->clip[1] = 0;
         pProbe->clip[0] = (pProbe->near.z << 16) | (pProbe->near.x & 0xFFFF);
         pProbe->clip[2] = (pProbe->far.z << 16) | (pProbe->far.x & 0xFFFF);
         nClip = NormalClip(pProbe->clip[0], pProbe->clip[1], pProbe->clip[2]);
         if (nClip < 0) {
             state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
         } else if (nClip > 0) {
             state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
         } else {
             state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
         }
@@ -315,23 +354,25 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
         pProbe->v.x = pPos->x & WORLD_MAP_CELL_MASK;
         pProbe->v.z = (pPos->z & WORLD_MAP_CELL_MASK) + WORLD_MAP_CELL_SIZE;
         pProbe->near.x = (pPos->x - pProbe->v.x) >> 12;
-        pProbe->clip[1] = 0;
+        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
         pProbe->far.x = (pProbe->target.x - pProbe->v.x) >> 12;
         pProbe->far.z = (pProbe->target.z - pProbe->v.z) >> 12;
-        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
+        pProbe->clip[1] = 0;
         pProbe->clip[0] = (pProbe->near.z << 16) | (pProbe->near.x & 0xFFFF);
         pProbe->clip[2] = (pProbe->far.z << 16) | (pProbe->far.x & 0xFFFF);
         nClip = NormalClip(pProbe->clip[0], pProbe->clip[1], pProbe->clip[2]);
         if (nClip > 0) {
             state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
         } else if (nClip < 0) {
             state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
         } else {
             state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
         }
@@ -343,23 +384,25 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
         pProbe->v.x = (pPos->x & WORLD_MAP_CELL_MASK) + WORLD_MAP_CELL_SIZE;
         pProbe->v.z = pPos->z & WORLD_MAP_CELL_MASK;
         pProbe->near.x = (pPos->x - pProbe->v.x) >> 12;
-        pProbe->clip[1] = 0;
+        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
         pProbe->far.x = (pProbe->target.x - pProbe->v.x) >> 12;
         pProbe->far.z = (pProbe->target.z - pProbe->v.z) >> 12;
-        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
+        pProbe->clip[1] = 0;
         pProbe->clip[0] = (pProbe->near.z << 16) | (pProbe->near.x & 0xFFFF);
         pProbe->clip[2] = (pProbe->far.z << 16) | (pProbe->far.x & 0xFFFF);
         nClip = NormalClip(pProbe->clip[0], pProbe->clip[1], pProbe->clip[2]);
         if (nClip > 0) {
             state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
         } else if (nClip < 0) {
             state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
         } else {
             state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
         }
@@ -368,23 +411,25 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
         pProbe->v.x = pPos->x & WORLD_MAP_CELL_MASK;
         pProbe->v.z = pPos->z & WORLD_MAP_CELL_MASK;
         pProbe->near.x = (pPos->x - pProbe->v.x) >> 12;
-        pProbe->clip[1] = 0;
+        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
         pProbe->far.x = (pProbe->target.x - pProbe->v.x) >> 12;
         pProbe->far.z = (pProbe->target.z - pProbe->v.z) >> 12;
-        pProbe->near.z = (pPos->z - pProbe->v.z) >> 12;
+        pProbe->clip[1] = 0;
         pProbe->clip[0] = (pProbe->near.z << 16) | (pProbe->near.x & 0xFFFF);
         pProbe->clip[2] = (pProbe->far.z << 16) | (pProbe->far.x & 0xFFFF);
         nClip = NormalClip(pProbe->clip[0], pProbe->clip[1], pProbe->clip[2]);
         if (nClip < 0) {
             state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
         } else if (nClip > 0) {
             state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
-            if (state == 0) {
-                state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
+            if (state != 0) {
+                return state;
             }
+            state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
         } else {
             state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
         }
@@ -403,12 +448,13 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
 
 
+
 extern s32 WorldMapGetTileShapeAxisDirection(SVec* p0, SVec* p1, SVec* p2);
 extern s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind);
 
 s32 WorldMapResolveStepAgainstTerrain(void* p0, SVec* p1, SVec* p2, s32 mode, s16 kind) {
     s32 ret;
-    s32 state;
+    s32 state = 0;
     s32 result;
 
     state = func_80094A5C(p0, p1, mode, kind);
@@ -789,7 +835,7 @@ s32 func_80095414(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 i;
     s32 mask;
     s32 kindMask;
-    s32 state;
+    s32 state = 0;
     s32 heightDelta;
     s16 next;
     s16 next2;
