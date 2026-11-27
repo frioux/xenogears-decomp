@@ -1533,7 +1533,6 @@ extern void func_800A8BF0(s32, u16, Misc23PartBuffer *, Misc23ModelBuffer *, s16
 // 0x5E bug was fixed so it is worth one retry on this body. Earlier rounds' levers
 // (if/else sense, index inline vs local, declaration order) were all measured on the
 // broken body, so treat them as unmeasured.
-/*
 void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     u8 *pSrc;
     s32 i;
@@ -1542,6 +1541,7 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     u8 *pBuf;
     s32 size;
     s32 flags;
+    s32 slot;
 
     func_800A8BF0(arg0, 0, g_BattleArchiveEntry->pBuffer2, g_BattleArchiveEntry->pBuffer1, arg1, arg2, arg3, arg4, 0);
     g_BattleActors[arg0]->isBusy = 1;
@@ -1557,33 +1557,33 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
             pBuf = HeapAlloc(size, 0);
             memcpy(pBuf, pData->pBlockStart, size);
             for (i = 0; i < count; i++) {
+                slot = (arg0 << 1) + (i + 0xD);
                 flags = (i != 0) ? 7 : 2;
                 if (i == count - 1) {
                     flags -= 2;
                 }
-                func_800A8BF0((arg0 << 1) + (i + 0xD), flags, pBuf, pData->pBlockEnd, arg1, arg2, arg3, arg4, 0);
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->parentJointIndex = *(u16 *)pSrc;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->parentActorSlot = arg0;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->isAttached = 2;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->skipGroundSnap = 1;
+                func_800A8BF0(slot, flags, pBuf, pData->pBlockEnd, arg1, arg2, arg3, arg4, 0);
+                g_BattleActors[slot]->parentJointIndex = *(u16 *)pSrc;
+                g_BattleActors[slot]->parentActorSlot = arg0;
+                g_BattleActors[slot]->isAttached = 2;
+                g_BattleActors[slot]->skipGroundSnap = 1;
                 pSrc += 2;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->attachOffsetX = *(u16 *)pSrc;
+                g_BattleActors[slot]->attachOffsetX = *(u16 *)pSrc;
                 pSrc += 2;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->attachOffsetY = *(u16 *)pSrc;
+                g_BattleActors[slot]->attachOffsetY = *(u16 *)pSrc;
                 pSrc += 2;
-                g_BattleActors[(arg0 << 1) + (i + 0xD)]->attachOffsetZ = *(u16 *)pSrc;
+                g_BattleActors[slot]->attachOffsetZ = *(u16 *)pSrc;
                 pSrc += 2;
             }
         } else {
             func_8002DDE4(pData->pBlockStart, 1, arg1, arg2, 1, arg3, arg4);
         }
-        HeapFree((void *)g_BattleArchiveEntry->pBuffer3);
+        HeapFree(pData);
     }
     HeapFree(g_BattleArchiveEntry);
     DrawSync(0);
     HeapFree(g_BattleArchiveEntry->pBuffer1);
-}*/
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
+}
 
 
 extern s32 g_BattleActorStepIncrement;
