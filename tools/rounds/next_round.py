@@ -334,11 +334,14 @@ def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
         more = " and %d more" % (len(fam) - 10) if len(fam) > 10 else ""
         extra = "%s (%d insns), siblings: %s%s" % (f["func"], f["insns"], ", ".join(fam[:10]), more)
     elif cls == "park":
-        # Rounds 527-528 lost nine park lanes to the wall clock: at 60 minutes a lane spends
-        # the whole budget in permuter runs and diff attempts and never reaches its re-park,
-        # so nothing is committed. A short lane that must park and end, with the queue
-        # refilling the slot, is the shape (round 529).
-        minutes = 30 if all(f["insns"] < BIG for f in funcs) else 45
+        # Rounds 527-529 lost fourteen park lanes to the wall clock: a lane spends the whole
+        # budget in permuter runs and diff attempts and never reaches its re-park, so
+        # nothing is committed. Short lanes, a long queue, and brief.js's CHECKPOINT
+        # (commit the park by budget-8 whatever happened) are the shape. A 99%+ park is the
+        # one case worth a longer lane: its residual is a register or slot, the permuter
+        # searches it, and round 529 cut a 99.96 park at 30 minutes.
+        near = any(f["pct"] is not None and f["pct"] >= 99 for f in funcs)
+        minutes = 45 if near else 30
         extra = " | ".join("%s at %.2f percent, %d insns, note: %s" % (f["func"], f["pct"], f["insns"], note_excerpt(f, 160))
                            for f in funcs)
     elif cls == "fresh":
