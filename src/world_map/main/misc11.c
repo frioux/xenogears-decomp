@@ -150,56 +150,30 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
    (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
    cc1 tables from this range: that function and the tail after it are
    src/world_map/main/misc11_b.c, whose .rodata range starts at 0xDE4. */
-// round 484: best 99.48% at retail's EXACT size - 740 insns / 2960 bytes, same opcodes,
-// same operand shapes, same label positions. The 16 differing rows are 4 jtbl-name rows
-// (expected in this unit) plus 10 register-name rows in ONE class (see REMAINING).
-// Both round-472 residuals were real and both are now reproduced:
-//   (a) the cell index sll 16 / sra 15 is ONE s16 scratch used for BOTH the
-//       func_80095414 result and the zone index: zone = func_80095414(...); if (zone == 0)
-//       { ...; zone = func_80095414(...); if (zone == 0) ... } then zone = prox / prox + 3
-//       and g_WorldMapZoneTrailFlags[zone]. A call return of unknown sign feeding the same HImode
-//       variable is what makes cc1 keep the widening; a separate s16 "moved" local (the
-//       round-472 body) folds it away, so that analysis was right that no lbu-only
-//       spelling reaches the pair - use one shared scratch.
-//   (b) case 40's load-delay nop: *(volatile s32 *)&pActor->y = WorldMapGetTilePlaneHeight()
-//       keeps the y store above the drawAngle load, so the assembler owes the nop. A
-//       do { } while (0) barrier also bought the byte but moved pActor from $s0 to $s1 and
-//       cost 1.3 points.
-//   Also required, both worth several rows: "s32 result = 1;" declared FIRST (retail
-//       materialises it at instruction 4 and pScratch's 0x1F800000 in the beq delay slot),
-//       and no pOut local - pScratch + 0x24 written inline at each use gives retail's
-//       ori a0,s2,0x90 and lw v0,0x90(s2).
-// REMAINING, register-only, 0 bytes and one class: retail keeps the shared zone pseudo in
-// $a2 (addu a2,v0,zero after each func_80095414 call, addiu a2,v0,3 / lbu a2 in the
-// if/else arms, sll v0,a2,16 at the join); this body gets $v1 at all six sites.
-// Round 497 pinned that down with cc1's own dumps (cc1 -dl -dg): the RTL there is
-// (set (reg/v:HI 81) (subreg:HI (reg:SI 151) 0)) with 151 the copy of $v0 that coalesces
-// back into $v0, so retail's addu a2,v0,zero IS the user variable's allocation, and the
-// .lreg line for it is "Register 81 used 6 times across 13 insns; dies in 2 places",
-// 6th of the 18 allocnos in the .greg hand-out order. For 81 to land in $6 where this
-// body takes $3, retail's zone allocno must conflict with $3/$4/$5 at some point where
-// this one does not: the residual is that allocno's CONFLICT SET (how many disjoint
-// ranges one zone variable spans), not the instruction stream, which is already retail's
-// row for row. Dead in round 497: moving "s16 zone" up to the second declaration (99.48,
-// the same 245 differing lines), a separate s16 cellIdx for the proximity arms (99.34,
-// 2956 bytes / 739 insns - the shared scratch is load-bearing, as round 472 found), and a
-// 1081-iteration permuter run (base=225 best=225, NONE).
-// Still standing from round 472: pActor[1].targetSlot / pActor[2].targetSlot in cases
-// 8/9/16/17 (not g_WorldMapSlots[1]/[2]); the trailing "case 0x40: break;" that gives the
-// state table retail's 65 entries (sltiu 0x41, second table at .rodata+0x108); the
-// WorldMapVec write-back for func_80095414's output; case 40 ends in break; the inner
-// switch's case 1 is state = 1. Dead spellings measured on the round-472 body: zone as
-// s16 / s32 / (s16) at the subscript 2952; zone = prox then zone += 3 in the arm 2936; a
-// named s32 angle local 2952; gcc-2.6.0 97.95; gcc-2.7.2-cdk 86.82.
-// round 497: re-measured 99.48% / 2960 bytes = retail's exact size / 740 insns; only the zone register (retail $a2, this body $v1) plus this unit's jtbl name rows differ.
-/*
+// MATCH: byte-identical (check_bin.sh world_map OK), objdiff 99.97% - the only differing
+// row left is the second jump table's operand (retail names jtbl_80070620, this object
+// says .rodata+0x108: same address, and 0x108 is where retail's second table sits).
+// Two residuals closed here on top of the round-484/497 body (99.48%):
+//   (a) the shared s16 scratch is the SAME variable as the case-18/42 loop counter: using
+//       the existing "s16 i" for the func_80095414 result / zone index (no "zone" local at
+//       all) puts retail's $a2 at every site, 99.54%. A separate s16 local gets $v1 - the
+//       allocno's refs/live-length over the whole function decide its hand-out position.
+//   (b) case 40 spells the stores targetX, targetZ, unk24, then SpritePlayAnimation, which
+//       is what makes cc1 hoist the pSprite load (lw a0,0x4c(s0)) above the targetX store
+//       as retail has it; unk24 before targetZ moves it 4 slots late (99.54%).
+// Also required, and still standing: "s32 result = 1;" declared FIRST (retail materialises
+// it at instruction 4 and pScratch's 0x1F800000 in the beq delay slot); pScratch + 0x24
+// written inline at each use (no pOut local) for retail's ori a0,s2,0x90 / lw v0,0x90(s2);
+// *(volatile s32 *)&pActor->y = WorldMapGetTilePlaneHeight() in case 40 for the y store's
+// load-delay nop; pActor[1].targetSlot / pActor[2].targetSlot in cases 8/9/16/17; the
+// trailing "case 0x40: break;" that gives the state table retail's 65 entries; the
+// WorldMapVec write-back for func_80095414's output.
 int func_8008A72C(int index) {
     s32 result = 1;
     s32 *pScratch = (s32 *)0x1F800000;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     WorldMapTrail *pTrail;
     s16 i;
-    s16 zone;
 
     switch (pActor->command) {
     case 3:
@@ -254,26 +228,26 @@ int func_8008A72C(int index) {
                     }
                     WorldMapUpdateSpriteGroupFromActor(0x2F, pActor, (WorldMapScreenPos *)pScratch);
                 }
-                zone = func_80095414(&pActor->x, &pActor->dirX, pScratch + 0x24, pActor->moveSpeed << 12,
+                i = func_80095414(&pActor->x, &pActor->dirX, pScratch + 0x24, pActor->moveSpeed << 12,
                                      g_WorldMapMode);
-                if (zone == 0) {
+                if (i == 0) {
                     *(WorldMapVec *)&pActor->dirX = *(WorldMapVec *)(pScratch + 0x24);
-                    zone = func_80095414(&pActor->x, &pActor->dirX, pScratch + 0x24,
+                    i = func_80095414(&pActor->x, &pActor->dirX, pScratch + 0x24,
                                          pActor->moveSpeed << 12, g_WorldMapMode);
-                    if (zone == 0) {
+                    if (i == 0) {
                         pActor->dirZ = 0;
                         pActor->dirX = 0;
                     }
                 }
-                if (zone == 1) {
+                if (i == 1) {
                     WorldMapFindZoneAtPosition((WorldMapPos *)(pScratch + 0x24), 0x10, 0x20,
                                                &g_WorldMapZoneProximity, &g_WorldMapZoneId);
                     if (g_WorldMapZoneId == 7) {
-                        zone = g_WorldMapZoneProximity + 3;
+                        i = g_WorldMapZoneProximity + 3;
                     } else {
-                        zone = g_WorldMapZoneProximity;
+                        i = g_WorldMapZoneProximity;
                     }
-                    if (g_WorldMapZoneTrailFlags[zone] != 0) {
+                    if (g_WorldMapZoneTrailFlags[i] != 0) {
                         *(WorldMapVec *)&pActor->x = *(WorldMapVec *)(pScratch + 0x24);
                         if ((pActor->dirX | pActor->dirZ) != 0) {
                             i = (g_WorldMapTrailCursor + 1) & 0x1F;
@@ -417,8 +391,8 @@ int func_8008A72C(int index) {
         pScratch[2] = pActor->z + (-rsin(pActor->angle)) * 0x30;
         WorldMapBuildDirectionFromPositions(&pActor->x, (WorldMapPos *)pScratch, &pActor->dirX, &pActor->angle);
         pActor->targetX = pScratch[0] >> 12;
-        pActor->unk24 = 0;
         pActor->targetZ = pScratch[2] >> 12;
+        pActor->unk24 = 0;
         SpritePlayAnimation(pActor->pSprite, 1);
         pActor->state++;
         break;
@@ -492,8 +466,7 @@ int func_8008A72C(int index) {
         WorldMapAddSlotPosition(0, &pActor->x);
     }
     return result;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc11", func_8008A72C);
+}
 
 
 
