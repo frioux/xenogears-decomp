@@ -834,6 +834,21 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
 // neither the declaration order nor a second variable moves it. The parked note that
 // used to sit here blamed a loop.c savings threshold - that reading was wrong, the
 // hoist is alias-driven and the source fixes it.
+//
+// MEASURED (round 539), the per-case-variable lever from levers.md
+// (a-local-shared-by-two-blocks-is-one-global-allocno): retail's pMenu really is ONE
+// VARIABLE PER CASE - it sits in a0 in case 0, a1 in case 1 and v1 in case 2, which one
+// pseudo cannot produce. Giving each case its own block-scoped `MenuUnk2*` does land
+// retail's hand-out at cases 0 and 2 exactly (case 0's store `sw a2,20348(a0)` and
+// case 2's `sw a2,20348(a0)` become instruction-identical, and case 0's dispatch
+// delay slot gains retail's `addiu a2,a1,1` and its `li a3,0xff`) but case 1 drops to
+// 93.02% / 356 bytes / 89 insns: with the pseudo split, case 1's store block is no
+// longer cross-jumpable with case 0's, so it leaves the loop's linear instruction
+// range, the `lw 0x32C` hoist comes back and the continue arm loses retail's
+// `j test / addiu value,value,1` pair. So the 95.71 body is the best trade: it buys
+// case 1's shape with the shared pseudo and pays for it with the a1/a2 mirror. Also
+// measured on the split body: case 1 as a non-inverted `!= 0xFF && hasGameSave != 0`
+// is 85.27% / 364 bytes / 91 insns, worse.
 
 /*
 void func_801CA480(s32 a0, s32 a1) {
