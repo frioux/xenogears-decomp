@@ -1027,6 +1027,14 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E31C0);
      only the option comment), so no preset can turn it off.
    - a third 3-minute permuter run from this SI body: RESULT PERMUTER_NONE,
      base=205 best=205, 797 iterations.
+   ROUND 546 (audit pick, own preset, 2.6.0): re-measured at 1020 bytes / 255 insns,
+   four differing lines = ONE instruction (retail's `andi v1,s1,0xff` in the beqz
+   delay slot, this body's `nop`). Two more spellings, both 99.6-99.7 with 8 differing
+   lines: `u8 hpFull` plus `return (hpFull == 0) ? 0 : mpFull;` = 99.69, and the whole
+   tail as one nested-ternary return = 99.71 (there the merge puts mpFull in the
+   beqz slot and the 0 in the j's slot, i.e. retail's two slots swapped). A fourth
+   3-minute permuter run from the u8 body: NONE, base 216 best 216, 1071 iterations.
+   Confirms lever i-qi-narrowing-causes-the-cross-jump from a third direction.
    Do not reopen without a different compiler version.
 */
 /*
