@@ -952,13 +952,12 @@ typedef struct {
     /* 0x298 */ RECT moveRect;
 } MovieRenderLocals; // Size: 0x2A0
 
-// func_80076488: parked at 85.79%, 1072 bytes / 268 insns (retail 1076 / 276, frame 0x308 both).
-// Round 501 gains, both kept: (1) `(u16)(*(u16*)&g_MovieVerticalOffset + 0xF0)` for arg11 - retail's `andi v1,0xffff` says the sum stays narrow; (2) the tail is ONE return (`if (g_MoviePrevDrawBufferIndex == 0) { ...tail... } return 0;`), which reproduces retail's `bnez v0,end` with `move v0,zero` in the slot (82.97 -> 85.79). The `if (x != 0) return 0;` form emits an extra `j` block and two moves.
-// Frame/locals (measured, reusable): one 0x2A0 local (MovieRenderLocals: pad 0x90, RECT clearRect at 0x90, pad 0x200, RECT moveRect at 0x298) at sp+0x38 puts clearRect on 0xC8 and moveRect on 0x2D0. Vsync is `int Vsync(int)`; g_MovieVerticalOffset stored 32-bit, read `lhu` twice; D_800773A0 `lw` in (0xF0-x)/2 and `lh` as arg.
-// RESIDUAL 1, the ?: argument (dominant): retail duplicates the 3-instruction shared prefix (addu a0,index / lui+addiu t0,&g_MovieVerticalOffset / sw mode,0x14(sp)) into BOTH arms of `beqz $v0,g_MovieLoopPlayback` and puts `li v0,1` in the branch delay slot; ours keeps that prefix after the join and steals `sw mode,0x14` into the slot. `? 1 : 0`, `!= 0` and a statement-level if/else all fold to `sltu v0,zero,v0` (85.79, 268 insns, this body). MEASURED: `g_MovieLoopPlayback ? (loopFlag = 1) : (loopFlag = 0)` as the argument DOES give retail's branch (beqz + li 1 + j + both stores) at 271 insns / 1084 bytes / 85.03 - it is the closest shape found and the lead for the next attempt (what is still missing there is only the prefix duplication). Two-call-per-arm source ruled out: the arms would have to duplicate the arg5/arg8/arg10 stores as well, and retail shares those in the tail.
-// RESIDUAL 2, prologue: retail loads g_MovieStreamArchiveSection as the FIRST instruction (before `addiu sp`) and keeps it live in $v0, which is why its clearRect copy uses a2/v1/a0; ours sinks the load below the copy and uses a1/v0/v1. Swapping the two statements compiles byte-identically (measured, no score change).
-// RESIDUAL 3, loop head: ours hoists the two base-pointer loads (g_MovieFrameStamps, D_800773BC) above the `nRate / 10` division and lacks retail's `move nFrames,v0` (1 insn). `nRate = 0x1E;` moved after SetDispMask and the pointer/nCounter statement order both compile byte-identically (measured), so this is cc1 placement, not source order.
-// Preset settled for this body: gcc-2.6.0 (unit preset) 85.79; gcc-2.7.2-psx 82.56; gcc-2.7.2-cdk-psx compile-failed (mixed declarations). No twin (twin_for.py: no twin).
+// func_80076488: best 94.35%, 276 insns / 1104 bytes, frame 0x308 - SAME size as retail, so resume from this body.
+// Round 531 gains (both kept). (1) The loop-flag argument is NOT a ?: - retail duplicates the three-insn call prefix (move a0 / lui+addiu t0 / sw mode,0x14) into BOTH arms of `bnez g_MovieLoopPlayback` and shares the argument tail, which is what two whole func_801D37CC calls under if/else with the literals 1 and 0 give after gcc cross-jumps them (85.79 -> 93.70). A single call with `? 1 : 0` folds to sltu. (2) The inner loop bound is the expression `i < nRate / 10`, not an nFrames local: the expression gives retail's `subu v0,v0,v1 / blez v0 / move s6,v0` copy (276 insns, 94.35); an nFrames local gives `subu s6,v0,v1` and 275 insns.
+// RESIDUAL 1, loop preheader order (dominant, ~20 lines): retail emits divide then preheader (mult in the bnez delay slot, sra/mfhi/sra/subu, blez, move i, move nFrames, lui+addiu D_800773BC, lui+addiu g_MovieFrameStamps, li nCounter,1). Ours emits the two lui+addiu pairs and li nCounter,1 before sra/mfhi, because the pointer/nCounter statements precede the hoisted divide and gcc fills the mult gap with them. Retail i=nCounter=s4/s0 follows from that order. MEASURED no change: swapping the pTimeA/pTimeB statements (only register numbers move); strength-reducing by hand - array indexing g_MovieFrameStamps[nCounter] and D_800773BC[nCounter] instead of the pointer locals hoists both bases out of the OUTER loop into s8, one extra insn, worse.
+// RESIDUAL 2, prologue: retail's `lui v0,%hi(g_MovieStreamArchiveSection) / lw v0` is the FIRST instruction, before `addiu sp`, which is why its clearRect copy then uses a2/v1/a0; ours sinks the load to its first use after the copy and uses a1/v0/v1. Source order already matches retail (state load, clearRect copy, the two zero stores, branch) and moving the load earlier in the source compiles byte-identically.
+// Frame/locals (measured, reusable): one 0x2A0 local (MovieRenderLocals) at sp+0x38 puts clearRect on 0xC8 and moveRect on 0x2D0; Vsync is int Vsync(int); g_MovieVerticalOffset is stored 32-bit and read lhu twice; D_800773A0 is lw in (0xF0-x)/2 and lh as the argument; `(u16)(*(u16*)&g_MovieVerticalOffset + 0xF0)` is the +0xF0 argument (retail's andi 0xffff proves the sum stays narrow); the tail is ONE return with `if (g_MoviePrevDrawBufferIndex == 0) { ...tail... } return 0;`, which reproduces retail's bnez-with-move-v0-zero slot.
+// Preset is right: 2.6.0 (unit) 94.35, gcc-2.7.2-psx 84.49, gcc-2.7.2-cdk-psx compile-failed. No twin (twin_for.py).
 /*
 s32 func_80076488(void) {
     MovieRenderLocals locals;
@@ -966,7 +965,6 @@ s32 func_80076488(void) {
     s32 index;
     s32 mode;
     s32 i;
-    s32 nFrames;
     s32 nCounter;
     s32 nRate;
     s32 v0;
@@ -975,8 +973,8 @@ s32 func_80076488(void) {
     s32* pTimeB;
     MovieDrawBuffer* pDrawBuffer;
 
-    locals.clearRect = g_MovieClearRect;
     state = g_MovieStreamArchiveSection;
+    locals.clearRect = g_MovieClearRect;
     g_MovieStopCountdown = 0;
     D_80077020 = 0;
     mode = 1;
@@ -1005,9 +1003,15 @@ s32 func_80076488(void) {
     }
     func_801D3538(0x140, 0xF0, 0x80, 0x10, 0x20, 0x800, *(u16*)&g_MovieStreamRgb24);
     D_801D68B4 = 0;
-    func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&g_MovieTotalFrames,
-        *(u16*)&D_80077398, mode, g_MovieLoopPlayback ? 1 : 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
-        (u16)(*(u16*)&g_MovieVerticalOffset + 0xF0), *(s16*)&D_800773A0, MovieRequestFrame);
+    if (g_MovieLoopPlayback != 0) {
+        func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&g_MovieTotalFrames,
+            *(u16*)&D_80077398, mode, 1, 0, *(u16*)&g_MovieVerticalOffset, 0,
+            (u16)(*(u16*)&g_MovieVerticalOffset + 0xF0), *(s16*)&D_800773A0, MovieRequestFrame);
+    } else {
+        func_801D37CC(index, D_800773A8, *(u16*)&D_800773A4, *(u16*)&g_MovieTotalFrames,
+            *(u16*)&D_80077398, mode, 0, 0, *(u16*)&g_MovieVerticalOffset, 0,
+            (u16)(*(u16*)&g_MovieVerticalOffset + 0xF0), *(s16*)&D_800773A0, MovieRequestFrame);
+    }
     nRate = 0x1E;
     PutDrawEnv(&g_MovieDebugDrawBuffers[g_MovieDrawBufferIndex].drawEnv);
     pDrawBuffer = g_MovieDebugDrawBuffers;
@@ -1015,11 +1019,10 @@ s32 func_80076488(void) {
     SetDispMask(1);
     for (;;) {
         if (D_80077020 == 0) {
-            nFrames = nRate / 10;
-            pTimeA = g_MovieFrameStamps;
             pTimeB = D_800773BC;
+            pTimeA = g_MovieFrameStamps;
             nCounter = 1;
-            for (i = 0; i < nFrames; i++) {
+            for (i = 0; i < nRate / 10; i++) {
                 v0 = Vsync(1);
                 func_801D3F7C();
                 v1 = Vsync(1);
@@ -1062,6 +1065,7 @@ s32 func_80076488(void) {
     return 0;
 }*/
 INCLUDE_ASM("asm/movie/nonmatchings/main/misc2", func_80076488);
+
 
 void MovieRequestFrame(u16 arg0, s32 arg1, u16 arg2) {
     g_MovieCurrentFrame = arg0;
