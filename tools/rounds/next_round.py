@@ -334,7 +334,11 @@ def lane_for(unit, funcs, cls, stubs_by, parks_hint=None):
         more = " and %d more" % (len(fam) - 10) if len(fam) > 10 else ""
         extra = "%s (%d insns), siblings: %s%s" % (f["func"], f["insns"], ", ".join(fam[:10]), more)
     elif cls == "park":
-        minutes = 60
+        # Rounds 527-528 lost nine park lanes to the wall clock: at 60 minutes a lane spends
+        # the whole budget in permuter runs and diff attempts and never reaches its re-park,
+        # so nothing is committed. A short lane that must park and end, with the queue
+        # refilling the slot, is the shape (round 529).
+        minutes = 30 if all(f["insns"] < BIG for f in funcs) else 45
         extra = " | ".join("%s at %.2f percent, %d insns, note: %s" % (f["func"], f["pct"], f["insns"], note_excerpt(f, 160))
                            for f in funcs)
     elif cls == "fresh":
