@@ -829,9 +829,10 @@ extern s32 ControllerGetType(s32 controllerIndex);
 extern u8 ControllerStickToAnalogX(s32 buttonState);
 extern u8 ControllerStickToAnalogY(s32 buttonState);
 
-/* 99.43% (1972 bytes = retail's exact size, 491 vs 491 instructions, 22 differing
-   lines). Both residuals are register-name ties; nothing structural is left.
-   (1) 17 lines, the flags read-modify-write of 0xD0: retail has the mask in $v1
+/* 99.50% (1972 bytes = retail's exact size, 491 vs 491 instructions, 12 differing
+   lines, ONE hunk). The single residual is a register-name tie; nothing
+   structural is left.
+   (1) 12 lines, the flags read-modify-write of 0xD0: retail has the mask in $v1
    and the flags word in $a0 and its `lw` of 0x648/0xFC land before
    `sw $a0,0xD0`; this body has the pair the other way round ($a0 mask, $v1
    flags), so its store sinks below those loads. That it is a regno question is
@@ -851,16 +852,25 @@ extern u8 ControllerStickToAnalogY(s32 buttonState);
    for the whole function, so BOTH live ranges land in $4: 99.41, 30 lines); an
    explicit spinBit local (98.86); the two `+= BATTLE_ANGLE_HALF_TURN` moved
    above the RMW (the schedule collapses, worse).
-   (2) 5 lines: `subu` ties its output to the SECOND operand ($v0) where retail
-   works in place on the first ($v1); the following negu and slti ride the same
-   register, so it is one pseudo's hand-out. A pad-angle local is 98.99, and
-   `diff = direction & 0xFFF; diff -= ...` makes diff callee-saved (98.81,
-   36 differing lines).
+   The proof is stronger than regno order alone, because the two live ranges are
+   NESTED: the mask pseudo (116) is born at insn 190 and dies at 191, the flags
+   load (114) at 188..191, so 116 lives strictly inside 114 - and 114, allocated
+   first, takes the lowest free preferred register. Retail's mirror therefore
+   needs the MASK born before the load, which `mem & const` cannot produce.
+   (2) CLOSED by `diff = __builtin_abs((direction & 0xFFF) - ((ratan2(...) +
+   0x400) & 0xFFF));` - the two-statement `if (diff < 0) diff = -diff;` gives
+   `subu v0,v1,v0` (diff shares the SECOND operand's register), the one-
+   statement abs gives retail's in-place `subu v1,v1,v0` and 99.50% (was 99.43).
+   Measured dead on the same 5 lines: a pad-angle local 98.99, `diff = direction
+   & 0xFFF; diff -= ...` 98.81 (36 lines, diff becomes callee-saved), a
+   `s32 dirMasked = direction & 0xFFF;` first-operand local byte-identical to
+   the 99.43 body (copy propagation folds it back).
    Permuter from this body: 784 iterations (round ~415) and 1181 iterations
    (round 431), both base 145 best 145 - two runs agree, nothing left there.
    Preset screen on this body (round 431): gcc-2.7.2-cdk 98.38, gcc-2.6.0 97.88,
    Default 99.43, so the unit preset is right and this is not a cdk scheduling
-   case.
+   case. Audited at 99.50 (round 547): re-measured, both sizes retail's, the
+   `-dl`/`.rtl` dumps taken on this body confirm residual (1)'s nesting.
    Keep these two spellings, they closed the previous 97.34 park: `limit =
    __builtin_abs(x)` inside the x < 0 arms (a ternary folds to a bare negu and
    loses retail's move+negu pair) and `p->distance = distance;` hoisted out of
@@ -1096,16 +1106,14 @@ s32 func_80076884(BattleActor* p) {
         p->flags &= ~BATTLE_ACTOR_FLAG_FACING_AWAY;
     }
     if ((p->flags & 0x80000) && p->distance != 0) {
-        diff = (direction & 0xFFF) - ((ratan2(stickY - 0x80, stickX - 0x80) + 0x400) & 0xFFF);
-        if (diff < 0) {
-            diff = -diff;
-        }
+        diff = __builtin_abs((direction & 0xFFF) - ((ratan2(stickY - 0x80, stickX - 0x80) + 0x400) & 0xFFF));
         if (diff >= 0x201) {
             p->flags |= 0x80000;
         }
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc3", func_80076884);
+
 
 extern u8 g_BattleFacingUpdateEnabled;
 extern s32 g_BattleFacingAngle;
