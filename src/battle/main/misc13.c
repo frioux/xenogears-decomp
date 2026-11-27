@@ -1550,6 +1550,34 @@ static inline s32 SlotRecordOffset(s32 slot) {
 // INCREMENTS g_BattleCharSlotUsage instead of resetting it (BattleAllocCharSlot and
 // func_800881B8 set it to 1), early-outs at 4 sharers and keeps the shared param-table row
 // index it counts out of the slot's mask, where func_800881B8 starts that row at 0.
+// PARKED 95.83%, 732 bytes / 183 insns = retail's exact .size (0x2DC) and instruction count.
+//   THE 95.99% BODY THIS REPLACES WAS WRONG CODE: its ladder was
+//   'if (arg1 < 3) sel = 0;' which selects sel = 8 when arg1>=3 && arg0>=3, while retail
+//   selects it when arg1<3 && arg0>=3. Read the branch sense off the .s, not the target:
+//   'sltiu v0,a2,3 ... sltiu v0,a0,3 / beqz v0,.L80087F58' with a2 = (u8)arg0 (from
+//   'addu s4,a0 / andi a2,s4,0xff') and a0 = (u8)arg1 means the branch is TAKEN when
+//   arg1>=3, with 'addu a0,zero,zero' in its delay slot => sel = 0 for arg1>=3 and
+//   sel = (arg0>=3)*8 for arg1<3. Round 521 had the two parameters swapped here, and the
+//   inverted arm scored 95.99 against the correct arm's 95.66 - objdiff cannot see it,
+//   which is why the sibling func_800881B8's ladder (0x18 iff arg1<3 && arg0>=3) is the
+//   corroborating witness.
+//   WHAT GOT 95.66 -> 95.83 AND THE FOUR MISSING INSTRUCTIONS BACK: the ladder written as
+//   a two-arm if/else with BOTH arms assigning sel -
+//       if (arg1 < 3) { sel = (arg0 >= 3) * 8; } else { sel = 0; }
+//   - instead of 'sel = (arg0>=3)*8; if (arg1>=3) sel = 0;'. The if/else makes cc1 emit
+//   retail's re-form of the arg1 offset after the join ('andi v1,a1,0xff / sll / subu /
+//   sll s1', the four instructions every earlier body was short of): with both arms
+//   writing sel, the pre-branch ofsB value is killed at the join and cse rematerialises
+//   it, exactly retail's 'sll s1,v0,0x2'. 716/179 -> 732/183, frame still 0x30 vs 0x28.
+//   REMAINING RESIDUAL, both placement, both named:
+//   (a) the ladder is emitted as two tests with a 'j' into the join where retail tests
+//       arg0 first and arg1 second with no extra jump, and the ofs register pair is
+//       s2/s1 swapped throughout (one register choice, ~80 diff lines).
+//   (b) the 0x30 frame / saved set 8 bytes higher than retail's 0x28 - independent of (a),
+//       the same two dead words as every earlier body here.
+//   Measured dead this round: the raw arrays instead of BattleSlotRecordByte at the compare
+//   (base hoist, 92.02), 'ofs = (u8)arg1 * 0x1C' with the compare inline (95.99, no
+//   re-form), sel as 'u8' derived only in one arm (95.66/95.99 family).
 /*
 void func_80087EDC(u8 arg0, u8 arg1) {
     s32 ofs;
@@ -1560,8 +1588,9 @@ void func_80087EDC(u8 arg0, u8 arg1) {
     if (BattleSlotRecordByte(arg0) == BattleSlotRecordByte(arg1)) {
         return;
     }
-    sel = (arg0 >= 3) * 8;
     if (arg1 < 3) {
+        sel = (arg0 >= 3) * 8;
+    } else {
         sel = 0;
     }
     ofs = arg1 * 0x1C;
@@ -1589,6 +1618,7 @@ void func_80087EDC(u8 arg0, u8 arg1) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc13", func_80087EDC);
+
 
 
 
