@@ -42,7 +42,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "tools", "scripts"))
 import twin_for  # noqa: E402
 
-COOLDOWN = 12
+# Round 535: the park class fell to 23 eligible entries of 281 while rounds 530-534
+# showed a re-briefed improved park is the best target there is (round 533 turned three
+# 40-round-stale parks into matches at retail's exact bytes). EVER still caps repeats,
+# and a park only re-emits when its measured percentage rose.
+COOLDOWN = 8
 EVER = 3
 BIG = 350
 ABBREV = {"battle": "b", "battling": "bt", "field": "f", "menu": "m", "world_map": "wm", "lib_gear": "lg",
