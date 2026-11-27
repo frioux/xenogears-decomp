@@ -237,6 +237,19 @@ INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box", func_8009C154);
    loop tail) but the other three fields still read off one register, and it
    costs the s8 spill. Nothing else to try from source short of loop.c's
    register-benefit model, so it stays a park.
+   Round 534: re-measured 81.50 (940 of 960) and -G0 81.50 (so the table base is
+   a pointer either way, not a gp question). The 20 missing bytes are NOT the two
+   calls alone: retail also re-forms &D_800AE1E0 + 1 as `addu a0,s1,s0` off a
+   `base + 1` register where this body reads `lbu a1,1(s0)` off the pEntries
+   pointer, and spells every D_800B00C8 store through `lui $at`, while this body
+   keeps that base in a register and hands it to ArchiveStartStreamQueue as
+   `move a0,s2`. So the whole residual is ONE phenomenon: this cc1 keeps bases in
+   registers that retail's rebuilds (7 addu + the walker's init for the two
+   calls, 1 for the pEntries re-form, the rest around the D_800B00C8 and
+   D_800AE1E0 bases). Same class as field/main/main.c FieldLoadUITextures;
+   levers.md a-duplicated-source-level-sum-is-folded-before-loop-c-sees-it
+   (round 530) proved -fno-rerun-cse-after-loop and -fno-strength-reduce both
+   leave that sibling byte-identical, i.e. source-unreachable.
 */
 /*
 s32 func_8009C154(s32 faceId) {
