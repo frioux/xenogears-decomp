@@ -781,6 +781,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 // `if (i != 7) {arg1 path} else {i==7 path}`; pBufs[i] must be stored through a source
 // pointer (`*(pSlot = pBufs + i) = pBuf;`); the tens digit must be one scalar local
 // `tensDigit = arg2[i] / 10` used in the ternary, not `arg2[i] % 10`.
+// ROUND 545: re-measured unchanged on un-park (91.86% / 996 bytes / 249 insns against retail's
+// 1008 / 252, frame 0x98, 115 differing lines), and closed two axes cheaply:
+// 6. -O LEVEL IS NOT IT: this body under gcc-2.6.0 -O1 scores 55.02 (round 493 already had
+//    2.7.2 82.35 and 2.7.2-cdk 74.51), so the residual is not a preset/-O question.
+// 7. THE HOIST IS NOT ATTACKABLE FROM THE SOURCE, so residual (1) stays terminal until the glyph
+//    merge changes: cse1 unifies every spelling of that address because each fold of
+//    `&tensRect` (`+ 0`, a cast through u8*/u16*, `[0]`, `&onesRect - 1`) collapses to the same
+//    `(plus sp 24)` rtx, and a pointer local is copy-propagated away (round 438). Retail must
+//    therefore have TWO separate 1-use address pseudos (it rematerialises at both sites on 9
+//    saved registers), which C cannot express here. The frame and the glyph tail are one axis:
+//    reload spills at the i!=7 tens site only because that arm carries one live value MORE than
+//    the i==7 arm (its arg1 is still live there), and the glyph arm's shape sets the pressure.
 /*
 void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT glyphRect;
