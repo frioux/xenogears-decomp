@@ -1134,6 +1134,17 @@ extern void BattleSnapActorToGround(BattleActor *);
 // 0xFE / 0xC0 in $s4/$s5/$s6 against retail $s5/$s6/$s7) and $s7 falls to pHeader where retail
 // has it in $s1. The only source that would make mode call-crossing-live is one that uses it
 // after func_8002DDE4, and nothing in the body does: that is the blocker, not a spelling.
+// ROUND 544 re-measured 90.05% / 2400 bytes / 600 instructions (the parked body is live and
+// correct). Two NEW spellings on the +4 scan hole (1) above, both trying to stop cc1 forwarding
+// the `D_800C3B6C = 0` store into the loop's entry test, both WORSE:
+//   `extern volatile s32 D_800C3B6C;`           -> 89.44 / 2420 bytes / 605 insns. It does
+//   remove the peeled `lw D_800C3ACC` entry test but the volatile increment and the two later
+//   reads re-load around every store, +5 net.
+//   `D_800C3ACC[*(volatile s32 *)&D_800C3B6C]` (volatile read in the test only) -> 89.77 /
+//   2412 / 603. The peel is gone and the loop is entered by `j <head>`, but cc1 then keeps the
+//   incremented index in a register the loop test cannot use, +3 net.
+// So the scan's +4 is reachable only by a source that blocks the forward AND keeps the other
+// three holes; with the register hand-out also unreachable (above) this function is a park.
 /*
 void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23ModelBuffer *pModelBuffer, s16 arg4,
                    s16 arg5, s16 arg6, s16 arg7, s16 *pSpawnPos) {
