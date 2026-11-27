@@ -835,6 +835,7 @@ s32 BattleEffectPackKey(s32 a0, s32 a1, s32 a2, s32 a3) {
 // 0x6C u32 unk6C / 0x70 u16 unk70 / 0x72 s16 drawFlags for the type-1 line quad - the
 // union over 0x6C..0x73 that both views need (line: u32 partner, u16 spawnTick, s16
 // drawFlags; beam: s16 drawFlags, u16 pad6E, u32 key) is still not written.
+// PARK 90.81% (round 501 measure reproduced round 529), 564 bytes / 141 insns = retail's exact size and count. Round 529 re-measured the two shapes the note left open and both are dead: moving 'pSlot->unk6A = g_BattleEffectSpawnTick; pSlot->unk68 = pVec->vz;' down to retail's store position (after 'pSlot->unk60 = 0;') reads 86.91% / 48 differing lines, i.e. it takes the loads down with it - the loads must stay above the u byte-pair group while the stores sit below the v group, which no source order expresses. RESIDUAL, unchanged and now fully named: (1) retail computes arg0*4 into v1 ('sll v1,a0,0x2', arg0 still live) and loads g_BattleEffectSpawnTick into a0, ours computes it into a0 ('sll a0,a0,0x2') and puts spawnTick in v1, so the addu operands swap with it; (2) that frees retail's delay slot after 'lw v0,0(a2)' for 'addiu t1,t0,40' (pMotion = &packets[0]) where ours emits the sll, and retail forms 'addiu t2,t0,32' after the clutY lbu where ours emits 'sw a3,112' and 'move a2,t0'; (3) our 0x6A/0x68 stores land between the u and v byte groups, retail's after the v group. First scan's anchor is relocation-only (we name g_BattleEffectSlots+0x6C, retail names D_80092B44, same linked bytes). Preset screens from the earlier rounds stand (2.6.0 84.5x, cdk does not compile the body, -G0 no change, -O3 cc1 rejects).
 /*
 void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     BattleSlot *pSlot = g_BattleEffectSlots;
@@ -907,6 +908,7 @@ void func_8007CD44(s32 arg0, VECTOR *pPos, VECTOR *pVec, u32 arg3) {
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc5", func_8007CD44);
+
 
 
 
