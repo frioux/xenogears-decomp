@@ -224,6 +224,11 @@ extern void func_80026F44(s32 count, s32 level, u16* pDst, u16* pSrc);
 // the pair can only flip if h's term is 0 too, which needs h referenced once,
 // which the rect.h store forbids. That is the levers.md quotient verdict
 // (a-global-allocno-priority-is) applied to this body: stop permuting it.
+// Round 546 audit: re-measured 99.59% / 532 bytes / 133 insns, same 8 differing
+// lines. A `do { } while (0)` around the four rect stores is 96.05% / 22 lines (it
+// sinks the D_800C3A48 reload below the stores, so the barrier only perturbs the
+// block, it does not re-rank the pair), and a FOURTH permuter run is
+// PERMUTER_NONE base=25 best=25 over 1481 iterations. Parked for good.
 /*
 void func_800871B0(void) {
     u8 command = SCRIPT_READ_U8_REL(1);
