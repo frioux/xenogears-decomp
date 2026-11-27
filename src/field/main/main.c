@@ -88,6 +88,20 @@ extern FieldUITextureRect D_800ADC44[];
 // FIELD symbols D_800B004E/50/52 - our struct spelling reaches those by folding, and the store order
 // differs only because reorg fills the loop's bnez slot with `li v0,0xFB`. Retail's object also carries
 // a dead `addiu s1,s1,-4` in the StoreImage delay slot that no C emits.
+// ROUND 530 re-measure: unparked and diffed, still exactly 88.91% / 432 bytes / 108 insns, so the number above is current.
+// ROUND 530 also cleared four more spellings of residual 2, all still ONE addu and all worse: the typed
+// form 'D_800ADC44[i].y/.clutX/.clutY/.clutWidth' kept alongside the pX/pHeight walkers is 80.39% / 452
+// bytes / 113 insns (it loses a saved word, frame 56) and 83.14 under -G0; the same four reads behind a
+// 'static inline s16 FieldUITextureHalf(u8* pBase, s32 offset, s32 disp)' helper is 85.75% with 61 diff
+// lines (cse folds the sum anyway). cc1 probes on this live body: -fno-rerun-cse-after-loop and
+// -fno-strength-reduce both leave FieldLoadUITextures BYTE-IDENTICAL (they do change other functions in
+// the unit), so the three missing adds are not a pass a flag switches off. The mechanism, for the next
+// lane: under -G8 cc1 keeps 'D_800ADC44 + index' as a symbolic MEM operand ('lh v0,D_800ADC44+2(s0)')
+// and never forms a register-register sum for loop.c to duplicate, while retail's four sums come from a
+// source-level 'base + offset' that cse1 folds here before loop.c sees it. Coupling worth recording: even
+// with the four adds, base's ref count only reaches about 8 (priority 3*8/76 = 0.32) against pX's
+// 2*7/34 = 0.41, so base would still land 5th - retail's own six-register hand-out is not predicted by
+// the refs/live formula either, i.e. residual 1 is not a ref-count question. Park stands.
 /*
 void FieldLoadUITextures(void) {
     u8* pBase;
@@ -135,6 +149,7 @@ void FieldLoadUITextures(void) {
     HeapFree(g_GameUITextureFileBuffer);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/main", FieldLoadUITextures);
+
 
 
 
