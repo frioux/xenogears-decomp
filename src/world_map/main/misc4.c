@@ -775,6 +775,19 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
        - the plain order (jx store, jx updates, then `rand()`): 85.71%/1592.
      So the remaining difference is sched2's choice of load grouping, not a source shape:
      below the 99% permuter gate, park it.
+   NAMED CAUSE OF THE MISSING HOIST (round 531): in BOTH arms retail's FIRST global load
+     (D_8009BD48 in case 4, D_8009BD42 in case 5) is issued BEFORE the pathFrame store -
+     `lhu v1,0(s0); lhu a1,0xA0(s3); lui/lhu D_8009BD48; lhu a2,0xA0(s3)`, i.e. that global
+     load is what fills the second volatile load's delay slot - while every LATER global load
+     sits at its own statement. `sh 0(s0)` is a store through a pointer that may alias the
+     globals, so cc1 cannot hoist a global load above it: by levers.md's
+     l-a-field-read-early-in-retail-that-ours-does-late-is-a-source-local the read was a
+     statement of its own. Measured this round: `acc42 = D_8009BD42;` placed just before the
+     pathFrame update in case 5 is BYTE-IDENTICAL to the plain body (85.84%/1592, same 223
+     differing lines) - cc1 forwards the single use into the `+=` and the load goes back to
+     its statement, so the local has to be live across something for the order to hold.
+     Re-measured round 531 from scratch (un-park, whole first diff read): 85.84% /
+     1592 bytes / 398 insns against retail's 1588 / 397, the note's number reproduces exactly.
    Register numbering is fully determined by the three points above; do not re-hunt it. */
 /*
 s32 func_80078EA4(s32 index) {
