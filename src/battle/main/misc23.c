@@ -1112,6 +1112,22 @@ extern void BattleSnapActorToGround(BattleActor *);
 // reuses `mode` for a UV constant), but it proves `mode`'s LIVE LENGTH is load-bearing: the
 // pseudo it makes lives across the mesh/skeleton calls and the whole hand-out moves toward
 // retail's map. That is the axis to permute from next, not declaration order.
+// ROUND 533 re-unparked and re-measured this body: 90.05% / 2400 bytes / 600 instructions,
+// i.e. the note below is not stale and the body still compiles. Two NEW spellings on the
+// mode axis, both 603 instructions / 2412 bytes / 89.93% / 490 differing lines, worse:
+//   if ((flags & 0x40) == 0) { mode = ...; } else { mode = 0; }   and the one-statement
+//   ternary  mode = (flags & 0x40) ? 0 : (pActor->flags4A & 0x4) == 0;
+// are byte-identical to each other and both make cc1 emit srl 2 / xori 1 / andi 1 plus a dead
+// move v0,zero and a move a1,v0. So the default-before-if form above is the best one, and the
+// round-521 "default into the else arm" lever does NOT hold for this body.
+// WHY mode IS THE HAND-OUT, read off retail own stream: retail sltiu s4,v0,1 then
+// sll a1,s4,0x10 / sra a1,a1,0x10 says mode is a 16-bit variable that SURVIVES A CALL - it is
+// given a callee-saved register for a two-reference pseudo whose def and use are in one block -
+// and retail then reuses that same $s4 for the poly loop counter (move s4,zero, addiu s4,s4,1).
+// Ours folds mode into $a1, so every poly-loop constant sits one register lower (ours 0xB8 /
+// 0xFE / 0xC0 in $s4/$s5/$s6 against retail $s5/$s6/$s7) and $s7 falls to pHeader where retail
+// has it in $s1. The only source that would make mode call-crossing-live is one that uses it
+// after func_8002DDE4, and nothing in the body does: that is the blocker, not a spelling.
 /*
 void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23ModelBuffer *pModelBuffer, s16 arg4,
                    s16 arg5, s16 arg6, s16 arg7, s16 *pSpawnPos) {
@@ -1309,6 +1325,7 @@ void func_800A8BF0(s32 slot, u16 flags, Misc23PartBuffer *pPartBuffer, Misc23Mod
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A8BF0);
+
 
 
 
