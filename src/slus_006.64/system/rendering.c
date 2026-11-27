@@ -139,6 +139,13 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 //      (retail pFrameData s0 / pEntry s2 / entryFlags s1 vs this body s2 / s1 / s0).
 //    Measured this round, do not redo: gcc-2.6.0 on this body 86.30 (worse, so not
 //    the preset); the pre-reorder body sat at 83.99/1436/359 insns.
+// PARK 92.72% (1440 bytes; retail 1452, 360 vs 363 insns, frame 0x78 vars=64 vs retail 0x68 vars=48). Round 530 found a REAL lever the round-505 note had written off as 'scheduler-shaped': the field_0x36 multiply is a SOURCE TEMPORARY. Writing
+//      scaled36 = pBlock[3] * pSpriteData->scale;   (before the flags block)
+//      pSpriteData->field_0x36 = scaled36 / 0x1000; (after the pOwner store)
+//    reproduces retail's 13-instruction gap between the mult and its mflo (mult, whole flags block, pFrameData load, sw s5,0x38(sp), then mflo/bgez/sra/sh 0x36). 86.75 -> 92.72% at the same 1440 bytes / 360 insns, differing lines 385 -> 319. So gcc does emit mult and mflo adjacently and retail's gap is source order, not a scheduling pass: do not re-test -fschedule-insns.
+//    REMAINING RESIDUAL, one construct: the SPILL SLOTS. Our eight values each take an 8-byte, 8-aligned slot (0x10,0x18,0x20,...,0x48) so vars=64 and the frame is 0x78; retail packs the same eight values into 48 bytes at 0x10 pFrames, 0x14 pOffsets, 0x18 texY, 0x20 defaultMode, 0x28 color, 0x2C count, 0x30 unkFlag, 0x38 the second pSpriteData pseudo. Retail's ALLOCATION ORDER also differs (texY/defaultMode/color before count/unkFlag). Measured this round: 4-mod-8 vars slots are reachable from C in this compiler (372 functions in the tree have them, e.g. battle/misc31 vars=64 with slots 20,36,52,68), and a probe of 20 ints live across calls gets 8-aligned 8-byte slots, so the align-4 path is some pseudo mode / allocation path we have not identified. That frame difference is what keeps the whole s-register map one place off (430 differing lines in round 491).
+//    Preset screened this round on the 92.72 body: gcc-2.6.0 91.23%, gcc-2.7.2-cdk 91.91% - both below the unit compiler, so XenoRendering is right.
+//    Still 3 instructions short of retail (360 vs 363); not yet localised.
 /*
 void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u32 i;
@@ -166,10 +173,11 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     u32 color;
     s16 rotZ;
     SpriteData* pOwner;
+    s32 scaled36;
 
     pFrames = pAnimPackage->pFrames;
     pBlock = (u8*)((mem_addr)((u16*)pFrames)[index] + (mem_addr)pFrames);
-    pSpriteData->field_0x36 = pBlock[3] * pSpriteData->scale / 0x1000;
+    scaled36 = pBlock[3] * pSpriteData->scale;
     flags = *pBlock;
     unkFlag = flags & 0x80;
     count = flags & 0x3F;
@@ -177,6 +185,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pEntry = pBlock + (count * 2 + 4);
     pFrameData = pSpriteData->pBase->pCurRenderFramesData;
     pOwner = pSpriteData;
+    pSpriteData->field_0x36 = scaled36 / 0x1000;
     pSpriteData->field_0x38 = pBlock[1] * pSpriteData->scale / 0x1000;
     texY = (u8)pAnimPackage->tex.y;
     defaultMode = *(u8*)((u8*)pSpriteData + 0x3C) >> 5;
@@ -296,6 +305,7 @@ void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimP
     pSpriteData->field_0x40 = (pSpriteData->field_0x40 & ~0xFC) | ((i & 0x3F) << 2);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001D53C);
+
 
 
 
