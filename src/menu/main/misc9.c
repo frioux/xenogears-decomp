@@ -124,7 +124,7 @@ void MenuSetPrimShadingMode(POLY_FT4* pPoly, u_char mode);
 void func_801E8F60(s32 mode, u_char index);
 u16 MenuAndBitMaskLsbFirst(u32 mask, u8 index);
 void MenuPlaySoundEffect(u_char soundEffectId);
-s32 func_801D9704(s32 slot, u_char direction, u_char arg2);
+s32 MenuStepPartySlot(s32 slot, u_char direction, u_char arg2);
 void func_801DA5BC(s32 arg0);
 void MenuBuildItemPrims(s32 arg0, s32 arg1);
 void MenuSetAllPrimsShadingMode(s32 arg0);
@@ -348,10 +348,10 @@ u8 func_801DB920(s32 arg0, s32 arg1) {
             result = 0;
             break;
         case 1:
-            slot = func_801D9704(slot, 0, 0);
+            slot = MenuStepPartySlot(slot, 0, 0);
             break;
         case 3:
-            slot = func_801D9704(slot, 1, 0);
+            slot = MenuStepPartySlot(slot, 1, 0);
             break;
         }
     }
@@ -1410,12 +1410,12 @@ void func_801DD790(u_char arg0, s32 arg1, u_char arg2) {
             break;
         case 1:
             if (group == 0) {
-                charSlot = func_801D9704(charSlot, 0, 0);
+                charSlot = MenuStepPartySlot(charSlot, 0, 0);
             }
             break;
         case 3:
             if (group == 0) {
-                charSlot = func_801D9704(charSlot, 1, 0);
+                charSlot = MenuStepPartySlot(charSlot, 1, 0);
             }
             break;
         }
@@ -1533,7 +1533,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DD790);
    `kind = arg2 & 0xFF` (reproduces retail's lw compare but 90.28 / 892 bytes), a
    preheader `s32 mode = 4;` passed as a7 (93.80 / 888, 4 over), and permuter
    4 min from the 94.46 body: PERMUTER_BETTER 4368 -> 270, but the winner passes
-   needsOpen where retail passes 0 (func_801D9704's direction and
+   needsOpen where retail passes 0 (MenuStepPartySlot's direction and
    MenuFreeArrowCursor's index) - wrong code, rejected. Preset screen: gcc-2.7.2
    scores 94.81 here but the unit cannot switch (under it
    MenuFitInventoryWindowToItems 96.00, MenuBuildUnk430PanelColumns 98.87,
@@ -1730,10 +1730,10 @@ void func_801DDF24(u_char arg0, u_char arg1, s32 arg2) {
             }
             break;
         case 9:
-            slot = func_801D9704(slot, 0, arg2);
+            slot = MenuStepPartySlot(slot, 0, arg2);
             break;
         case 10:
-            slot = func_801D9704(slot, 1, arg2);
+            slot = MenuStepPartySlot(slot, 1, arg2);
             break;
         }
     } while (active);
@@ -2797,15 +2797,15 @@ void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
                 }
                 break;
             case MENU_INPUT_NEXT:
-                if (func_801D9704(arg0, 0, kind) != arg0) {
-                    arg0 = func_801D9704(arg0, 0, kind);
+                if (MenuStepPartySlot(arg0, 0, kind) != arg0) {
+                    arg0 = MenuStepPartySlot(arg0, 0, kind);
                     group = 0;
                     needsPanel = 0;
                 }
                 break;
             case MENU_INPUT_PREV:
-                if (func_801D9704(arg0, 1, kind) != arg0) {
-                    arg0 = func_801D9704(arg0, 1, kind);
+                if (MenuStepPartySlot(arg0, 1, kind) != arg0) {
+                    arg0 = MenuStepPartySlot(arg0, 1, kind);
                     group = 0;
                     needsPanel = 0;
                 }

@@ -60,7 +60,7 @@ extern u16 g_WorldMapPathFrame;
 extern u16 D_8009BD42[];
 extern u16 D_8009BD4A;
 extern int rand(void);
-extern void func_80096F18(void *, void *, s32, void *);
+extern void WorldMapBuildPathFrame(void *, void *, s32, void *);
 
 /* This unit exists to hold this function's 65-word jump table: the table must sit
    at overlay 0x6F0, and misc6's .rodata starts at 0x29C, so there it would land at
@@ -281,7 +281,7 @@ int WorldMapUpdateCameraSlot(int index) {
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
     }
     switch (pActor->state) {
     case 1:

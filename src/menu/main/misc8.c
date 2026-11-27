@@ -36,11 +36,11 @@ extern s32 D_801E9D84; // Y offset of the stat bar value digits
 extern CdlCB g_MenuSavedCdSyncCallback;
 extern CdlCB g_MenuSavedCdReadyCallback;
 extern CdlCB g_MenuSavedCdReadCallback;
-extern u8 D_801EA574[];
+extern u8 g_MenuSoundModeStringIds[];
 extern u8 g_MenuGlyphSjisTable[]; // Glyph id of each character's name strip
 extern u16 D_801E9D88[][2]; // Y offset of each equipment row of the equipment panel
 extern s32 g_MenuNameTextureX[];
-extern u8 D_801E9F88[];
+extern u8 g_MenuSubMenuRowXOffsets[];
 extern s32 g_MenuShoulderButtonIconTexIds[]; // String IDs of the menu scroll bar textures
 extern s32 g_MenuStatRowLabelOffsetX[]; // X offset of each stat row of the stat table
 extern s32 g_MenuStatRowLabelOffsetY[]; // Y offset of each stat row of the stat table
@@ -673,7 +673,7 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc8", func_801D8EA4);
 // Steps the character cursor one slot in `direction` (0 down, 1 up) and returns
 // the first slot it lands on that `gearScreen` selects: an assigned character
 // (currentCharacterIDs) or a live gear screen (isGearScreenActive).
-s32 func_801D9704(s32 slot, u_char direction, u_char gearScreen) {
+s32 MenuStepPartySlot(s32 slot, u_char direction, u_char gearScreen) {
     switch (direction) {
     case 0:
         while (1) {
@@ -709,7 +709,7 @@ s32 func_801D9704(s32 slot, u_char direction, u_char gearScreen) {
 
 
 
-s32 func_801D9808(void) {
+s32 MenuRunSoundModeMenu(void) {
     u_char quit = 1;
     u_char firstPass = 1;
     u_char accepted = 0;
@@ -718,7 +718,7 @@ s32 func_801D9808(void) {
     do {
         MenuRenderFrame();
         if (firstPass != 0) {
-            MenuLoadStringsFromIds(4, g_Menu->unk1BE0, D_801EA574, g_Menu->pManager->shouldRenderStrings1BE0);
+            MenuLoadStringsFromIds(4, g_Menu->unk1BE0, g_MenuSoundModeStringIds, g_Menu->pManager->shouldRenderStrings1BE0);
             func_801E86C8(0);
             g_Menu->subMenuPrevChoice = 0xFF;
             switch (SoundGetVolumeMode()) {
@@ -736,7 +736,7 @@ s32 func_801D9808(void) {
             firstPass = 0;
         }
         if (g_Menu->subMenuChoice != g_Menu->subMenuPrevChoice) {
-            MenuSetRowQuadVertices(6, g_Menu->unk1BE0, g_MenuNameTextureX, D_801E9F88, g_Menu->pManager->shouldRenderStrings1BE0,
+            MenuSetRowQuadVertices(6, g_Menu->unk1BE0, g_MenuNameTextureX, g_MenuSubMenuRowXOffsets, g_Menu->pManager->shouldRenderStrings1BE0,
                           g_Menu->subMenuChoice, 7, 0);
             MenuSetSubMenuChoicePrims(0);
             g_Menu->subMenuPrevChoice = g_Menu->subMenuChoice;

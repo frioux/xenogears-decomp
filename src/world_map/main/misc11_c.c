@@ -87,7 +87,7 @@ typedef struct {
 
 extern WorldMapActor *g_WorldMapSlots;
 extern s32 g_WorldMapMode;
-extern s16 D_8009BD04;
+extern s16 g_WorldMapZoneEntryCount;
 extern WorldMapEntry D_8009BE6C[];
 extern s16 D_8009B18C[];
 extern s16 D_8009B194[];
@@ -99,7 +99,7 @@ extern void *g_WorldMapCharacter2AnimFiles;
 extern void WorldMapWrapDeltaScaled(WorldMapPos *);
 extern s32 SquareRoot0(s32);
 
-extern s32 func_8008C364(WorldMapActor *, s32);
+extern s32 WorldMapInitPartyActorSlot(WorldMapActor *, s32);
 extern void WorldMapInitSpriteGroupSprites(s32, void *, void *);
 extern void WorldMapGetGameStatePosition(void *);
 extern void WorldMapDeactivateSpriteGroup(s32);
@@ -132,7 +132,7 @@ extern s32 func_80095414(s32 *, s32 *, s32 *, s32, s32);
 extern s32 WorldMapSelectAreaAtPosition(WorldMapPos *, s32);
 extern void WorldMapUpdateRandomTimers(void);
 extern s32 g_WorldMapQueuedCharacterCount;
-extern u16 D_8009B180[];
+extern u16 g_WorldMapZoneTrailFlags[];
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern u8 g_WorldMapZoneId;
@@ -152,7 +152,7 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 // to the case-5 block, not to case 3's.
 // The two volatile stores in case 7 are load-order pins - without them cc1's scheduler
 // hoists both global loads above 'unk24 = 0' and stores x after the Z load.
-s32 func_8008C364(WorldMapActor *pActor, s32 index) {
+s32 WorldMapInitPartyActorSlot(WorldMapActor *pActor, s32 index) {
     s32 kind = g_GameState.partyMembers[index] != CHARACTER_ID_NONE;
     s32 result = 1;
 
@@ -211,7 +211,7 @@ s32 func_8008C364(WorldMapActor *pActor, s32 index) {
 // the mode load and the gear arm's stores sink into the position loads.
 s32 WorldMapInitPartyActorTrail(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    s32 result = func_8008C364(pActor, 0);
+    s32 result = WorldMapInitPartyActorSlot(pActor, 0);
     WorldMapTrail *pTrail;
     s32 mode;
     s32 i;
@@ -264,7 +264,7 @@ done:
 
 int WorldMapModeInitPartyActor0(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    s32 result = func_8008C364(pActor, 0);
+    s32 result = WorldMapInitPartyActorSlot(pActor, 0);
     s32 mode = g_WorldMapMode;
 
     if (mode > 0) {
@@ -296,7 +296,7 @@ int WorldMapInitPartyActorSprite0(int index) {
     pActor->angle = *(u16 *)&g_GameState.partyActorAngles[0];
     return 1;
 }
-int func_8008C844(int index) {
+int WorldMapUpdatePartyActorTrail(int index) {
     s32 result = 1;
     s32 *pScratch = (s32 *)0x1F800000;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -327,7 +327,7 @@ int func_8008C844(int index) {
         if (g_WorldMapQueuedCharacterCount == pActor->trailDelay) {
             pActor->state = 1;
             g_WorldMapMode = 2;
-            D_8009BD04 = 0;
+            g_WorldMapZoneEntryCount = 0;
         }
         break;
     case 8:
@@ -385,7 +385,7 @@ int func_8008C844(int index) {
                     if (g_WorldMapZoneId == 7) {
                         j += 3;
                     }
-                    if (D_8009B180[j] != 0) {
+                    if (g_WorldMapZoneTrailFlags[j] != 0) {
                         *(WorldMapVec *)&pActor->x = *(WorldMapVec *)&pScratch[0x24];
                         if ((pActor->dirX | pActor->dirZ) != 0) {
                             i = (g_WorldMapTrailCursor + 1) & 0x1F;
@@ -408,7 +408,7 @@ int func_8008C844(int index) {
                 g_WorldMapPlayerAngle = pActor->angle;
                 break;
             }
-            D_8009BD04 = 0;
+            g_WorldMapZoneEntryCount = 0;
         } else {
             if (pActor->pSprite->animId != 3) {
                 SpritePlayAnimation(pActor->pSprite, 3);
@@ -615,7 +615,7 @@ int func_8008C844(int index) {
 // 304 bytes, so only the order tells.
 int WorldMapInitPartyActor1(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    s32 result = func_8008C364(pActor, 1);
+    s32 result = WorldMapInitPartyActorSlot(pActor, 1);
     s32 mode;
 
     // volatile: keeps these three above the angle and mode loads, as retail has them
@@ -654,7 +654,7 @@ int WorldMapInitPartyActor1(int index) {
 
 int WorldMapModeInitPartyActor1(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    s32 result = func_8008C364(pActor, 1);
+    s32 result = WorldMapInitPartyActorSlot(pActor, 1);
     s32 mode = g_WorldMapMode;
 
     if (mode > 0) {

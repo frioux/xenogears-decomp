@@ -22,7 +22,7 @@ typedef struct {
     /* 0x0 */ s32 sector;
     /* 0x4 */ u32 size;
     /* 0x8 */ u8 *dest;
-    /* 0xC */ u8 payload[0x18]; // CD read destination, streamed by func_80096C0C
+    /* 0xC */ u8 payload[0x18]; // CD read destination, streamed by WorldMapCdReadyCallback
 } Misc15CdRequest; // Size: 0x24
 
 // One entry of a request's payload: the cursor walks these 0xC bytes at a time
@@ -82,7 +82,7 @@ extern s32 D_8009CCB0;
 extern s32 g_WorldMapCdReadErrorCount;
 extern s32 g_WorldMapCdRetryCount;
 extern void WorldMapCdReadCallback(s32 mode, u8 *pResult);
-extern void func_80096C0C(s32 mode, u8 *pResult);
+extern void WorldMapCdReadyCallback(s32 mode, u8 *pResult);
 extern s32 g_WorldMapCdSectorBuffer;
 extern s32 D_8009BCD0;
 extern s32 D_8009BCD4;
@@ -177,7 +177,7 @@ void WorldMapCdReadCallback(s32 mode, u8 *pResult) {
             D_8009BCD4 = 0;
             D_8009BCD0 = 0;
             g_WorldMapCdSectorBuffer = 0;
-            CdReadyCallback(func_80096C0C);
+            CdReadyCallback(WorldMapCdReadyCallback);
             CdControlF(CdlReadS, NULL);
             break;
         case 3:
@@ -217,7 +217,7 @@ void WorldMapCdReadCallback(s32 mode, u8 *pResult) {
         }
     }
 }
-void func_80096C0C(s32 mode, u8 *pResult) {
+void WorldMapCdReadyCallback(s32 mode, u8 *pResult) {
     CdlLOC *pLoc;
     Misc15CdChunk *pChunk;
     CdlLOC *pSectorLoc;
@@ -306,7 +306,7 @@ extern SVECTOR D_1F8000A0;
 // WORLD_MAP_ROT_VECTOR like its neighbours makes cse keep the whole address in $s3 and
 // form it in the prologue instead of retail's `lui $at,0x1F80` + late `ori $s3` (96.91%),
 // so it stays the one symbol store. Everything else is instruction-identical.
-void func_80096F18(Misc15Frame *pOut, WorldMapPos *pTarget, s32 height, u16 *pAngles) {
+void WorldMapBuildPathFrame(Misc15Frame *pOut, WorldMapPos *pTarget, s32 height, u16 *pAngles) {
     MATRIX *pMtx;
     s16 *pScratch;
 
@@ -632,7 +632,7 @@ extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
 
 extern u8 *g_WorldMapTexturePackData;
 extern u8 g_WorldMapColorFactors[];
-extern u16 D_8009CCB4[];
+extern u16 g_WorldMapTileClutIds[];
 extern u16 g_WorldMapTpageIds[];
 extern u16 g_WorldMapTpageIds2[];
 
@@ -654,7 +654,7 @@ void WorldMapLoadClutAndTpageIds(void) {
     HeapFree(pData);
     HeapFree(g_WorldMapTexturePackData);
     i = 0;
-    pClut = D_8009CCB4;
+    pClut = g_WorldMapTileClutIds;
     pData = HeapAlloc(0x400, 1);
     pDst = HeapAlloc(0x8000, 1);
     rect.x = 0;

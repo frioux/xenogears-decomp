@@ -20,9 +20,9 @@ extern u8 g_MenuStatBarDeltaSignTexId;
 extern CdlCB g_MenuSavedCdSyncCallback;
 extern CdlCB g_MenuSavedCdReadyCallback;
 extern CdlCB g_MenuSavedCdReadCallback;
-extern u8 D_801EA574[];
+extern u8 g_MenuSoundModeStringIds[];
 extern u8 g_MenuNameTextureX[];
-extern u8 D_801E9F88[];
+extern u8 g_MenuSubMenuRowXOffsets[];
 extern s32 g_MenuShoulderButtonIconTexIds[]; // String IDs of the menu scroll bar textures
 
 void MenuSetupPointerCursors(s32 arg0);

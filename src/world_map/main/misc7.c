@@ -215,7 +215,7 @@ extern s16 g_WorldMapViewRotation[] __asm__("g_WorldMapViewRotationY");
 extern s16 g_WorldMapViewRotationZTable[] __asm__("g_WorldMapViewRotationZ");
 extern u16 D_8009BD42[];
 extern u16 D_8009BD4A;
-extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void WorldMapBuildPathFrame(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void SoundRemoveSedsEntry(void *p);
 extern void WorldMapFreeTileAnimEntries(void);
 extern void WorldMapFreeFrameAnimEntries(void);
@@ -733,7 +733,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800813E8);
 
 
 // Best: 89.94%, 620 bytes = retail's exact size, 155 instructions = retail's own.
-// The command switch, the clamp-and-ease chain, the func_80096F18 call and the rand tail
+// The command switch, the clamp-and-ease chain, the WorldMapBuildPathFrame call and the rand tail
 // decode to retail's instructions. Four finds this round, all in the body below:
 // (1) the command switch needs THREE case labels: case 2 and case 3 with empty bodies root
 // cc1's balanced case tree at the middle value and reproduce retail's beq-2 / slti-3 /
@@ -832,7 +832,7 @@ s32 func_80081470(s32 index) {
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
     }
     if (pSlot->state == 1) {
@@ -1469,7 +1469,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc7", func_800827EC);
 // gcc-2.7.2-cdk rejects the unit's flags. 2.6.0 still breaks three functions already matched
 // here (WorldMapInitSlotAtScrollPosition 95.00, WorldMapBeginSlotAnimFrame 95.26,
 // WorldMapUpdateSlotColorFade 96.81), so the unit is not a 2.6.0 unit.
-// Round 430/445 findings kept: forming pScrollTargetX once between the func_80096F18 call and
+// Round 430/445 findings kept: forming pScrollTargetX once between the WorldMapBuildPathFrame call and
 // the state switch gives retail's prologue/epilogue; forming it inside case 11 or at the top of
 // the function loses the third saved register (72.21 / 74.10). Load-bearing spellings, do not
 // simplify: the ViewRotationY/Z stores must be volatile (else gcc folds the later `<< 12` to an
@@ -1643,7 +1643,7 @@ s32 func_800828DC(s32 index) {
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       (u16 *)&g_WorldMapCameraRot);
     }
     pScrollTargetX = &g_WorldMapScrollTargetX;

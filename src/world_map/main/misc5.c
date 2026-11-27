@@ -111,7 +111,7 @@ extern WorldMapPos g_WorldMapCameraTargetTriple __asm__("g_WorldMapCameraTarget"
 extern s16 g_WorldMapViewRotationY;
 extern s16 g_WorldMapViewRotationZ;
 // the two offsets accumulated by the random jitter below: [0] the path frame
-// func_80097244 builds the view matrix from, [1] the one func_80096F18 fills
+// func_80097244 builds the view matrix from, [1] the one WorldMapBuildPathFrame fills
 extern SVECTOR g_WorldMapPathFrame[];
 extern u16 D_8009BD42;
 extern u16 D_8009BD44;
@@ -124,7 +124,7 @@ extern s32 D_8009BD58;
 extern WorldMapTrackPoint g_WorldMapCameraPathPoints[];
 extern void WorldMapWrapDelta(void *pVec);
 extern MATRIX g_WorldMapViewMatrix;
-extern void func_80096F18(void *, void *, s32, void *);
+extern void WorldMapBuildPathFrame(void *, void *, s32, void *);
 extern void func_80097244(s32 *pPos);
 extern int rand(void);
 extern s32 g_WorldMapFadeLevel;
@@ -341,7 +341,7 @@ int WorldMapInitActorScrollScale(int idx) {
 // func_8007C3B8/func_8007C7D8). Structure is settled and matches retail block for block:
 // the first switch is command-1 over 7 cases with gcc cross-jumping case 0/4/6 into one
 // "command = 0; state = N" block, the second switch is state over 6 cases in which
-// func_80096F18 is called per case (0,1,2,3,5) and case 4 has its own tail that jumps past
+// WorldMapBuildPathFrame is called per case (0,1,2,3,5) and case 4 has its own tail that jumps past
 // it, and the jitter epilogue reads the two scratchpad halfwords twice each.
 // THE BYTE-COUNT FIX THIS ROUND (1076 -> 1068): retail reaches g_WorldMapCameraTargetZ
 // through an address kept in $a2 (lui+addiu, then lw 0(a2), sw 0(a2) in the beqz delay
@@ -431,7 +431,7 @@ int func_8007ADD4(s32 idx) {
     }
     switch (pPlayer->state) {
     case 0:
-        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
         break;
     case 1:
@@ -440,7 +440,7 @@ int func_8007ADD4(s32 idx) {
             pPlayer->unk50 = 0x8000;
             pPlayer->state = 0;
         }
-        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
         break;
     case 2:
@@ -449,7 +449,7 @@ int func_8007ADD4(s32 idx) {
             pPlayer->unk50 = 0x8000;
             pPlayer->state = 0;
         }
-        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
         break;
     case 3:
@@ -458,7 +458,7 @@ int func_8007ADD4(s32 idx) {
             pPlayer->unk50 = 0x1000;
             pPlayer->state = 0;
         }
-        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
         break;
     case 4:
@@ -483,7 +483,7 @@ int func_8007ADD4(s32 idx) {
         if (*pViewRotationY > 0x600) {
             pPlayer->state = 0;
         }
-        func_80096F18(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame[0], &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
         break;
     }
@@ -1132,7 +1132,7 @@ int WorldMapSnapCameraToPlayer(int idx) {
 // offset of that section. Same verdict as func_8007C3B8 (99.95%) and func_8007ADD4
 // in this unit.
 // BODY STATE: structure mirrors retail block for block - first switch over command-1
-// (6 cases, case 4 empty), func_80096F18 called once after it under
+// (6 cases, case 4 empty), WorldMapBuildPathFrame called once after it under
 // !g_WorldMapRotationMatrixValid, second switch over state 0..6 with cases 2 -> 1 -> 0
 // falling through and 3/4/5 jumping to case 0 head. state >= 7 skips straight to the
 // rand epilogue, spelled `default: goto skipPath;`: the earlier park left pPoint
@@ -1221,7 +1221,7 @@ s32 func_8007C7D8(s32 idx) {
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        func_80096F18(g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       &g_WorldMapCameraRot);
     }
     switch (pPlayer->state) {

@@ -175,7 +175,7 @@ typedef struct {
 
 
 extern void WorldMapWrapDelta(WorldMapScrollDelta* pDelta);
-extern void func_80096F18(s16* pOut, s32* pSrc, s32 nHeight, u16* pAngles);
+extern void WorldMapBuildPathFrame(s16* pOut, s32* pSrc, s32 nHeight, u16* pAngles);
 extern s32 g_WorldMapFadeLevel;
 extern s32 D_8009BD48;
 extern s32 g_WorldMapCameraTargetY;
@@ -621,7 +621,7 @@ s32 func_8007756C(s32 arg0) {
     *g_WorldMapCameraTargetTable = *(s32 *)g_WorldMapPlayerPosition;
     g_WorldMapCameraTargetY = g_WorldMapPlayerPositionY;
     g_WorldMapCameraTargetZ = g_WorldMapPlayerPositionZ;
-    func_80096F18((s16 *)pName, g_WorldMapCameraTargetTable, g_WorldMapCameraHeight, (u16 *)pRot);
+    WorldMapBuildPathFrame((s16 *)pName, g_WorldMapCameraTargetTable, g_WorldMapCameraHeight, (u16 *)pRot);
     *(WorldMapName8 *)0x1F8000A0 = *(WorldMapName8 *)pName;
     *(WorldMapName8 *)pName = *(WorldMapName8 *)&D_8009BD48;
     *(WorldMapName8 *)&D_8009BD48 = *(WorldMapName8 *)0x1F8000A0;
@@ -700,7 +700,7 @@ s32 WorldMapUpdateFrameWithScrollInput(s32 arg0) {
     pTarget = g_WorldMapCameraTargetTable;
     *g_WorldMapCameraRotTable = *(s32*)(pSlot + 0x38) >> 12;
     g_WorldMapViewRotationY = *(s32*)(pSlot + 0x3C) >> 12;
-    func_80096F18(pName, pTarget, g_WorldMapCameraHeight, (u16*)g_WorldMapCameraRotTable);
+    WorldMapBuildPathFrame(pName, pTarget, g_WorldMapCameraHeight, (u16*)g_WorldMapCameraRotTable);
     *(WorldMapName8*)(pScratch + 0xA0) = *pName;
     *pName = *(WorldMapName8*)&D_8009BD48;
     *(WorldMapName8*)&D_8009BD48 = *(WorldMapName8*)(pScratch + 0xA0);

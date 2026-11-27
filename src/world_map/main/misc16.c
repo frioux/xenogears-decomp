@@ -634,7 +634,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc16", func_80098CC0);
 
 
 
-extern u16 D_8009CCB4[];
+extern u16 g_WorldMapTileClutIds[];
 extern u16 g_WorldMapTpageIds[];
 extern s32 D_8009D7DC;
 extern void func_80099708(u32* pSrc, u8* p1, u8* p2, WorldMapMisc16Rect* pRect);
@@ -682,7 +682,7 @@ void func_8009932C(u8* p0, u8* p1, WorldMapMisc16Struct* p) {
 
     pScratch = (u8*)0x1F800000;
     for (i = 0; i < 0x40; i++) {
-        *(u16*)(pScratch + 0x288 + i * 2) = D_8009CCB4[i];
+        *(u16*)(pScratch + 0x288 + i * 2) = g_WorldMapTileClutIds[i];
     }
     for (i = 0; i < 7; i++) {
         *(u16*)(pScratch + 0x308 + i * 2) = g_WorldMapTpageIds[i];

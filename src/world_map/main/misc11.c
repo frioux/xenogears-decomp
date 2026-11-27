@@ -84,7 +84,7 @@ typedef struct {
 
 extern WorldMapActor *g_WorldMapSlots;
 extern s32 g_WorldMapMode;
-extern s16 D_8009BD04;
+extern s16 g_WorldMapZoneEntryCount;
 extern WorldMapEntry D_8009BE6C[];
 extern s16 D_8009B18C[];
 extern s16 D_8009B194[];
@@ -96,7 +96,7 @@ extern void *g_WorldMapCharacter2AnimFiles;
 extern void WorldMapWrapDeltaScaled(WorldMapPos *);
 extern s32 SquareRoot0(s32);
 
-extern s32 func_8008C364(WorldMapActor *, s32);
+extern s32 WorldMapInitPartyActorSlot(WorldMapActor *, s32);
 extern void WorldMapInitSpriteGroupSprites(s32, void *, void *);
 extern void WorldMapGetGameStatePosition(void *);
 extern void WorldMapDeactivateSpriteGroup(s32);
@@ -129,7 +129,7 @@ extern s32 func_80095414(s32 *, s32 *, s32 *, s32, s32);
 extern s32 WorldMapSelectAreaAtPosition(WorldMapPos *, s32);
 extern void WorldMapUpdateRandomTimers(void);
 extern s32 g_WorldMapQueuedCharacterCount;
-extern u16 D_8009B180[];
+extern u16 g_WorldMapZoneTrailFlags[];
 extern s32 g_WorldMapLoopActive;
 extern s32 g_WorldMapAreaMode;
 extern u8 g_WorldMapZoneId;
@@ -138,13 +138,13 @@ extern void WorldMapFindZoneAtPosition(WorldMapPos *, s32, s32, u8 *, u8 *);
 extern void WorldMapUpdateSpriteGroupFromActor(s32, WorldMapActor *, WorldMapScreenPos *);
 extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 
-/* func_8008A72C, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, func_8008C364 and func_8008C844
+/* func_8008A72C, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, WorldMapInitPartyActorSlot and WorldMapUpdatePartyActorTrail
    each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
    every table in place - only that function's own instructions and its table
    words change (proved with check_bin.sh for WorldMapUpdateActorSlot, whose table is
-   8-aligned in the range). Check the parity first: func_8008C364's table is at
+   8-aligned in the range). Check the parity first: WorldMapInitPartyActorSlot's table is at
    range+0x294, i.e. 4 mod 8, and converting it pads 4 bytes and shifts the whole
    overlay (measured round 451, see its park note). The unit's two last tables
    (WorldMapUpdateGearActorSlot's) sit at range+0x3BC, i.e. 4 mod 8, so they cannot be
@@ -157,7 +157,7 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 //   (a) the cell index sll 16 / sra 15 is ONE s16 scratch used for BOTH the
 //       func_80095414 result and the zone index: zone = func_80095414(...); if (zone == 0)
 //       { ...; zone = func_80095414(...); if (zone == 0) ... } then zone = prox / prox + 3
-//       and D_8009B180[zone]. A call return of unknown sign feeding the same HImode
+//       and g_WorldMapZoneTrailFlags[zone]. A call return of unknown sign feeding the same HImode
 //       variable is what makes cc1 keep the widening; a separate s16 "moved" local (the
 //       round-472 body) folds it away, so that analysis was right that no lbu-only
 //       spelling reaches the pair - use one shared scratch.
@@ -216,7 +216,7 @@ int func_8008A72C(int index) {
         if (g_WorldMapQueuedCharacterCount == pActor->trailDelay) {
             pActor->state = 0;
             g_WorldMapMode = 1;
-            D_8009BD04 = 0;
+            g_WorldMapZoneEntryCount = 0;
         }
         break;
     }
@@ -273,7 +273,7 @@ int func_8008A72C(int index) {
                     } else {
                         zone = g_WorldMapZoneProximity;
                     }
-                    if (D_8009B180[zone] != 0) {
+                    if (g_WorldMapZoneTrailFlags[zone] != 0) {
                         *(WorldMapVec *)&pActor->x = *(WorldMapVec *)(pScratch + 0x24);
                         if ((pActor->dirX | pActor->dirZ) != 0) {
                             i = (g_WorldMapTrailCursor + 1) & 0x1F;
@@ -296,7 +296,7 @@ int func_8008A72C(int index) {
                 g_WorldMapPlayerAngle = pActor->angle;
                 break;
             }
-            D_8009BD04 = 0;
+            g_WorldMapZoneEntryCount = 0;
             pActor->unk24 = 0;
         } else {
             pActor->unk24 = 1;
@@ -910,7 +910,7 @@ int WorldMapMoveActorTowardTarget(WorldMapActor *pActor) {
     return result;
 }
 void WorldMapQueueZoneEntry(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
-    WorldMapEntry *pEntry = &D_8009BE6C[D_8009BD04];
+    WorldMapEntry *pEntry = &D_8009BE6C[g_WorldMapZoneEntryCount];
 
     pEntry->id = arg0;
     pEntry->x = pArray[0];
@@ -918,7 +918,7 @@ void WorldMapQueueZoneEntry(s16 arg0, s32 *pArray, s16 arg2, s16 arg3) {
     pEntry->z = pArray[2];
     pEntry->height = arg3;
     pEntry->radius = arg2;
-    D_8009BD04 = (D_8009BD04 + 1) & 0x1F;
+    g_WorldMapZoneEntryCount = (g_WorldMapZoneEntryCount + 1) & 0x1F;
 }
 void WorldMapFindZoneAtPosition(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut, u8 *pOut2) {
     WorldMapEntry *pEntry = D_8009BE6C;
@@ -931,8 +931,8 @@ void WorldMapFindZoneAtPosition(WorldMapPos *pPos, s32 arg1, s32 arg2, u8 *pOut,
 
     *pOut = 0;
     *pOut2 = 0;
-    if (D_8009BD04 > 0) {
-        for (i = 0; i < D_8009BD04; i++, pEntry++) {
+    if (g_WorldMapZoneEntryCount > 0) {
+        for (i = 0; i < g_WorldMapZoneEntryCount; i++, pEntry++) {
             pos = pPos->y;
             if (pos < pEntry->y) {
                 base = pos - arg2 * 0x1000;

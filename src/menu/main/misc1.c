@@ -57,7 +57,7 @@ s32 MenuRunUnk430Panel(u_char arg0, u_char arg1);
 int MenuInitializeUnk35CPanel(u8 arg0, u8 arg1);
 u8 MenuRunCharacterDressingRoomLoop(void);
 s32 func_801D9F98(s32 arg0, s32 arg1);
-s32 func_801D9808(void);
+s32 MenuRunSoundModeMenu(void);
 u8 func_801E23CC(void);
 s32 func_801DBE54(void);
 void func_8001B970(void);
@@ -71,7 +71,7 @@ u_char MenuRunSelectedChoice(u_char arg0) {
     result = 1;
     switch (g_Menu->mainMenuChoice + arg0) {
         case 7:
-            result = func_801D9808();
+            result = MenuRunSoundModeMenu();
             break;
         case 8:
             if ((u_char)func_801D9F98(1, 0) != 0) {

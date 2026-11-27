@@ -249,7 +249,7 @@ extern s32 WorldMapInitGroup0Actor(s32);
 extern s32 WorldMapActivateSpriteGroup9Timed(s32);
 extern s32 WorldMapInitActorSlotTimer40(s32 index);
 extern s32 func_80078EA4(s32 index);
-extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void WorldMapBuildPathFrame(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern int rand(void);
 extern s32 func_80079778(s32 index);
 extern WorldMapPathPoint g_WorldMapCameraPathPoints[];
@@ -741,7 +741,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc4", func_80078EA4);
      reproduces the whole misc4 rodata range.
    - THE ADDRESS THAT MUST LIVE IN $s0 ACROSS THE rmw CALLS: retail materialises
      `lui $s0,%hi(g_WorldMapPathFrame)` / `addiu $s0,$s0,%lo` INSIDE each of case 4 and
-     case 5 and reuses it (`addu a0,s0,zero` for the func_80096F18 argument, `lhu 0(s0)` /
+     case 5 and reuses it (`addu a0,s0,zero` for the WorldMapBuildPathFrame argument, `lhu 0(s0)` /
      `sh 0(s0)` after the two rand()s), while the tail's third call uses a plain `la a0`.
      Three things are needed together, and all three were measured:
        1. the pointer must be assigned INSIDE the arm (an entry-block assignment gives one
@@ -841,7 +841,7 @@ s32 func_80078EA4(s32 index) {
         u16 *pFrame = g_WorldMapPathFrameHalf;
         s32 jitter;
 
-        func_80096F18((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        WorldMapBuildPathFrame((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
         p->stateTimer = p->stateTimer - 1;
         *(volatile u16 *)(pScratch + 0xA0) = rand() % 12 - 6;
         jitter = rand() % 12 - 6;
@@ -863,7 +863,7 @@ s32 func_80078EA4(s32 index) {
     case 5: {
         u16 *pFrame = g_WorldMapPathFrameHalf;
 
-        func_80096F18((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        WorldMapBuildPathFrame((s16 *)pFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
         p->stateTimer = p->stateTimer - 1;
         *(volatile u16 *)(pScratch + 0xA0) = rand() % 4 - 2;
         *(volatile u16 *)(pScratch + 0xA2) = rand() % 4 - 2;
@@ -937,7 +937,7 @@ s32 func_80078EA4(s32 index) {
         break;
     }
     if (p->state != 4 && p->state != 5) {
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
     }
     return 1;
 }

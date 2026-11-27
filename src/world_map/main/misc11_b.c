@@ -86,7 +86,7 @@ extern s32 g_WorldMapPlayerPositionZ;
 extern s32 g_WorldMapPlayerRotation;
 extern void *D_8009BE00[];
 
-extern s32 func_8008C364(WorldMapActor *, s32);
+extern s32 WorldMapInitPartyActorSlot(WorldMapActor *, s32);
 extern void WorldMapInitSpriteGroupSprites(s32, void *, void *);
 extern void WorldMapGetGameStatePosition(void *);
 extern void WorldMapDeactivateSpriteGroup(s32);
@@ -313,7 +313,7 @@ int WorldMapUpdateGearActorSlot(int index) {
 // 300 bytes, so only the order tells.
 int WorldMapInitPartyActor2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    s32 result = func_8008C364(pActor, 2);
+    s32 result = WorldMapInitPartyActorSlot(pActor, 2);
     s32 mode;
 
     // volatile: keeps these three above the angle and mode loads, as retail has them
@@ -349,7 +349,7 @@ int WorldMapInitPartyActor2(int index) {
 
 int WorldMapModeInitPartyActor2(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
-    s32 result = func_8008C364(pActor, 2);
+    s32 result = WorldMapInitPartyActorSlot(pActor, 2);
     s32 mode = g_WorldMapMode;
 
     if (mode > 0) {

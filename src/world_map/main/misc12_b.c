@@ -29,7 +29,7 @@ extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 g_WorldMapPathPointHeights[];
 extern u16 D_1F8000A8;
-extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void WorldMapBuildPathFrame(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapWrapPosition(void *p);
 extern u16 g_WorldMapPad1Released;
 extern s16 g_WorldMapMode4AreaId;
@@ -912,7 +912,7 @@ s32 WorldMapModeInitActorAngleSets(s32 idx) {
 // heights stores are cross-jumped into the shared tail exactly as written here.
 // LEFT, in the order the diff shows it:
 // - g_WorldMapCameraRot is read and written through a register in retail at three sites
-//   (state-1 tail 'lh a0,0(a3)' + a3 passed to func_80096F18, case 3 'lh v1,0(a3)' and
+//   (state-1 tail 'lh a0,0(a3)' + a3 passed to WorldMapBuildPathFrame, case 3 'lh v1,0(a3)' and
 //   'sh v0,0(a3)'), while a 's16 *pRot = &g_WorldMapCameraRot;' local folds to a bare
 //   mem ref and re-forms the address at the call (+3 instructions here). That is lever
 //   'a-pointer-local-to-a-scalar-global-always-folds': the address only survives if the
@@ -982,7 +982,7 @@ s32 func_80091C18(s32 idx) {
             pPlayer->unk58 = pPath[pPlayer->unk50];
             pPlayer->unk60 = g_WorldMapCameraRot << 12;
         }
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot);
         break;
     case 1:
         if (pPlayer->stateTimer >= 5) {
@@ -1027,7 +1027,7 @@ s32 func_80091C18(s32 idx) {
         if ((pPlayer->unk54 == g_WorldMapCameraHeight) & (pPlayer->unk58 == *pRot)) {
             pPlayer->state = 0;
         }
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
         break;
     case 2:
         D_8009BD48.vx = 0;
@@ -1039,7 +1039,7 @@ s32 func_80091C18(s32 idx) {
         if (pPlayer->unk58 != *pRot) {
             *pRot += 2;
         }
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight, pRot);
         break;
     }
     pPlayer->stateTimer++;
@@ -1064,7 +1064,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12_b", func_80091C18);
 //   delay slot, which is the one extra instruction. Writing the tail as two statements
 //   ('nZ = tbl[nLimit] + nBase; nZ -= nDist;') makes it worse: 145 insns / 90.49.
 // Round 476 measured, from the 92.10 body:
-// - the 4th argument to func_80096F18 must be a CONSTANT-derived address,
+// - the 4th argument to WorldMapBuildPathFrame must be a CONSTANT-derived address,
 //   '(u16 *)(pScratch + 0xA8)': then cse merges its 'lui 0x1f80' with the one already
 //   in s1 and emits the single 'addiu a3,s1,0xA8'. Retail's object shows that same
 //   instruction with a %lo reloc on the D_1F8000A8 symbol, i.e. the linked bytes are
@@ -1133,7 +1133,7 @@ s32 func_80091FF8(s32 nLimit, u16 *pIn, s16 *pOfs) {
     for (i = 0; i < 3; i++) {
         nBest = 0;
         *(u16 *)(pScratch + 0xA8) = *pIn;
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)(pScratch + 0xA8));
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, *pTrack - (g_WorldMapProjectionDistance / 2 << 12), (u16 *)(pScratch + 0xA8));
         nX = (g_WorldMapCameraTarget + ((g_WorldMapPathFrame - 0x180) << 12)) & 0xFFF80000;
         nY = (g_WorldMapCameraTargetZ - ((D_8009BD44 + 0x180) << 12)) & 0xFFF80000;
         *(s32 *)(pScratch + 8) = nY;

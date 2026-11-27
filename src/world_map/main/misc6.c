@@ -310,7 +310,7 @@ extern u16 D_8009BD42[];
 extern u16 D_8009BD4A;
 extern s32 g_WorldMapCameraHeight;
 extern int rand(void);
-extern void func_80096F18(void *, void *, s32, void *);
+extern void WorldMapBuildPathFrame(void *, void *, s32, void *);
 
 int WorldMapInitGroup12Actor(int index) {
     WorldMapGroup *pGroup;
@@ -956,7 +956,7 @@ s32 WorldMapScrollCameraActor(int index) {
     }
     if (g_WorldMapRotationMatrixValid == 0) {
         WorldMapWrapPosition((VECTOR *)&pActor->x);
-        func_80096F18(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, g_WorldMapCameraTarget, g_WorldMapCameraHeight, &g_WorldMapCameraRot[0]);
     }
     switch (pActor->state) {
     case 0:

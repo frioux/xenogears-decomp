@@ -55,7 +55,7 @@ s32 func_8002675C(MenuResourceDirectory*, u32, POLY_FT4*, s32, s32, s32, s32);
 void SystemDecodeGlyphCodesN(u16*, u8*, int);
 s32 SystemRenderStringEntry(u8*, void*, s32, s32);
 void MenuSetStringPrimitives(MenuString*, s32, s32, s32);
-s32 func_801D9704(s32, u8, u8);
+s32 MenuStepPartySlot(s32, u8, u8);
 void MenuInitializeUnk438Panel(void);
 void MenuBuildDressingRoomRows(u8);
 void MenuSetRowQuadVertices(s32, void*, void*, void*, void*, u8, u8, u8);
@@ -531,12 +531,12 @@ u8 MenuRunUnk438PanelLoop(u8 slot) {
             break;
         case MENU_INPUT_NEXT:
             do {
-                slot = func_801D9704(slot, 0, 0);
+                slot = MenuStepPartySlot(slot, 0, 0);
             } while ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2);
             break;
         case MENU_INPUT_PREV:
             do {
-                slot = func_801D9704(slot, 1, 0);
+                slot = MenuStepPartySlot(slot, 1, 0);
             } while ((u8)(g_Menu->pManager->currentCharacterIDs[slot] - 7) < 2);
             break;
         }
@@ -660,7 +660,7 @@ u8 func_801E23CC(void) {
     s32 slot;
 
     active = 1;
-    slot = func_801D9704(slot, 0, 1);
+    slot = MenuStepPartySlot(slot, 0, 1);
     lastSlot = 0xF3;
     firstDraw = 1;
     g_Menu->subMenuChoice = 0;
@@ -774,11 +774,11 @@ u8 func_801E23CC(void) {
             }
             break;
         case 9:
-            slot = func_801D9704(slot, 0, 1);
+            slot = MenuStepPartySlot(slot, 0, 1);
             g_Menu->subMenuPrevChoice = 0xFF;
             break;
         case 10:
-            slot = func_801D9704(slot, 1, 1);
+            slot = MenuStepPartySlot(slot, 1, 1);
             g_Menu->subMenuPrevChoice = 0xFF;
             break;
         }
@@ -900,10 +900,10 @@ u8 MenuRunCharacterDressingRoomLoop(void) {
             }
             break;
         case MENU_INPUT_NEXT:
-            slot = func_801D9704(slot, 0, 0);
+            slot = MenuStepPartySlot(slot, 0, 0);
             break;
         case MENU_INPUT_PREV:
-            slot = func_801D9704(slot, 1, 0);
+            slot = MenuStepPartySlot(slot, 1, 0);
             break;
         }
     }

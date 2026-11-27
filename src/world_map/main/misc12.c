@@ -13,7 +13,7 @@ extern s32 g_WorldMapScrollTargetY;
 extern s32 g_WorldMapProjectionDistance;
 extern s32 g_WorldMapPathPointHeights[];
 extern u16 D_1F8000A8;
-extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void WorldMapBuildPathFrame(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapWrapPosition(void *p);
 extern u16 g_WorldMapPad1Released;
 extern s16 g_WorldMapMode4AreaId;
@@ -425,7 +425,7 @@ extern s32 SoundPlaySoundEffectOnFreePair(s32);
 extern s32 func_80093A5C(s32, s32);
 extern s32 func_80095CD4(s32 *, u32 *, s32 *, s32, s32);
 extern s32 g_SoundAudioManager;
-extern s16 D_8009BD04;
+extern s16 g_WorldMapZoneEntryCount;
 extern void *g_MenuSedsFile;
 extern s32 g_WorldMapSoundBankBuffer;
 extern s32 g_WorldMapSoundBankFileIndex;
@@ -448,7 +448,7 @@ extern void WorldMapUpdateRandomTimers(void);
 extern s32 g_WorldMapTpageAbr;
 extern s32 g_WorldMapDrawMode;
 
-// best 65.57% (8304 bytes / 2076 insns against retail's 8312 / 2067). REDO round: un-parked, re-measured 65.57 (identical to the note), preset screened, one structural probe tried and rejected. Established this round: (1) the callee-saved difference is a COUNT as well as an order - retail saves 8 words (s0-s6 plus ra at 0x28-0x44) in a 0x48 frame whose outgoing-args area is 0x28, the compile saves 9 ($16-$23 plus ra) in a 0x40 frame, so every sp offset AND every s-name differs. Retail's s-roles are RANGE-specific, not one-per-value: the case-2 arm re-materialises the constant 1 into $s1 (used by `nTmp != 1` and by `pPlayer->pathIndex = 1`) and -1 into $s0, and `&pPlayer->x` is $s1 in the entry block but $s0 in the case-2 arm - so do not try to reach the map by assigning one local per register. (2) The shared `nTmp` is live across calls in many arms (one pseudo in $16 for the whole function) where retail keeps arm temps in $v0/$v1: splitting nTmp into per-arm block-scoped temps is the most promising untried step. (3) REJECTED probe: moving `D_8009BD04 = 0;` out of the three entry-switch arms into one store after the switch (retail does share that tail at .L8008EA90) measures WORSE - 64.29% / 8160 bytes / 2040 insns - because gcc then cross-jumps the near-identical case 1 and case 2 bodies, which retail keeps as two copies. Keep the three copies. (4) Preset is right: cdk 57.84, -O3 60.15, -G0 compile-failed, unit flags 65.57. (5) Entry-block order residual, exactly: retail is [WorldMapStartSlot(8,9)] then [lui+addiu g_WorldMapScrollTargetX, lw,lw,lw,sw,sw,sw, lw, nop, sw] then [lhu g_GameState.worldMapState] then [ori 0x4000] then [andi 0x1FFF into s0] then [sh]; the compile hoists the lhu above the four-word copy. Retail's switch tree from that block: test 2 first, then slti 3, then 1, then 3, default jumps past the D_8009BD04 store.
+// best 65.57% (8304 bytes / 2076 insns against retail's 8312 / 2067). REDO round: un-parked, re-measured 65.57 (identical to the note), preset screened, one structural probe tried and rejected. Established this round: (1) the callee-saved difference is a COUNT as well as an order - retail saves 8 words (s0-s6 plus ra at 0x28-0x44) in a 0x48 frame whose outgoing-args area is 0x28, the compile saves 9 ($16-$23 plus ra) in a 0x40 frame, so every sp offset AND every s-name differs. Retail's s-roles are RANGE-specific, not one-per-value: the case-2 arm re-materialises the constant 1 into $s1 (used by `nTmp != 1` and by `pPlayer->pathIndex = 1`) and -1 into $s0, and `&pPlayer->x` is $s1 in the entry block but $s0 in the case-2 arm - so do not try to reach the map by assigning one local per register. (2) The shared `nTmp` is live across calls in many arms (one pseudo in $16 for the whole function) where retail keeps arm temps in $v0/$v1: splitting nTmp into per-arm block-scoped temps is the most promising untried step. (3) REJECTED probe: moving `g_WorldMapZoneEntryCount = 0;` out of the three entry-switch arms into one store after the switch (retail does share that tail at .L8008EA90) measures WORSE - 64.29% / 8160 bytes / 2040 insns - because gcc then cross-jumps the near-identical case 1 and case 2 bodies, which retail keeps as two copies. Keep the three copies. (4) Preset is right: cdk 57.84, -O3 60.15, -G0 compile-failed, unit flags 65.57. (5) Entry-block order residual, exactly: retail is [WorldMapStartSlot(8,9)] then [lui+addiu g_WorldMapScrollTargetX, lw,lw,lw,sw,sw,sw, lw, nop, sw] then [lhu g_GameState.worldMapState] then [ori 0x4000] then [andi 0x1FFF into s0] then [sh]; the compile hoists the lhu above the four-word copy. Retail's switch tree from that block: test 2 first, then slti 3, then 1, then 3, default jumps past the g_WorldMapZoneEntryCount store.
 /*
 s32 func_8008E76C(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -486,7 +486,7 @@ s32 func_8008E76C(s32 idx) {
                 *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
                 *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
                 WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
-                D_8009BD04 = 0;
+                g_WorldMapZoneEntryCount = 0;
                 break;
             case 2:
                 pPlayer->state = 0xC;
@@ -499,7 +499,7 @@ s32 func_8008E76C(s32 idx) {
                 *(s16 *)0x1F8000AA = pPlayer->y >> 0xC;
                 *(s16 *)0x1F8000AC = pPlayer->z >> 0xC;
                 WorldMapInitSpriteGroupSprites(2, (void *)0x1F8000A8, (void *)0x1F8000A0);
-                D_8009BD04 = 0;
+                g_WorldMapZoneEntryCount = 0;
                 break;
             case 3:
                 SoundSetAudioManagerVolumeWithFade(g_SoundAudioManager, 0, 0xF0);
@@ -518,7 +518,7 @@ s32 func_8008E76C(s32 idx) {
                 pPlayer->state = 8;
                 *(s16 *)&pPlayer->unk0[2] = 0x3C;
                 g_WorldMapMode = 7;
-                D_8009BD04 = 0;
+                g_WorldMapZoneEntryCount = 0;
                 break;
             }
             g_GameState.gearRide[0] = 1;
@@ -618,7 +618,7 @@ s32 func_8008E76C(s32 idx) {
                 pPlayer->dirY = 0;
                 pPlayer->dirX = 0;
             clearSpriteFlag:
-                D_8009BD04 = 0;
+                g_WorldMapZoneEntryCount = 0;
             }
         } else {
         idleMode:
@@ -837,7 +837,7 @@ s32 func_8008E76C(s32 idx) {
             WorldMapDeactivateSpriteGroup(4);
             pPlayer->state = 3;
         }
-        D_8009BD04 = 0;
+        g_WorldMapZoneEntryCount = 0;
         break;
     case 8:
         nTmp = pPlayer->y - 0x8000;

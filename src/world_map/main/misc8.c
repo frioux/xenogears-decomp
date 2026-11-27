@@ -285,7 +285,7 @@ extern s32 g_WorldMapScrollX;
 extern s32 g_WorldMapScrollZ;
 extern u16 D_8009BD42;
 extern u16 D_8009BD4A;
-extern void func_80096F18(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
+extern void WorldMapBuildPathFrame(s16 *pOut, s32 *pSrc, s32 nHeight, u16 *pAngles);
 extern void WorldMapApproachViewRotation(WorldMapActor *pActor, void *pScratch);
 extern void WorldMapApproachHeight(WorldMapActor *pActor, void *pScratch);
 extern void func_80076FA8(WorldMapActor *pActor, void *pScratch);
@@ -878,7 +878,7 @@ s32 func_80083A00(s32 arg0) {
         break;
     }
     if (g_WorldMapRotationMatrixValid == 0) {
-        func_80096F18(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
+        WorldMapBuildPathFrame(&g_WorldMapPathFrame, &g_WorldMapCameraTarget, g_WorldMapCameraHeight,
                       (u16 *)&g_WorldMapCameraRot);
     }
     switch (pActor->state) {
