@@ -91,7 +91,7 @@ extern u8 g_BattleWaitSkipFlag;
 extern u16 g_BattleActionSlotMask;
 extern u16 g_BattleSlotFlag8000Mask;
 extern u8 *D_800D39F0;
-extern s32 D_800D39C0[];
+extern u_long *D_800D39C0[];
 extern u8 D_800D39C6;
 extern u8 *GetStringEntry(u8 *, s32);
 extern u8 g_BattleMenuEvent;
@@ -578,13 +578,12 @@ void func_80071964(void) {
     if (g_BattleWaitSkipFlag != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
         pEntry = GetStringEntry(D_800D39F0, g_BattleWaitSkipFlag);
         D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], BATTLE_TEXT_SLOT_BUFFER_SIZE, 1);
-        LoadImage((RECT *)&D_800D39C0[-2], (u_long *)D_800D39C0[0]);
+        LoadImage((RECT *)&D_800D39C0[-2], D_800D39C0[0]);
         for (i = BATTLE_SKIP_WAIT_FRAMES; i != 0; i--) {
             BattleUpdateFrame();
         }
     }
 }
-
 
 void BattleClearCharRedrawFlags(void) {
     s32 i;
