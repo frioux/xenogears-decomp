@@ -603,6 +603,10 @@ void MenuFitInventoryWindowToItems(void) {
 // - moving 'needsOpen = 1' down to just before the loop (to shorten its live range and raise its quotient) 97.91 / 107 lines: the pair does NOT flip, only the prologue's sw/li placement moves. Reverted.
 // - permute.sh --minutes 3 -j 2: base=25 best=25, 1436 iterations, RESULT PERMUTER_NONE.
 // - lever arithmetic re-read (a-global-allocno-priority-is): active QI 9 refs/176 insns = 1534, needsOpen QI 5/154 = 649, a 2.36x gap, and the lever's own triage says 2x or more = park; flipping needsOpen needs 8 refs and dropping active needs 4, both impossible without changing retail's instruction stream. CLOSED - do not re-brief this function.
+// ROUND 540: un-parked, re-measured 99.84% / 896 bytes / 224 insns (retail's exact size), 99 differing lines, all the mirrored (active, needsOpen) pair. Re-derived the flip point with -dl -dg on this body, which turns the old park arithmetic into two exact thresholds: the sort is floor_log2(refs)*refs/live, active = 7 refs / 175 insns = 0.0795, needsOpen = 5 / 153 = 0.0654, and the next value above them, 74, = 9 / 161 = 0.1667, so needsOpen must land inside (0.0795, 0.1667) to take $s5 ahead of active while 74 keeps $s4 - i.e. 7 refs with live under 175, or 5 refs with live under 126.
+// MEASURED, the band is REAL: needsOpen = needsOpen - 1 in place of needsOpen = 0 PLUS needsOpen = 1 moved to just before the loop gives 7 refs / 164 = 0.0854 and the dispositions flip to 71 in 22 / 72 in 21, retail's exact pair, with every other s-register unchanged - so the residual is refs, not a compiler wall. Both halves of that spelling are unshippable on their own: the extra USE is what buys the ref, and with the init left in the prologue it also stretches the live range to 176, which misses at 0.0795 vs 0.0795; and moving the init down takes retail's ori s5,zero,1 out of the prologue (97.91).
+// Also measured dead this round: s32 needsOpen with if ((u8)needsOpen) (99.60 - cc1 folds the cast to a bare move v0,s6 since the range is known 0..1, so retail's andi disappears), u8 needsOpen = 1 as a declaration initialiser (byte-identical, refs 5 / live 153 / same dispositions), and a 4-minute permuter run (1725 iterations, base=25 best=25, RESULT PERMUTER_NONE, the third clean miss on this function).
+// CONCLUSION unchanged: needsOpen needs one more reference and retail's own stream has exactly three mentions of it - init store, andi load, clear store - with the clear a move-from-zero in the MenuStartOpenAnimation delay slot. Do not re-brief residual (a) without a new idea for a reference that emits no instruction.
 /*
 s32 func_801DBE54(void) {
     u8 active;
@@ -740,6 +744,7 @@ s32 func_801DBE54(void) {
     return 1;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DBE54);
+
 
 
 
