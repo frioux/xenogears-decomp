@@ -2252,6 +2252,25 @@ typedef struct {
 // group (the block-barrier knob that closed func_8008C180, above) - byte-identical,
 // 70 differing lines before and after, so the barrier does not reach a caller-saved
 // hand-out; reverted.
+// Round 537: 98.65% (1188 bytes / 297 insns = retail's exact size and count; 34 differing
+// lines, all register names plus one store position). The one real gain this round:
+// member/skin were three SHARED locals, so local-alloc had them as function-wide
+// allocnos; giving each of the three slot-move epilogues its own block-scoped
+// `s32 nextMember/nextSkin` with an initialised declaration (the a-local-shared-by-two-blocks
+// lever) put retail's $2/$4/$5 hand-out exactly and took the diff from 70 lines to 34.
+// Remaining residual, two parts, both blocked:
+// (1) the 0x14000 copy-end constant at the three copy loops: retail builds it in $t0,
+//     reload always picks $v0 (see the-0x14000-copy-end-constant-is-reloads-scratch-in-this-unit-too;
+//     rounds 397/435/515 probes prove no source spelling picks the register).
+// (2) the tail: retail holds g_FieldPartyActorSlots[0] (the `&&` operand, CSE'd into the
+//     g_PlayerActorIndex store) in $v0 with the store emitted right after the second
+//     slots[0] load; here it is a global allocno live across the block boundary into the
+//     index math, so it takes $a1 and sched2 sinks its store into the pActor load-delay
+//     slot. Retail's shape needs the store BEFORE the index math, which is the
+//     scheduler's choice given the same RTL order - no spelling reached it. Tried this
+//     round: the block-scope fix above; preset screen (2.6.0 98.65 identical, cdk 79.54);
+//     4-minute permuter run (1892 iterations, base=400 best=400).
+/*
 void func_8008C334(void) {
     s32 loadState;
     s32 partyIndex;
@@ -2382,7 +2401,9 @@ void func_8008C334(void) {
         }
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
-}
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
+
 
 
 
