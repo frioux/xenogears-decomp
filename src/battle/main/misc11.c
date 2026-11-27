@@ -221,7 +221,14 @@ typedef struct {
    first-iteration/next-iteration reading of the same bytes - "color + 6" for
    the 0x914 store instead lets GCSE hoist both constants (94.39, still 66
    insns / 264 bytes, 26 differing lines). try_flags: gcc-2.6.0-psx 99.39,
-   gcc-2.7.2-cdk-psx 85.14, so the preset is not the way out. */
+   gcc-2.7.2-cdk-psx 85.14, so the preset is not the way out.
+   Round 547 re-measured from the stored body (99.39, same 16-line count/colour
+   swap) and added the one spelling the list above was missing, TWO variables
+   ("u16 color = 0xC; u16 colorNext = 0x12;" beside each other): 91.44, still
+   retail's 66 insns / 264 bytes, but cc1 hoists BOTH constants to the
+   preheader ($t3 = 0xC, $t2 = 0x12) - so retail's in-loop "li v1,0x12" is not
+   a second hoisted variable either. A fourth permuter run (3 min, base 40
+   best 40, 1377 iterations) found nothing. */
 // PARKED 99.39% (264 bytes, 66 insns - retail's exact size): count/color swapped.
 /*
 void func_8007FBE0(u8 arg0, u8 arg1) {
