@@ -245,6 +245,7 @@ build_variables = {
 paths = [
     "world_map/main/misc2.",
     "world_map/main/misc5.",
+    "world_map/main/misc5_b.",
     "world_map/main/misc6.",
     "world_map/main/misc6_b.",
     "world_map/main/misc7.",

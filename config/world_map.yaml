@@ -57,6 +57,12 @@ segments:
       - [0x4, .rodata, main/misc1]
       - [0x50, .rodata, main/misc4]
       - [0xD4, .rodata, main/misc5]
+      # Round 540: misc5.c's object .rodata is 0x8C long (its two C tables plus the two
+      # asm ones); func_8007C3B8's 0x104-byte table needs a range start at parity 0, so
+      # the file splits at 0x160 and the pad plus func_8007C7D8's two asm tables stay in
+      # a plain carve at 0x264 (they must not travel with the stub).
+      - [0x160, .rodata, main/misc5_b]
+      - [0x264, rodata]
       - [0x29C, .rodata, main/misc6]
       - [0x6F0, .rodata, main/misc6_b]
       - [0x7F4, .rodata, main/misc7]
@@ -82,6 +88,7 @@ segments:
       - [0x6F2C, c, main/misc3]
       - [0x81D0, c, main/misc4]
       - [0xAF08, c, main/misc5]
+      - [0xC8C8, c, main/misc5_b]
       - [0xD924, c, main/misc6]
       - [0x10880, c, main/misc6_b]
       - [0x10E10, c, main/misc7]
