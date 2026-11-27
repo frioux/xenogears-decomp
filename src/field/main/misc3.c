@@ -1032,6 +1032,13 @@ extern u8 g_FieldModelSlotScratch[];
 //     (a pointer difference, so gcc emits subu + sra 2) is a STATEMENT the
 //     previous body was missing entirely - worth 8 instructions;
 //   - the walkmesh header words 1..7 are one continuous *pWord++ walk.
+// RE-MEASURED (round 537): this exact body compiles and reads 80.99% /
+// 3484 bytes / 871 insns, i.e. the note above is current, not stale. The
+// three `addu a1,a1,v1` / `addu a1,v1,a1` operand swaps and the head's
+// pTimData-vs-count mirror (retail s2=pTimData s3=count, ours the reverse)
+// are the same residual class; a -dg read of this body prints 5 callee-saved
+// dispositions (16-20) against retail's 6, so the missing $s5 is an extra
+// long-lived retail allocno, not a spelling. Left as a park.
 /*
 void FieldLoad(void) {
     FieldActor* pActor;
@@ -1287,6 +1294,6 @@ void FieldLoad(void) {
             }
         }
     }
-}*/
+}
+*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc3", FieldLoad);
-
