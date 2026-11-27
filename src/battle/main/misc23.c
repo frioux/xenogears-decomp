@@ -1504,35 +1504,38 @@ extern void ResolveArchiveEntryPointers(u32 *);
 extern void func_8002DDE4(void *, s16, s16, s16, s16, s16, s16);
 extern void func_800A8BF0(s32, u16, Misc23PartBuffer *, Misc23ModelBuffer *, s16, s16, s16, s16, s16 *);
 
-// 82.05% at 716 bytes / 179 insns against retail's 692 / 173 (unit preset gcc 2.6.0).
-// THE OLD 85.47% NOTE WAS STALE: the parked body did not compile at all (it wrote
-// 'g_BattleActors[arg0][0x38] = 1', a struct assignment - cc1 exit 33 at four lines),
-// so that number came from a stale object of some earlier body. It was also WRONG
-// CODE: the four '*(u16 *)(g_BattleActors[idx] + 0x5E)' stores scale the offset by
-// sizeof(BattleActor) = 0x1A0 (0x5E*0x1A0 = 0x98C0), which is why the compile emitted
-// 'lui at,0x1 / addu at' and a 0x98C0 displacement. Fixed with the header fields:
-// parentJointIndex, parentActorSlot, isAttached, skipGroundSnap (0x36, which the old
-// body never stored), attachOffsetX/Y/Z. 81.03 -> 82.05 just from that.
-// Shape is now retail's: the call, both HeapAllocs/memcpy, the count==0 else arm, the
-// frame's 0x10..0x20 stack args, the 'sh' halfword spills at 0x28/0x30 of arg2/arg3,
-// the seven per-field pointer reloads in the loop tail (each store through
-// g_BattleActors[idx]-> reloads the pointer because the store may alias the array) and
-// the loop's five pushes are all in retail order. Residual, in order of size:
-// 1. the whole callee-saved map is rotated by one (retail arg0 s7/arg2 s6/arg3 s2/
-//    arg4-raw fp, ours s8/s7/s3/t1-then-spilled) and our frame is 0x70 against
-//    0x68 because pData (retail s4) is spilled to 0x38 and reloaded inside the loop.
-// 2. because that register is free, loop.c hoists the g_BattleActors base into s6
-//    across the loop with the +13 folded in ('addiu s6,t2,52'), where retail re-forms
-//    'lui/addiu g_BattleActors' after each call and scales the runtime index
-//    ('sll s0,s0,2'). The index value is the same one passed as func_800A8BF0's first
-//    argument in retail, so retail has one pseudo where we have two.
-// 3. 'move a1,zero' (2nd argument of the first call) sits at the top of retail's entry
-//    block; ours puts it in the jal delay slot.
-// Tried this round: a 's32 slot = (arg0 << 1) + (i + 0xD)' local used at the call and
-// at the seven stores - 78.72% / 724 bytes (181 insns), worse, and measured BEFORE the
-// 0x5E bug was fixed so it is worth one retry on this body. Earlier rounds' levers
-// (if/else sense, index inline vs local, declaration order) were all measured on the
-// broken body, so treat them as unmeasured.
+// 93.58% at 688 bytes / 172 insns against retail's 692 / 173 (unit preset gcc 2.6.0).
+// 4 BYTES SHORT - not shippable as it stands, but the body below is one instruction
+// from retail and its register map is retail's except pData/count, which are swapped
+// (ours pData s3 / count s4, retail pData s4 / count s3): pSrc s1, i s2, arg1 s5,
+// pBuf s6, arg0 s7, arg4-raw $30, slot s0, frame 0x68 with retail's two halfword
+// spills (arg2 0x28, arg3 0x30) and no third one.
+// WHAT CLOSED 82.05 -> 92.48 this round (round 534), both are keepers:
+// 1. 'HeapFree(pData)'. Retail frees the pointer it already holds ('jal HeapFree /
+//    move a0,s4'); spelling it 'HeapFree((void *)g_BattleArchiveEntry->pBuffer3)'
+//    makes cc1 re-read the global and its field: +5 instructions / +20 bytes.
+// 2. a 's32 slot' local used at BOTH the func_800A8BF0 call and the seven stores, so
+//    the index is one pseudo. The old inline expression is 82.05%.
+// 3. the permuter (4 min, -j 2) then found the last 1.1%: a SECOND local
+//    'slotIndex = (arg0 << 1) + (i + 0xD); slot = slotIndex;', which is what hands
+//    pData/count their retail registers. That is why the body below is 93.58%.
+// THE CATCH: with that copy in place loop.c turns 'slot' into a self-incrementing biv
+// ('addiu s0,s0,1' per iteration) where retail recomputes it from i every time
+// ('sll s0,s7,1' in the bne delay slot, 'addiu v0,s2,13', 'addu s0,s0,v0'), so the
+// function comes out exactly one instruction short. THE BLOCKER IS THE BIV, not the
+// allocator: a spelling that keeps this register map AND recomputes slot from i
+// matches. Measured, all worse:
+// - without the copy local (correct size, 692 bytes): 92.48%, pData spills to 0x38,
+//   frame 0x70, and the register it frees goes to a biv '(arg0<<1)+13' in $30.
+// - call arg = slotIndex, stores = slot: byte-identical 93.58 / 688 (the copy coalesces).
+// - stores re-spelled as the inline '(arg0 << 1) + (i + 0xD)': 86.27 / 688.
+// - '(arg0 << 1) + i + 0xD' without the inner parens: 90.09 / 692.
+// The old register complaints are gone; the 0x5E-scaled-by-sizeof(BattleActor) bug the
+// previous note describes was already fixed by the BattleActor fields
+// parentJointIndex / parentActorSlot / isAttached / skipGroundSnap / attachOffsetX/Y/Z.
+// 93.58% at 688 bytes / 172 insns against retail's 692 / 173 (unit preset gcc 2.6.0).
+// 4 BYTES SHORT - not shippable, but it holds retail's register map exactly.
+/*
 void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     u8 *pSrc;
     s32 i;
@@ -1542,6 +1545,7 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     s32 size;
     s32 flags;
     s32 slot;
+    s32 slotIndex;
 
     func_800A8BF0(arg0, 0, g_BattleArchiveEntry->pBuffer2, g_BattleArchiveEntry->pBuffer1, arg1, arg2, arg3, arg4, 0);
     g_BattleActors[arg0]->isBusy = 1;
@@ -1557,12 +1561,13 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
             pBuf = HeapAlloc(size, 0);
             memcpy(pBuf, pData->pBlockStart, size);
             for (i = 0; i < count; i++) {
-                slot = (arg0 << 1) + (i + 0xD);
+                slotIndex = (arg0 << 1) + (i + 0xD);
+                slot = slotIndex;
                 flags = (i != 0) ? 7 : 2;
                 if (i == count - 1) {
                     flags -= 2;
                 }
-                func_800A8BF0(slot, flags, pBuf, pData->pBlockEnd, arg1, arg2, arg3, arg4, 0);
+                func_800A8BF0(slotIndex, flags, pBuf, pData->pBlockEnd, arg1, arg2, arg3, arg4, 0);
                 g_BattleActors[slot]->parentJointIndex = *(u16 *)pSrc;
                 g_BattleActors[slot]->parentActorSlot = arg0;
                 g_BattleActors[slot]->isAttached = 2;
@@ -1583,7 +1588,9 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     HeapFree(g_BattleArchiveEntry);
     DrawSync(0);
     HeapFree(g_BattleArchiveEntry->pBuffer1);
-}
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
+
 
 
 extern s32 g_BattleActorStepIncrement;
