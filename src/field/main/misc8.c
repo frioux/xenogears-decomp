@@ -3038,15 +3038,14 @@ void FieldReleaseWdsEntry(void) {
 }
 
 
-// Three 6-byte entries; splat names the second field's address D_800AFE8A.
+// Three 6-byte entries; splat names soundElement's address D_800AFE8A.
 typedef struct {
-    /* 0x0 */ u_short unk0;
-    /* 0x2 */ u_short unk2;
+    /* 0x0 */ u_short actorIndex;
+    /* 0x2 */ u_short soundElement;
     /* 0x4 */ u_short unk4;
 } FieldUnk800AFE88; // Size: 0x6
 
 extern FieldUnk800AFE88 g_FieldActorSoundSlots[3];
-extern FieldUnk800AFE88 D_800AFE8A[3];
 
 extern s16 g_FieldSoundMaxDistance;
 
@@ -3077,7 +3076,7 @@ void FieldUpdateActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
     int scaled;
 
     for (i = 0; i < 3; i++) {
-        if (g_FieldActorSoundSlots[i].unk0 == actorIndex) {
+        if (g_FieldActorSoundSlots[i].actorIndex == actorIndex) {
             FieldGetDistanceScaledValue(arg3, &value, arg1);
             FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
             if (screenX >= 0x141) {
@@ -3124,9 +3123,9 @@ void FieldAssignActorSoundSlot(int arg0, int arg1, int arg2, int arg3, int actor
     int scaled;
 
     for (i = 0; i < 3; i++) {
-        if (D_800AFE8A[i].unk0 == 0xFFFF) {
-            D_800AFE8A[i].unk0 = arg0;
-            g_FieldActorSoundSlots[i].unk0 = actorIndex;
+        if (g_FieldActorSoundSlots[i].soundElement == 0xFFFF) {
+            g_FieldActorSoundSlots[i].soundElement = arg0;
+            g_FieldActorSoundSlots[i].actorIndex = actorIndex;
             FieldGetDistanceScaledValue(arg3, (int*)&value, arg1);
             FieldActorWorldToScreenPosition(actorIndex, &screenX, &screenY);
             if (screenX >= 0x141) {
@@ -3147,10 +3146,10 @@ void FieldReleaseActorSoundSlot(u_int arg0) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        if (g_FieldActorSoundSlots[i].unk0 == arg0) {
+        if (g_FieldActorSoundSlots[i].actorIndex == arg0) {
             SoundStopElementsByIndex(i * 2);
-            D_800AFE8A[i].unk0 = 0xFFFF;
-            g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
+            g_FieldActorSoundSlots[i].soundElement = 0xFFFF;
+            g_FieldActorSoundSlots[i].actorIndex = 0xFFFF;
             break;
         }
     }
@@ -3163,7 +3162,7 @@ int FieldFindActorSoundSlot(int arg0, u_int arg1) {
         return -1;
     }
     for (i = 0; i < 3; i++) {
-        if (g_FieldActorSoundSlots[i].unk0 == arg1) {
+        if (g_FieldActorSoundSlots[i].actorIndex == arg1) {
             return i;
         }
     }
@@ -3174,8 +3173,8 @@ void FieldClearActorSoundSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
-        D_800AFE8A[i].unk0 = 0xFFFF;
+        g_FieldActorSoundSlots[i].actorIndex = 0xFFFF;
+        g_FieldActorSoundSlots[i].soundElement = 0xFFFF;
     }
 }
 
@@ -3186,8 +3185,8 @@ void FieldResetActorSoundSlots(void) {
     int i;
 
     for (i = 0; i < 3; i++) {
-        D_800AFE8A[i].unk0 = 0xFFFF;
-        g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
+        g_FieldActorSoundSlots[i].soundElement = 0xFFFF;
+        g_FieldActorSoundSlots[i].actorIndex = 0xFFFF;
     }
     i = 0;
     pFlags = &g_FieldSoundElementMask;
@@ -3285,10 +3284,10 @@ void FieldUpdateNearestActorSounds(VECTOR* pPosition) {
 
     for (i = 0; i < 3; i++) {
         if (slots.inUse[i] == 0) {
-            if (D_800AFE8A[i].unk0 != 0xFFFF) {
+            if (g_FieldActorSoundSlots[i].soundElement != 0xFFFF) {
                 SoundStopElementsByIndex(i * 2);
-                D_800AFE8A[i].unk0 = 0xFFFF;
-                g_FieldActorSoundSlots[i].unk0 = 0xFFFF;
+                g_FieldActorSoundSlots[i].soundElement = 0xFFFF;
+                g_FieldActorSoundSlots[i].actorIndex = 0xFFFF;
             }
         }
     }
