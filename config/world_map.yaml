@@ -70,7 +70,10 @@ segments:
       - [0xCBC, .rodata, main/misc11_c]
       - [0xDE0, rodata]
       - [0xDE4, .rodata, main/misc11_b]
+      # Round 532: misc12.c.o tiles to exactly 0x15C from 0xF08; the five tail tables
+      # need a 4-mod-8 range start, so the file splits at 0x1064 (the A84 park's offset).
       - [0xF08, .rodata, main/misc12]
+      - [0x1064, .rodata, main/misc12_b]
       - [0x1160, .rodata, main/misc14]
       - [0x11B0, .rodata, main/misc15]
       - [0x120C, rodata]
@@ -90,6 +93,7 @@ segments:
       - [0x1C874, c, main/misc11_c]
       - [0x1DB88, c, main/misc11_b]
       - [0x1E504, c, main/misc12]
+      - [0x20F94, c, main/misc12_b]
       - [0x230F4, c, main/misc13]
       - [0x24748, c, main/misc14]
       - [0x26CF4, c, main/misc15]
