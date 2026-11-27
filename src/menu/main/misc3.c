@@ -945,6 +945,10 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
 // Tried this round: case 2 with an explicit 'j = i / MENU_CARD_SLOT_COUNT' local read before the
 // pMenu load (absorbed, byte-identical at 95.51). Preset already screened by the previous note
 // (2.6.0 -O2 is right: -O3 84.60, -O1 61.64, 2.7.2 -O3 81.59, cdk -O2/-O3 81.59).
+// best 96.08% / 88 insns / 352 bytes = retail's exact size (XenoMenu260), 30 differing lines, up from 95.51. THE FIND: give case 0 its OWN MenuUnk2 pointer local (pMenuFirst) instead of sharing one pMenu across all three cases - a single pMenu pseudo is live in every case, so gcc hands it one register (a2) in all of them, while retail has a DIFFERENT register per case (a0 in case 0, a1 in case 1, v1 in case 2), i.e. a separate value per case. With the split, case 0 becomes instruction-identical. 95.51 -> 96.08 on the same byte count.
+// Residual, two things: (1) case 1 keeps pMenu in a2 and the D_801E9818 biv in a1 where retail is the mirror (a1/a2); the loop's instruction order and shape are already retail's, so this is a pure caller-saved allocator tie between the pMenu pseudo and the strength-reduced index pointer. Splitting case 1 onto its own pointer too (pMenuLast) gives a0 for pMenu and RE-BREAKS the loop shape (85 insns, 92.70), so the shared case1+2 pMenu is load-bearing. (2) case 2: reorg puts 'addiu a1,a1,-1' (i = a1 - 1) in the switch's beq delay slot where retail puts 'lui v0,0x8888' and does the addiu at the case head; the shared pMenu also takes a2 there instead of retail's v1.
+// Tried (all byte-identical): case 1 with D_801E9818[i] inline at both field uses instead of the j local; declaration order i/j swapped.
+/*
 void func_801CA5F0(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
     MenuUnk2* pMenuFirst;
@@ -983,7 +987,9 @@ void func_801CA5F0(s32 a0, s32 a1) {
         }
         break;
     }
-}
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
+
 
 
 s32 MenuHandleCardSlotInput(s32 a0) {
