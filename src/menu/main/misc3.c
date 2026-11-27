@@ -945,19 +945,19 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
 // Tried this round: case 2 with an explicit 'j = i / MENU_CARD_SLOT_COUNT' local read before the
 // pMenu load (absorbed, byte-identical at 95.51). Preset already screened by the previous note
 // (2.6.0 -O2 is right: -O3 84.60, -O1 61.64, 2.7.2 -O3 81.59, cdk -O2/-O3 81.59).
-/*
 void func_801CA5F0(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
-    s32 i;
+    MenuUnk2* pMenuFirst;
     s32 j;
+    s32 i;
 
     switch (a0) {
     case 0:
         for (i = a1; i - 1 >= 0; i--) {
-            pMenu = g_Menu->menuUnk2;
+            pMenuFirst = g_Menu->menuUnk2;
             j = D_801E9818[i];
-            if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
-                pMenu->selectedSlot = i - 1;
+            if (pMenuFirst->slotRecordIndexes[j] != MENU_SLOT_NONE) {
+                pMenuFirst->selectedSlot = i - 1;
                 break;
             }
         }
@@ -983,8 +983,7 @@ void func_801CA5F0(s32 a0, s32 a1) {
         }
         break;
     }
-}*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
+}
 
 
 s32 MenuHandleCardSlotInput(s32 a0) {
