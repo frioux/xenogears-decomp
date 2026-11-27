@@ -183,6 +183,27 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1418);
    `value` local for charId (`value = pManager->currentCharacterIDs[slot]; pWeight =
    g_GameState.characters[value].statWeights;`); not applied here because it reads as
    a different value - measure it first.
+
+   Round 534, and this closes the question: retail's LOOP IS UN-HOISTED AND
+   UN-STRENGTH-REDUCED, which no C spelling of the row address reproduces. Retail
+   keeps t3 = pTable live and rebuilds `pTable + charId*0x110` (sll 4/addu/sll 4)
+   AND `index*0xE` (sll 3/subu/sll 1) inside the loop, adding `i*2` (sll a0,t1,1)
+   to them; it hoists only the pTable LOAD. Every gcc emits the hoisted base plus a
+   walking row pointer (`addiu a0,a0,2` where retail has `addiu t2,t2,2` for the
+   weight pointer), which is one instruction SHORT of retail's 300 bytes (0x12C,
+   ghidra-confirmed) - so this park is 296 bytes and can never link, whatever it
+   scores. Measured this round, all three 296 bytes / 74 insns:
+   - fully inline byte index `*(u16*)((u8*)pTable + charId*0x110 + index*0xE + i*2)`
+     in the loop: 72.31 (gcc hoists the invariant halves and still strength-reduces
+     i*2 into the walking pointer `addiu v1,v1,2`);
+   - the typed form `pRows[index].values[i]` with `u16 values[7]` and
+     `pRows = (MenuStatRow*)((u8*)pTable + charId*0x110)`: 81.47, same as the pRow
+     park, so the expression shape does not reach it;
+   - preheader-load register-pressure theory dead: the preset is not the cause
+     either - tools/scripts/try_flags.sh gives 81.47 under gcc-2.7.2 and 81.40 under
+     gcc-2.7.2-cdk against 81.47 under the unit's 2.6.0, i.e. all three hoist.
+   Residual to attack if anyone retries: retail's skipped loop.c pass, then the
+   register triple rotation above.
 */
 /*
 u32 func_801E1418(u8 slot, u8 index) {
