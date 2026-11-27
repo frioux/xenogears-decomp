@@ -1105,58 +1105,44 @@ extern void WorldMapProjectTriangleNormal(SVec* pPos, SVec* pOut, SVec* pNormal,
                                           u16 triIndex);
 extern SVec g_WorldMapStepProbePos; // candidate world position in the 0x1F800000 scratchpad
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80095CD4);
-/* best: 99.93% (676 bytes = retail's exact size, 169 instructions = retail's
-   count). Two residuals, both measured:
-   1. RELOC ONLY, links identical: the probe-X store is spelled through the
-      symbol (g_WorldMapStepProbePos.x = ...) where retail shows the literal
-      lui at,0x1F80 plus sw 0x60(at); the linker resolves the symbol to the same
-      address. The all-literal spelling is not usable: with all three 0x1F800060
-      uses literal, cse holds that address in one callee-saved register and the
-      body loses instructions.
-   2. THE ONE REAL DIFFERENCE: inside the loop retail forms the probe address as
-      "lui t0,hi" then "addiu a0,t0,lo" (hi in a scratch, untied) while every
-      spelling here gives the tied "lui a0,hi" plus "addiu a0,a0,lo" of the
-      maspsx la expansion; only the two register fields differ. THIS IS THE
-      COMPILER, NOT THE SOURCE (round 408): cc1_probe.sh on this unit shows both
-      gcc-2.7.2-psx and gcc-2.6.0-psx emit one "la $4,sym" - which GNU as then
-      ties - for every spelling of the address (bare symbol, symbol plus field
-      offset, array extern, u8 pointer plus 0x60, local pointer, store then take)
-      and only gcc-2.7.2-cdk-psx emits the split. cdk would not match this body
-      either: 89.1% at 644 bytes (32 short), and 67.8% at 676 with
-      -fno-schedule-insns/-insns2. Measured and dead in the source: a pointer
-      local before the loop, a per-iteration assignment, an inline cast, an
-      unbounded-array extern, and a 3-minute permuter run from this body (1424
-      iterations, base 20, best 20). The unit cannot switch to cdk (ten matched
-      functions drop to 75-97) so this is a MIXED unit: one function whose TU was
-      built with the splitting cc1, and neither a preset switch nor a unit split
-      buys it.
-   How the 8-byte narrowing was removed, which is the find worth keeping: the
-   caller's kind stays s32 and the CALLEE keeps its s16 signature, but the call
-   is made through a K&R declaration, which makes the 5th argument a raw word
-   copy (lw t0,0x60(sp) then sw t0,0x10(sp)) exactly as retail does. The
-   prototyped declaration forces sll/sra on kind (684 bytes, 98.72%), and
-   widening the callee to s32 does the same while breaking the callee's own lh
-   load. Retail's two TUs simply disagreed about the prototype.
-   The K&R declaration sits INSIDE this block, just above the body: park.py's
-   unpark extracts only the definition, so re-add the extern line by hand after
-   un-parking or the 8 bytes come back.
-   ROUND 421 re-measurement (unparked, rebuilt in this tree): 99.93% / 676
-   bytes / 169 insns, the note above confirmed, and the body still compiles with
-   the K&R extern in place. Rejected this round, each measured:
-   - the probe-X store spelled literal like the y/z stores: cc1 hoists the
-     address into a callee-saved $s0 and keeps it across the calls, 97.50% / 676
-     bytes / 12 differing lines, so the symbol spelling of that ONE store is
-     load-bearing for the frame's register set.
-   - gcc-2.7.2 at -G0: 99.93 (identical), at -O1: 71.22; -O3 and -Os are
-     rejected by cc1 on this unit.
-   - cc1_probe.sh with the store-then-take shape of tools/scripts/probe_example.c
-     (ProbeStoreFirst, the one shape whose docs say cc1 splits %hi from %lo)
-     prints one `la $4,g_Probe` on this unit's cc1, so that shape does not reach
-     the split here either: a 2.7.2 cc1 forms a single `la` in every context.
-   - a second permuter run from this body: 1273 iterations, base=20 best=20.
-   Nothing left in the source. Even a perfect instruction stream would still read
-   99.9x here, because the probe-X store carries a relocation against
-   g_WorldMapStepProbePos where retail's store is a bare constant.
+// best: 99.93% (676 bytes = retail's exact size, 169 instructions = retail's count),
+// re-measured this round from the unparked body with the K&R extern in place.
+// TWO residuals, both measured, neither reachable from source:
+// 1. RELOC ONLY, links identical: the probe-X store is spelled through the symbol
+//    (g_WorldMapStepProbePos.x = ...) where retail shows the literal lui at,0x1F80
+//    plus sw v0,0x60(at); the linker resolves the symbol to the same address. The
+//    all-literal spelling is not usable: with all three 0x1F800060 uses literal, cse
+//    holds that address in a callee-saved register ($s0) across the calls and the
+//    body drops to 97.50% at the same 676 bytes - the mixed spelling is load-bearing
+//    for the frame's register set.
+// 2. THE ONE BYTE DIFFERENCE: inside the search loop retail forms the address as
+//    lui $t0,%hi(sym) then addiu $a0,$t0,%lo(sym) - the high half in a scratch
+//    pseudo - while every spelling here gives maspsx's TIED la expansion
+//    (lui $a0 / addiu $a0,a0). That split is a COMPILER-VERSION signature: cc1_probe.sh
+//    on this unit prints one la $4,sym for gcc-2.7.2-psx and gcc-2.6.0-psx in every
+//    context (bare extern, symbol plus field offset, unbounded array extern,
+//    (SVec*)(u8Ptr + 0x60), store-then-take) and the split for gcc-2.7.2-cdk-psx.
+//    cdk cannot take this body: 89.1% at 644 bytes (32 short), 67.8% at 676 with
+//    -fno-schedule-insns/-insns2; and the unit cannot switch to cdk (its ten matched
+//    functions drop to 75-97), so this is a MIXED unit - one function whose TU was
+//    built with the splitting cc1 - and neither a preset switch nor a unit split
+//    buys it. Parked; levers.md o-untied-hi-lo-split-is records it as settled.
+// How the 8-byte argument narrowing was removed, the find worth keeping: the
+// caller's kind stays s32 and the CALLEE keeps its s16 signature, but the call is
+// made through a K&R declaration, which makes the 5th argument a raw word copy
+// (lw t0,0x60(sp) then sw t0,0x10(sp)) exactly as retail does. The prototyped
+// declaration forces sll/sra on kind (684 bytes, 98.72%), and widening the callee to
+// s32 does the same while breaking the callee's own lh load. Retail's two TUs simply
+// disagreed about the prototype. The K&R declaration sits INSIDE this block, just
+// above the body: park.py's unpark extracts only the definition, so re-add the extern
+// line by hand after un-parking or the 8 bytes come back.
+// MEASURED AND DEAD, so a later lane does not repeat them: a literal probe-X store
+// (97.50%); gcc-2.7.2 at -G0 (identical 99.93), -O1 71.22, -O3/-Os rejected by cc1;
+// a pointer local before the loop, a per-iteration assignment, an inline cast, an
+// unbounded-array extern, and the probe_example.c store-then-take shape; three
+// permuter runs from this body (1337+1273+1424 iterations, base=20 best=20 each).
+// The unit preset is right: 99.93 against cdk's 89.1.
+/*
 extern s32 WorldMapResolveStepAgainstTerrain();
 s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     s32 height;
@@ -1209,8 +1195,8 @@ s32 func_80095CD4(SVec* pBase, SVec* pDelta, SVec* pOut, s32 scale, s32 kind) {
     ret = WorldMapResolveStepAgainstTerrain(pBase, pDelta, pOut, scale, kind);
 done:
     return ret;
-}
-*/
+}*/
+
 extern void* D_8009D7C4;
 extern void* D_8009C660;
 extern u8 D_8009C58F;
