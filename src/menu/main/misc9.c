@@ -1004,101 +1004,16 @@ void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1) {
     MenuSetStringTexturePrims(&((MenuUnk430Panel*)g_Menu->unk430)->strings[0x20], arg0, arg1, 1);
     g_Menu->pManager->shouldRenderPanel[0] = 1;
 }
-// PARKED 97.81% / 1924 bytes / 481 insns against retail's 1928 / 482 - ONE instruction
-// SHORT, so this body cannot link as it stands. Retail's whole instruction BLOCK SHAPE
-// is reproduced now (andi 0x4000 / beqz / andi 0x1000 in the beqz delay slot / j /
-// li v1,2 in the j delay slot / sltiu) thanks to the fold-blocker below, and the one
-// missing instruction is retail's `move v1,v0` after the `sltiu v0,v0,1`: retail keeps
-// the compare result in $v0 and copies it into row's $v1, ours coalesces the two.
-// FOLD-BLOCKER (new this round, found by permuter.sh base 1605 -> 1112):
-// gcc 2.6.0's combine folds `(flags & 0x1000) == 0` into srl/xori/andi whenever the
-// andi and the compare share a basic block. `< 1` (97.66), a u_int/u_char boolean temp
-// (97.81/97.52), `!(...)` and a `masked = flags & 0x1000;` statement before the if
-// (97.30, cond/masked pair) all either still fold or re-assign the registers. The
-// spelling that blocks the fold and keeps every register retail has is a compare
-// against row itself:
-//     row = 1;
-//     row = (flags & 0x1000) < row;
-// which is the same value: row = ((flags & 0x1000) == 0).
-// Still owed after that: the two MenuSetRowQuadVertices call setups use
-// $s1/$s2/$s0 where retail has $s0/$s1/$s2 (g_MenuColumnRowStringIds /
-// g_MenuPanelRowXOffsets / the literal 2) - a downstream allocator rotation (the old
-// note's "delta 3"), probably triggered by the missing move.
-// The 97.66% spelling for the same block is `row = (flags & 0x1000) < 1;` with no
-// `row = 1;` line: retail's EXACT 1928 bytes / 482 insns, but the else folds to
-// srl v1,12 / xori / andi.
-// PARAMETER TYPE: retail's body masks $a1 four times, and the definition must be
-// `s32 arg1` - `u_char` gives 483 insns / 1932 bytes and a spurious `move a0,a1`.
-// The file-scope declaration above was u_char, which made the definition a
-// conflicting-type error (cc1 exit 33); it is s32 now for that reason. Re-check it if
-// a caller's park (func_801DD790, 95.96%) starts measuring differently.
-// Merged this round: case 2's stringId sum written id-side first
-// (`...gearId * 8 + (arg1 & 0xFE)`), which restores retail's `addu s0,v0,v1`
-// (97.64 -> 97.66). Also confirmed the second switch's three arms and the tail
-// (4 sb, shouldRenderColumnHeadings, the two shouldRenderStrings stores, the else
-// loop) are already retail's.
-// try_flags: gcc-2.7.2 96.93, 2.7.2-cdk compile-fails, 2.6.0 with -G0 or -O3 no change.
-// No dlabel data and no jump table in this stub's .s, so it converts the moment the
-// body matches.
-// --- carried over from the round-397 note ------------------------------
-// Best: 97.64%, 1928 bytes - and retail's object is ALSO 1928 bytes / 482 insns
-// (objdiff-cli: expected/asm/menu/main/misc9.s.o func_801DCE60 size 1928; the
-// old note's "retail 1924 = 481" was STALE). Byte count is exact: only three
-// equal-count spelling deltas remain. Fills one column of the 0x430 panel:
-// renders the column's two heading strings into a scratch buffer, uploads them,
-// points the four tail sprite records at them, copies the selected column's
-// record into MENU_PANEL_COLUMN_STRING and sets the row flags the prim adder
-// in misc5 renders. arg2 selects the panel kind (item / gear list / gear two
-// columns) and with it the string id base and the dressing room prim block.
-// Confirmed retail's: prologue and save set, frame 0x48, both switch trees,
-// every call site and store, the shared exits, the 0x4E/0xD constants hoisted
-// to $s0/$s1, and the FIRST switch's per-arm code (arm asm is byte-identical).
-// Measured this round (round r397 worker lane):
-// - try_flags: gcc-2.7.2-psx 96.93, gcc-2.7.2-cdk compile-fails, 2.6.0 with
-// -G0 or -O3 no change (97.64). The preset is right; all three residuals are
-// 2.6.0 source/allocator issues.
-// - Delta 1 (kind 2's shared addu) is a CROSS-JUMP tie: the three arms' sum
-// insns must be text-identical to share ONE addu. Ours all read addu s0,v1,v0
-// (first RTL operand in v1: id for kinds 0/1, arg1 and 0xFE for kind 2),
-// retail's all read addu s0,v0,v1. Flipping the C operand order in ALL THREE
-// arms (arg1-side first in 0/1, gearId first in 2) restructures: gcc emits the
-// id LOAD first either way, but the arg1 side then lands in $a0 and arms 0/1
-// cross-jump a 3-insn tail (sll, sll, addu) that retail does not have:
-// 96.09%, 480 insns.
-// - Delta 2 (row flag) MECHANISM FOUND: gcc 2.6.0's combine folds
-// (flags and 0x1000) == 0 into srl 12, xori 1, andi 1 whenever the andi and
-// the seq are in the SAME basic block. Retail's andi v0,v1,0x1000 sits in
-// the beqz DELAY SLOT and the compare stays sltiu+move. The spelling that
-// defeats the fold AND keeps retail's delay-slot fill (measured 97.28%, the
-// whole row-flag shape exact: andi 0x4000, beqz, andi 0x1000 delay, j,
-// li v1,2 delay, sltiu):
-// cond = flags & 0x4000;    (u_int)
-// masked = flags & 0x1000;  (u_int)
-// if (cond) row = 2; else row = masked == 0;
-// Residual at 97.28: ours loads flags into v0 and cond into v1 (retail:
-// flags in v1, cond+masked in v0) and lacks retail's move v1,v0 (a
-// tmp = masked == 0; row = tmp; split is UNTRIED and may restore the move).
-// u16 cond/masked instead of u_int reorders the andis and inverts the branch
-// (96.69%, 480 insns); masked computed BEFORE the if also inverts the branch,
-// because the else shrinks to one insn and reorg puts the sltiu itself in
-// the beqz delay slot (96.69%, 480 insns).
-// - Delta 3 (tail: g_MenuColumnRowStringIds / g_MenuPanelRowXOffsets / the
-// literal 2 in $s1/$s2/$s0 vs retail's $s0/$s1/$s2, plus the second call's
-// setup scheduled around the first call's tail) is probably DOWNSTREAM of
-// delta 2: retail's move v1,v0 adds a pseudo that reshuffles the allocator.
-// Close delta 2 first, then re-read this.
-// Realism owed: flags = (u16) pBase read and (pBase[0] and 3) are raw reads of
-// a prim block. The panel itself is typed by MenuUnk430Panel above.
-// NOTE (superseded): the round-400 note said the second parameter is u_char. It is
-// not: with `u_char arg1` the body compiles to 483 insns / 1932 bytes and gains a
-// spurious `move a0,a1`, while `s32 arg1` reproduces retail's exact 482 / 1928 (the
-// body masks $a1 four times itself, and a caller passing a u_char local still emits
-// its own `andi` zero-extension at the call site). The file-scope declaration at the
-// top of this file was changed from u_char to s32 for that reason - otherwise the
-// definition is a conflicting type (cc1 exit 33) and nothing compiles.
+// Fills one column of the 0x430 panel: renders the column's two heading strings into a
+// scratch buffer, uploads them, points the four tail sprite records at them, then copies
+// the selected column's record into MENU_PANEL_COLUMN_STRING and sets the row flags the
+// prim adder in misc5 renders. arg2 selects the panel kind (item / gear list / gear two
+// columns) and with it the string id base and the dressing room record block.
+// arg1 is s32, not u_char: the body masks it itself, and a u_char parameter makes cc1
+// zero-extend it once more before the first use (483 insns against retail's 482).
 void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
-    u8* pBase;
+    MenuEquipmentSlotRecord* pRecord;
     RECT rect;
     u_int flags;
     u16 stringId;
@@ -1153,25 +1068,33 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
         MenuClearBytes(MENU_ITEM_ROW_STRING_COUNT, g_Menu->pManager->shouldRenderStrings10E0);
         switch (arg2) {
         case 0:
-            pBase = (u8*)g_Menu->pDressingRoom->pCharacterSlots[g_Menu->pManager->currentCharacterIDs[arg0]] + (arg1 & 0xFF) * 40 + 0x370;
+            pRecord = (MenuEquipmentSlotRecord*)g_Menu->pDressingRoom->pCharacterSlots[g_Menu->pManager->currentCharacterIDs[arg0]]
+                      + (arg1 & 0xFF) + 22;
             break;
         case 1:
-            pBase = (u8*)g_Menu->pDressingRoom->pGearBlocks[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId] + (arg1 & 0xFF) * 40 + 0x348;
+            pRecord = (MenuEquipmentSlotRecord*)
+                          g_Menu->pDressingRoom->pGearBlocks
+                              [g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
+                      + (arg1 & 0xFF) + 21;
             break;
         case 2:
-            pBase = (u8*)g_Menu->pDressingRoom->pGearBlocks[g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId] + ((u32)(arg1 & 0xFF) >> 1) * 40 + 0x5C8;
+            pRecord = (MenuEquipmentSlotRecord*)
+                          g_Menu->pDressingRoom->pGearBlocks
+                              [g_GameState.characters[g_Menu->pManager->currentCharacterIDs[arg0]].gearId]
+                      + ((u32)(arg1 & 0xFF) >> 1) + 37;
             break;
         }
-        flags = *(u16*)pBase;
+        flags = pRecord->flags;
         if (flags & 0x4000) {
             row = 2;
         } else {
+            // `== 0` here folds into srl/xori; comparing against row keeps retail's sltiu
             row = 1;
             row = (flags & 0x1000) < row;
         }
         MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets,
                                g_Menu->pManager->shouldRenderStrings10E0, row, 0, 2);
-        row = (*pBase & 3) + 3;
+        row = (*(u8*)pRecord & 3) + 3;
         MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets,
                                g_Menu->pManager->shouldRenderStrings10E0, row, 0, 2);
         ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].renderContext = g_Menu->renderContext;
