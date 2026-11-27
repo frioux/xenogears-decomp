@@ -675,39 +675,45 @@ typedef struct {
 
 // Builds every actor's sprite from the source its script data selected, swaps the party's
 // riders onto their gear's sprites, then runs each actor's script VM.
-// PARKED at 86.63% (1772 bytes = retail's exactly, 443 insns = retail's exactly, 272 differing lines).
-// The structure is right and the size is exact; what is left is register allocation.
+// PARKED at 87.14% (1772 bytes = retail's exactly, 443 insns = retail's exactly, 206 differing lines).
+// The structure is right and the size is exact; what is left is register allocation and in-block load order.
 //   THE STRUCTURE (a semantics fix, not a spelling, round 499): retail calls func_80076AC0 inside BOTH
 //   arms of the spriteSource test with a different 3rd argument, and the CLUT switch lives in the
 //   `spriteSource & 0x80` arm ONLY - the party-buffer arm ends with `j .L800A2BAC` (the loop tail) at
-//   0x29B4, skipping the switch. The earlier park called once and ran the switch for every actor.
-//   Splitting the call took the body from 1744 to 1836 bytes (83.19% -> 88.14%); giving each of the six
-//   CLUT stores its own element pointer (`pFieldActor = &g_FieldActors[i];`) then made the instruction
-//   count exactly retail's 443 at 86.63%. objdiff's fuzzy percentage is NOT monotone (the 459-insn body
-//   read 88.14, this exact-size one 86.63), so judge with the count and the differing-line count.
-//   KEPT FROM THE EARLIER PARK: the else branch (both VM loops and the FieldScriptVMRun fallback) is
-//   exact, and it is where retail's $s2 comes from - it keeps &g_FieldActors in $s2 across the loops
-//   (one `lw v0,0(s2)` per use) exactly as `ppFieldActors = (FieldActor**)&g_FieldActors;` does, the
-//   misc.c idiom. ActorData::flags130 / flags134 are UNSIGNED in retail (`srl`, while the header
-//   declares both as int), so every shift needs its (u_int) cast. The first VM loop's bytecode offset
-//   must be a u16 local (retail's `sh 0xCC` then `andi 0xFFFF` around the SCRIPT_READ_U8 index); the
-//   second loop stores the callee's return value directly, i.e. no local there.
+//   0x29B4, skipping the switch.
+//   ROUND 533 CLOSED THE MIRRORED SAVED PAIR: the party loop counter is `i`, not a separate `j`. Retail
+//   reuses $s1 for it (`move s1,zero` at 0x2BD4, `addu v0,v0,s1` at 0x2C04) and that ONE variable is
+//   also the first actor loop's index, so a distinct `j` pseudo handed $s1 to the byte-offset IV and
+//   $s0 to i (mirrored); reusing `i` puts the offset IV in $s0 and i in $s1 exactly as retail, and
+//   measured 86.63 -> 87.14% with 272 -> 206 differing lines. Five declaration orders had been tried
+//   before that and were all byte-identical, so the axis was the LOOP COUNTER'S IDENTITY, not the
+//   declaration order (see a-reset-loop-counter-that-is-a-later-live-variable-fixes-the-saved-map).
+//   KEPT: the else branch (both VM loops and the FieldScriptVMRun fallback) is exact, and it is where
+//   retail's $s2 comes from - it keeps &g_FieldActors in $s2 across the loops (one `lw v0,0(s2)` per
+//   use) exactly as `ppFieldActors = (FieldActor**)&g_FieldActors;` does, the misc.c idiom.
+//   ActorData::flags130 / flags134 are UNSIGNED in retail (`srl`, while the header declares both as
+//   int), so every shift needs its (u_int) cast. The first VM loop's bytecode offset must be a u16 local
+//   (retail's `sh 0xCC` then `andi 0xFFFF` around the SCRIPT_READ_U8 index); the second loop stores
+//   the callee's return value directly, i.e. no local there.
 // WHAT IS LEFT, none of it structure:
-//   1. $s0/$s1 are mirrored through the whole first loop: retail keeps i in $s1 and the element-offset
-//      IV in $s0, this body the opposite. Five declaration orders (ints first, j/i swapped, offset last,
-//      pFieldActor last, u_int i) measure byte-identical, so it is a callee-saved allocation tie. It also
-//      costs j: retail's party loop counter reuses $s1 (`move s1,zero` at 0x14A0), this body's gets $a3.
-//   2. The gear-swap arm is 142 insns against retail's 135. Retail reads g_FieldActors ONCE for the three
-//      statements that share a block and once more after the store (2 reads for 4 mentions), which is
-//      non-volatile CSE killed by the aliasing store; with the header's `volatile` every mention reloads.
-//      MEASURED both ways: a non-volatile g_FieldActors (one-line header edit, reverted) drops the whole
-//      body to 402 insns because gcc then hoists the load out of the actor loop into $t1/$a1, and the
-//      local view (*ppFieldActors)[i] (the misc.c idiom used by the else branch) gives 434. So neither
-//      qualifier reproduces retail's per-block reload; the per-statement locals above do.
-//   3. The else branch is 111 insns against 113: retail reaches g_FieldSpriteData as 0xC(s2), off the
-//      &g_FieldActors base it keeps in $s2, where this body forms the address with lui/lw.
-// Tried and reverted besides the above: cdk preset 83.51, gcc-2.6.0 will not compile the unit, a separate
-// pCurActor variable for the arms (the loop's load count drops to 167 insns), six declaration orders.
+//   1. The CLUT switch arms (the bulk of the 206 lines): retail re-forms the element base per statement
+//      (`lui/lw g_FieldActors`, `addu v0,s0,v0`, then `lw v1,76(v0)`, `lw a0,4(v0)`) and reads
+//      pActorData BEFORE pSpriteData; this body's per-statement `pFieldActor = &g_FieldActors[i];`
+//      lands the base in $a2 and sched2 reads 4(a2) before 76(a2). Same instruction multiset, different
+//      register and load order.
+//   2. Retail's party loop keeps the two address-of-global bases in $a2/$a3; this body lands
+//      g_FieldPartyActorSlots in $t0.
+//   3. The gear-swap arm is 142 insns against retail's 135: retail reads g_FieldActors ONCE for the
+//      three statements that share a block and once more after the store (2 reads for 4 mentions), which
+//      is non-volatile CSE killed by the aliasing store; with the header's `volatile` every mention
+//      reloads. MEASURED both ways: a non-volatile g_FieldActors (one-line header edit, reverted) drops
+//      the whole body to 402 insns because gcc then hoists the load out of the actor loop into $t1/$a1,
+//      and the local view (*ppFieldActors)[i] (the misc.c idiom used in the else branch) gives 434.
+//   4. The else branch's first loop preheader: retail emits `blez count` BEFORE `lui/addiu s2` (the
+//      &g_FieldActors materialisation sits in the loop head, after the entry test); this body has the
+//      `ppFieldActors = ...` assignment before the `for`, so the materialisation precedes the test.
+// Tried and reverted: cdk preset 83.51, gcc-2.6.0 will not compile the unit, a separate pCurActor
+// variable for the arms (the loop's load count drops to 167 insns), six declaration orders, a local `j`.
 /*
 void func_800A28D4(void) {
     ActorData* pActor;
@@ -719,7 +725,6 @@ void func_800A28D4(void) {
     void* pSpriteData;
     u16 offset;
     int i;
-    int j;
 
     if (g_GamePartySkinsInitialized) {
         func_800A3474();
@@ -772,20 +777,20 @@ void func_800A28D4(void) {
         // A party member riding a gear shows the gear's sprite, so the two actors' sprites are
         // handed over; a rider on foot gets its own model flagged instead.
         if (g_FieldSceneReloadFlags) {
-            for (j = 0; j < MAX_PARTY_MEMBERS; j++) {
-                if (g_FieldPartyActorSlots[j] != ACTOR_ID_INVALID) {
-                    if (g_pGameState->gearRide[j]) {
-                        pSpriteData = g_FieldActors[g_FieldPartyActorIndices[j]].pSpriteData;
-                        pSwap = g_FieldActors[g_FieldPartyActorSlots[j]].pSpriteData;
-                        g_FieldActors[g_FieldPartyActorSlots[j]].pSpriteData = pSpriteData;
-                        g_FieldActors[g_FieldPartyActorIndices[j]].pSpriteData = pSwap;
+            for (i = 0; i < MAX_PARTY_MEMBERS; i++) {
+                if (g_FieldPartyActorSlots[i] != ACTOR_ID_INVALID) {
+                    if (g_pGameState->gearRide[i]) {
+                        pSpriteData = g_FieldActors[g_FieldPartyActorIndices[i]].pSpriteData;
+                        pSwap = g_FieldActors[g_FieldPartyActorSlots[i]].pSpriteData;
+                        g_FieldActors[g_FieldPartyActorSlots[i]].pSpriteData = pSpriteData;
+                        g_FieldActors[g_FieldPartyActorIndices[i]].pSpriteData = pSwap;
 
-                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags |= 0x200;
-                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags &= ~0x500;
-                        g_FieldActors[g_FieldPartyActorIndices[j]].status |= ACTOR_STATUS_INVISIBLE;
+                        g_FieldActors[g_FieldPartyActorIndices[i]].pActorData->scriptFlags.flags |= 0x200;
+                        g_FieldActors[g_FieldPartyActorIndices[i]].pActorData->scriptFlags.flags &= ~0x500;
+                        g_FieldActors[g_FieldPartyActorIndices[i]].status |= ACTOR_STATUS_INVISIBLE;
                     } else {
-                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags |= 0x400;
-                        g_FieldActors[g_FieldPartyActorIndices[j]].pActorData->scriptFlags.flags &= ~0x300;
+                        g_FieldActors[g_FieldPartyActorIndices[i]].pActorData->scriptFlags.flags |= 0x400;
+                        g_FieldActors[g_FieldPartyActorIndices[i]].pActorData->scriptFlags.flags &= ~0x300;
                     }
                 }
             }
@@ -832,6 +837,7 @@ void func_800A28D4(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A28D4);
+
 
 
 
