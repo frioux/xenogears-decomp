@@ -3195,7 +3195,9 @@ typedef struct {
 // the entry block, 4 bytes ahead of retail - and the else arm must store the literal so cse reuses
 // that hoisted register instead of the byte it just compared. The lower two axes of the delta row
 // need their own s32 temps: three identical embedded assignments come out with the v0/v1 pair
-// mirrored in two of them.
+// mirrored in two of them. The empty do/while barriers pin retail's per-statement
+// [volatile reload, addu, lw, lh, lh, subu, sh] order; without them the two plain slot stores sink
+// below the first reload and the body loses its load-delay nops.
 void func_80086590(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
     s16* pDelta;
