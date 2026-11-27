@@ -34,6 +34,12 @@ typedef struct {
 // Digit sprite ids are indices into the glyph set that starts at this id.
 #define BATTLE_DIGIT_SPRITE_BASE 0x67
 
+// Width of one battle text slot's string buffer (0x39 in misc3.c and misc17.c too).
+#define BATTLE_TEXT_SLOT_BUFFER_SIZE 0x39
+
+// Frames func_80071964 keeps drawing after it puts the skip text up.
+#define BATTLE_SKIP_WAIT_FRAMES 3
+
 // The command queue block g_BattleCommandQueue points at (the 0x2F8 bytes
 // BattleRunScene allocates for it), as in misc4.c's view of the same block.
 typedef struct {
@@ -565,40 +571,20 @@ void BattleResetActorCountdown(void) {
     g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex - 0xB] = g_BattleSlotCountdownTimers[g_BattleCommandQueue->actorIndex];
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071964);
-/* 99.51% under 2.6.0 (also 99.51 -G0, 98.78 2.7.2, 94.59 cdk): 41 of 41
-   insns and 164 bytes = retail's, and the ONLY residual is the entry flag
-   load, retail 'lbu a1,g_BattleWaitSkipFlag' against our 'lbu v0'. Round 418 closed the
-   last door on it with a repo-wide scan of the matched objects: of the 171
-   functions whose first two insns are 'lui r,%hi(sym)' plus a load into the
-   same r that feeds the entry branch, 155 take $v0 and EVERY non-$v0 case is
-   either a parameter or a value read again in a later block (libarchive's
-   ArchiveReleaseStreamBlock/StreamSection, the only two $a1). This value dies
-   in the entry block, so local-alloc hands it $v0; moving it means putting the
-   load and its test in different blocks, which needs a branch between them and
-   costs an instruction. 24 spellings measured in rounds 405/418 (compound &&,
-   plain, !(), nested ifs, two ifs, early return, goto-label, if(0), while(0),
-   switch on the flag, u8/char/int/register/u8-with-init locals, pointer deref,
-   volatile, D_800D2CAE[1], literal mask, hoisted u16 mask temp,
-   -fschedule-insns/2) all emit lbu $2; 'flag == 1' reaches $3 but costs li+bne
-   (42 insns). Three permuter runs (2081, 1343 and 1351 iterations) base 20
-   best 20 - it scores maspsx expansion noise on this body. Verdict: allocator
-   tie, leave it a stub.
-*/
-/*
 void func_80071964(void) {
     u8 *pEntry;
     s32 i;
 
     if (g_BattleWaitSkipFlag != 0 && (g_BattleActionSlotMask & g_BattleSlotFlag8000Mask) == 0) {
-        pEntry = GetStringEntry(D_800D39F0);
-        D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], 0x39, 1);
+        pEntry = GetStringEntry(D_800D39F0, g_BattleWaitSkipFlag);
+        D_800D39C6 = SystemRenderStringEntry(pEntry, D_800D39C0[0], BATTLE_TEXT_SLOT_BUFFER_SIZE, 1);
         LoadImage((RECT *)&D_800D39C0[-2], (u_long *)D_800D39C0[0]);
-        for (i = 3; i != 0; i--) {
+        for (i = BATTLE_SKIP_WAIT_FRAMES; i != 0; i--) {
             BattleUpdateFrame();
         }
     }
-}*/
+}
+
 
 void BattleClearCharRedrawFlags(void) {
     s32 i;
