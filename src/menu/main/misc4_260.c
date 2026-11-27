@@ -117,6 +117,7 @@ void MenuBuildCharacterLevelDigits(MenuCharacter* pCharacter, u_char characterIn
    FOUR differing lines, because sched1 hoists the FIRST `li` (count) to the block top and drops
    the second (base) into the `lbu` delay slot.  So the statement order really is irrelevant here
    and only `-fno-schedule-insns` reproduces retail (-O1, which turns sched1 off, is 69.74).  */
+// ROUND 547 re-measured 99.29% / 1120 bytes = retail's exact size / 280 insns; residual is ONE displaced line pair. THE CAUSE IS NOT sched1, correction to c-two-loads-hoist-the: with BOTH -fno-schedule-insns AND -fno-schedule-insns2 the else arm's stream is [li count][lbu][nop][chain][lw][li base] and retail's is that same stream with BOTH lis one slot later ([lbu][li count][chain][lw][li base]), i.e. the pre-schedule RTL order already differs and retail's own sched1 then made two moves this cc1 makes differently. Measured dead this round: the retail-stream spelling (its own gearId local, then count, then value, then base) is 99.26 with 4 differing lines because sched1 hoists li count to the block top and drops li base into the lbu slot; permute.sh 3 min base=60 best=60 over 982 iterations; preset screen 2.7.2 97.82, 2.7.2-cdk 88.88 (2.6.0 99.29 is best, so the unit preset is right). Prior rounds: (value,count,base)/(count,base,value)/(count,value,base) 99.26, u_char gearId local first 99.29, do-while barrier byte-identical, -O1 69.74. Best body below is (value, glyphBase, glyphCount) order.
 /*
 void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char localIndex, s32 arg3, s32 arg4, u_char arg5) {
     s32* pY = (s32*)arg4;
@@ -185,9 +186,9 @@ void func_801CDC6C(MenuCharacter* pCharacter, u_char characterIndex, u_char loca
             }
         }
     }
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CDC6C);
+
 
 void MenuBuildCharacterPrims(MenuCharacter* pCharacter, u_char arg1, u_char arg2, s32 arg3, s32 arg4, u_char arg5) {
     MenuBuildCharacterLabelsAndPortrait(pCharacter, arg1, arg2, arg3, arg4, arg5);
