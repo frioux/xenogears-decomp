@@ -181,7 +181,7 @@ extern void func_80031750(void* pOT, void* pPrim);
 extern VECTOR g_BattleShadowPlaneNormal;
 extern s32 D_8009A2CC;
 extern s32 D_8009A2D0;
-extern void func_8008C3A8(void* pSrc, void* pDst, u16 n);
+extern void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n);
 extern void func_80031804(void* pOT, void* pPrim);
 extern EffectVert* g_BattleScratchViewOrigin;
 extern SVECTOR* g_BattleTrailVertScratch;
@@ -422,22 +422,39 @@ void BattleQueueNodePrims(ObjectNode* pNode) {
         BattleQueueNodePrims(pNode->pChild90);
 }
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C3A8);
-/* Best C match, 73.52% (272 bytes vs retail 280). Two shapes are already right
-   and must be kept when this is picked up again:
-     - the reference-VECTOR read is gte_ld3_gpr(tx, ty, tz, &g_BattleShadowPlaneNormal): one
-       `la` plus 0/4/8 displacements. Written as `g_BattleShadowPlaneNormal.vx/vy/vz` (or
-       through any pointer local) gcc folds each field into its own lui/lo
-       address and the whole register allocation shifts (67.33%).
-     - the loop is do/while over a signed count (`n--; while (n != 0)`); with a
-       u16 parameter gcc adds an `andi v0,a2,0xffff` retail does not have.
-   Still different: retail's MVMVA carries one nop before AND one after the
-   command (gte_mvmva emits two before, and the 3-instruction slot then shifts
-   everything after it); retail hoists `addiu a1,a1,8` above the first store and
-   addresses it as -8/-4(a1) while gcc stores at 0/4(a1) after both divisions;
-   retail's second numerator is `negu t7,t3` then addu then `negu` (i.e. it
-   negates MAC3 first), a plain `z * ty - tz * y` gives subu; and the MAC reads
-   land in t8/t9/t3 with the products in t0/t1 and the divisor in t2, against
-   ours in t0/v1/a0 + v0/v1/a3.
+/* Best C match, 76.55% (our 272 bytes against retail's 264 = 0x108, 65 vs 66 insns).
+   Two shapes in here are settled and must be kept:
+     - the MVMVA is `gte_nop(); gte_mvmva_b(1,0,0,0,0); gte_nop();` and NOT gte_mvmva:
+       retail is `nop / MVMVA / nop / lwc2 $0 / lwc2 $1` and gte_mvmva's two leading nops
+       put the whole loop body one slot out (73.52 -> 76.55 on that edit alone).
+     - the reference VECTOR is read with gte_ld3_gpr(tx, ty, tz, &g_BattleShadowPlaneNormal):
+       one `la` plus 0 / 4 / 8 displacements, which scalar field reads do not give.
+     - the loop is do/while over a signed count (`n--; while (n != 0)`); a u16 count makes
+       cc1 add `andi v0,a2,0xffff`.
+   Also settled by measurement (do not redo): try_flags --all gives 76.55 under
+   gcc-2.6.0-psx and 76.55 under gcc-2.7.2-cdk-psx, the same as the unit's 2.7.2, and both
+   alternatives break matched neighbours (2.6.0 drops BattleProjectShadowVerts to 99.05 and
+   BattleInitWorkBlock to 99.74; cdk drops BattleInitQuad4Prim to 92.26), so this is not a
+   preset split. Reporting PRESET_NONE.
+   The four constructs still missing, in the order they show up in the diff:
+     1. retail computes the first product (`mult t9,t5`) BEFORE the `beqz den` and lets
+        reorg sink it into that branch's delay slot; every body here puts both products
+        inside the `if`, so the delay slot is a nop and the two products are adjacent.
+     2. retail's MAC reads land in t8 / t9 / t3 and its products in t0 / t1 with the
+        divisor in t2; ours land in t0 / v1 / a0 with the products in v0 / v1 and the
+        divisor in a3, and because one mfc2 takes $a0 cc1 copies the source pointer with
+        `move t1,a0` at the top - a parameter copy retail does not have.
+     3. retail's second numerator is NEG(PLUS(NEG(z)*ty, tz*y)) - `negu t7,t3` at the leaf,
+        `addu t0,t3,t1`, `negu t0,t0` - while the symmetric `z * ty - tz * y` gives a plain
+        `subu`. The first numerator (which retail DOES spell `subu`) and the second
+        therefore differ in the original source, and no spelling of `z * ty - tz * y`
+        measured here produces the two negations.
+     4. retail advances pDst early and stores at -8 / -4(a1) (the self-reassigning
+        `base += K` shape of lever k), and the pDst / pSrc / n updates are duplicated into
+        both paths instead of shared after the join as cc1 emits them here.
+   The prototype must stay (SVECTOR*, SVECTOR*, s32) and the extern above it now matches;
+   the stored park did not compile because that extern was `(void*, void*, u16)` and cc1
+   exited 33 - do not restore it.
 void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
     s32 tx;
     s32 ty;
@@ -451,7 +468,9 @@ void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
     gte_ldv0(pSrc);
     pSrc++;
     do {
-        gte_mvmva(1, 0, 0, 0, 0);
+        gte_nop();
+        gte_mvmva_b(1, 0, 0, 0, 0);
+        gte_nop();
         gte_ldv0(pSrc);
         gte_stmac2_val(y);
         gte_stmac1_val(x);
@@ -467,6 +486,7 @@ void func_8008C3A8(SVECTOR* pSrc, SVECTOR* pDst, s32 n) {
     } while (n != 0);
 }
 */
+
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C4B0);
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc15", func_8008C620);
 void BattleShiftQuad4Verts(QuadTrail* pTrail) {
