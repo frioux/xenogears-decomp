@@ -62,39 +62,40 @@ void func_8007DCF8(int index, u_long* pOt, int ctx) {
     }
 }
 
-// PARKED 97.46% (round 534): 588 bytes against retail's 584, 147 insns against
-// 146. Everything except the preheader of the second rect family is
-// instruction-identical: the y/h stores ride a base RECOMPUTED each iteration
-// (sll + lui/addiu + addu) that is also the SetDrawMode clip-rect argument, the
-// eight stores and their order, both GetTPage/SetDrawMode pairs, the latch
-// increments, the 4-box loop and the frame (0x48) all match.
-// The one residual is the AFC84 family's anchor: gcc anchors on the x giv
-// (`la v0, D_800AFC80; addiu s3, v0, 4; move s2, v0` = 4 insns) where retail
-// anchors on the +0 (w) giv (`la s2, D_800AFC84; addiu s3, s2, -4` = 3) and
-// swaps s2/s3, so the only instruction surplus is that `move`. The object names
-// D_800AFC80 for the anchor because gas re-anchors `D_800AFC84 - 4` to the label
-// at that address, so both spellings link to the same bytes.
-// Measured this round, best first: this body 97.46 / 588 / 147; `pRect->x` for
-// the x store (drops the x giv) 92.06 / 576 / 144 (two short - the x giv is
-// real); all four stores through the D_800AFC84 halfword view with no pRect
-// 92.89 / 604 / 151; one `D_800AFC80[]` RECT array for all four 87.63 / 608 /
-// 152; the old two-symbol form 82.05 / 624 / 156.
-// Load-bearing spellings, each measured up: (1) the y/h/x stores must go through
-// a `RECT*` local assigned in the body, not through `D_800AFC80[i].y` - the
-// local is what keeps that base recomputed and shared with the call argument
-// (the indexed form makes gcc fold +2/+6 into two more induction registers);
-// (2) x and w must come from the halfword view of D_800AFC84 (`[i * 4 - 2]` /
-// `[i * 4]`), which is what produces retail's two stepping pointers; (3) the
-// second draw mode is `&D_800B1DF4[1][i]` on the [2][0x10] array, i.e. base +
-// 0xC0, not a second symbol.
-// Not tried (no budget left): anything that makes gcc pick the +0 giv as the
-// anchor instead of the -4 one; if that can be had, the body closes.
+// PARKED 97.80% (round 543): 588 bytes against retail's 584, 147 insns against
+// 146. Everything matches except the preheader of the second rect family, where
+// one surplus `move` remains. Retail anchors that pair on the +0 (w) giv
+// (lui s2,%hi(D_800AFC84); addiu s2,s2,%lo; addiu s3,s2,-4), this body does too,
+// but materialises the symbol into $v0 and then copies it (lui v0 / addiu v0 /
+// sw s2 / move s2,v0 / addiu s3,s2,-4 = 4 insns) because the +0 giv here is a
+// DEST_REG giv created by the pClip assignment, and loop.c inits those with a
+// copy where a DEST_ADDR giv gets the bare set (reg)(symbol_ref). The nine other
+// diff rows are the s2/s3 numbering that follows from the extra move; the eight
+// stores and their order, both GetTPage/SetDrawMode pairs, the latches, the
+// 4-box loop and the 0x48 frame are instruction-identical.
+// Measured this round: the pClip local assigned INSIDE the loop is what flips
+// the anchor from the -4 giv to the +0 one with the store order (y, x, h, w)
+// intact, 97.46 -> 97.80; pClip = D_800AFC84 + i * 4 is byte-identical to
+// &D_800AFC84[i * 4]; the same local assigned BEFORE the loop with pClip[i * 4]
+// at the stores is 94.23 / 588 / 147 (a pointer live across the loop takes a
+// second callee-saved register and the D_800B1DF4 pair rotates to s5/s6).
+// From round 534, still valid: the whole D_800AFC84 halfword view with no pRect
+// 92.89 / 604 / 151; one D_800AFC80[] RECT array for all four stores 87.63 /
+// 608 / 152; the old two-symbol form 82.05 / 624 / 156; pRect->x for the x
+// store 92.06 / 576 / 144 (two short - the x giv is real). The y/h stores must
+// go through a RECT* local assigned in the body, which keeps that base
+// recomputed per iteration and shared with the SetDrawMode argument; the two
+// draw modes are &D_800B1DF4[0][i] / [1][i] on the [2][0x10] array.
+// Next idea if this is picked up again: get the +0 giv recorded as a DEST_ADDR
+// giv (first address in the body a store at the +4 symbol) without changing the
+// store order, or find a DEST_REG spelling whose init cc1 emits as a bare set.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
 /*
 void FieldTextBoxInitialize(void) {
     int i;
     RECT rect;
     RECT* pRect;
+    short* pClip;
 
     rect.y = 0;
     rect.x = 0;
@@ -102,15 +103,16 @@ void FieldTextBoxInitialize(void) {
     rect.w = 0xFF;
 
     for (i = 0; i < 16; i++) {
+        pClip = &D_800AFC84[i * 4];
         pRect = &D_800AFC80[i];
         pRect->y = 0;
         D_800AFC84[i * 4 - 2] = 0;
         pRect->h = 0xFF;
-        D_800AFC84[i * 4] = 0xFF;
+        *pClip = 0xFF;
         pRect->y = 0;
         D_800AFC84[i * 4 - 2] = 0;
         pRect->h = 0xFF;
-        D_800AFC84[i * 4] = 0xFF;
+        *pClip = 0xFF;
         SetDrawMode(&D_800B1DF4[0][i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), pRect);
         SetDrawMode(&D_800B1DF4[1][i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), pRect);
     }
