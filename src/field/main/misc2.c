@@ -1820,26 +1820,28 @@ extern s32 g_FieldP2RenderToggle;
 extern s32 g_FieldSceneReloadFlags;
 extern s32 g_GfxOTDepthShift;
 
-// 99.52%: retail's exact 1472 bytes and an instruction-identical stream; the only
-// difference is which callee-saved register holds which value. After the first
-// three callee-saved values agree (pActor and the index*0x5C accumulator chain),
-// retail uses i=$s5, &crossResult=$s4, &screenMatrix=$s3, the 0xFFFFFF mask=$s7,
-// the 0x5C accumulator=$s6, where this body gets i=$s4, &crossResult=$s3,
-// &screenMatrix=$s7, mask=$s6, accumulator=$s5 - the same allocation order rotated
-// by one, with &screenMatrix processed last instead of first. Everything else is
-// exact: the 0x110 frame with ten callee-saved registers and both arguments
-// spilled, gte_ldopv1_gpr/gte_ldopv2/gte_op12_b, the three
-// ldclmv/mvmva(1,0,3,3,0)/stclmv column transforms between
-// gte_SetRotMatrixRows_gpr and gte_SetTransMatrix_gpr, gte_ldlv0 + mvmva(1,0,0,0,0)
-// for the translation, the (scale * 0xC00) >> 12 / >> 14 clamp, ScaleMatrix,
-// gte_SetRotTransMatrix_gpr, RotAverage4 over the Quad and the addPrim tail.
-// Measured, all 99.52% at 1472 bytes: `otz >>= ...` as two statements (this fix is
-// KEPT - one statement left the otz/OT-address registers wrong), a do/while around
-// the scale block, otz/scaleX/scaleY/scaleZ declared in other positions, `long`
-// for the scale products, `int i` first, and the two MATRIX declarations swapped
-// (99.47). The permuter cannot edit this body (its C parser rejects the GTE inline
-// asm). The allocno sort keys on refs-vs-live-length of &screenMatrix against
-// &crossResult; no source shape tried moves it.
+// 99.52%: retail exact 1472 bytes / 362 insns, whole stream instruction-identical,
+// 64 differing lines and every one of them a callee-saved register NAME. The only
+// wrong hand-out is &screenMatrix: retail has screenMatrix=$s3, crossResult=$s4,
+// i=$s5, acc=$s6, mask=$s7 where this body gets crossResult=$s3, i=$s4, acc=$s5,
+// mask=$s6, screenMatrix=$s7 - everything but screenMatrix in retail order, so one
+// allocno (pseudo 143) has to overtake pseudo 116 and nothing else may move.
+// MEASURED with -da -dl -dg on this body (gcc-2.7.2-psx -O2 -G0): "16 regs to
+// allocate: 80 99 269 98 76 181 172 163 116 81 271 248 143 267 73 72", dispositions
+// 116 in 19 (s3), 81 in 20, 271 in 21, 248 in 22, 143 in 23, and -dl gives
+// crossResult 9 refs across 196 insns against screenMatrix 7 refs across 195, i.e.
+// floor_log2(refs)*refs*10000*4/live = 5510 against 2871. screenMatrix needs 9 refs
+// (3*9*40000/195 = 5538, a 0.5% win) or a live range under 101 insns; its live
+// range is the whole loop body and its 7 refs are its def plus the offset-0 uses
+// only (column 0 three halfword stores, &screenMatrix at ScaleMatrix and at
+// SetRotTransMatrix - columns 1/2 fold to sp+0x7A/sp+0x7C and add none), so two
+// more references are two more instructions and retail has none to spare. PARK on
+// the arithmetic (see the allocno-quotient levers), do not re-permute.
+// Measured dead here: permuter 4 min / 1567 iterations base=175 best=175 (the
+// parser DOES accept this GTE body - the previous note was wrong about that),
+// cdk 87.32 and 2.6.0 91.69 (so not a preset), `otz >>= ...` as one statement,
+// a do/while around the scale block, otz/scaleX/scaleY/scaleZ declared elsewhere,
+// `long` scale products, `int i` first, the two MATRIX declarations swapped (99.47).
 INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_800764B4);
 /*
 void func_800764B4(u_long* pOtBase, s32 renderContextIndex) {
