@@ -1190,6 +1190,7 @@ int WorldMapInitGroup1Actor(int index) {
 // scores 99.87 with that one instruction as the only difference, so the displacement is
 // sched2's SI-mode vs QI-mode priority, not source order. Permuter (3 min, -j 2):
 // PERMUTER_NONE base 120 best 120. Preset ruled out earlier: 2.7.2-cdk gives 83.56.
+// ROUND 547 AUDIT: re-measured 99.36% / 2680 bytes (retail's exact size), 670 = retail's insn count; residual unchanged (the displaced g_WorldMapPlayerPosition load pair in the shared case 3/23 tail). NEW THIS ROUND - the displacement is NOT sched2 and NOT statement order: compiling this unit's own .i with the unit cc1 plus -fno-schedule-insns2, and separately -fno-schedule-insns, leaves the load in the SAME late slot (after the six dirX*13952 insns), so the late position is the RTL emission order of the subtraction: for A - B*C gcc emits the multiply's insn sequence before the leaf load. Retail keeps a separate source statement for the position read, which is why a 's32 nPosX' local read after the two stores fixes the ORDER (the load lands in retail's slot, the rest of the tail identical) - but it costs a two-way register rotation: pos takes v1 and dirX a0 where retail has pos a0 and dirX v1, each arm reloading dirX (v2 form). Measured this round, all 2680 bytes: pos local after the stores 99.10 (207 differing lines, the rotation only); pos local declared before nDirX 99.10 (byte-identical to it); s32 load cast 99.10 (identical); pos local plus inline pActor->dirX twice in the x expression 98.38 / 2676 (loses the per-arm dirX load); pos local read BEFORE the two stores 98.26 / 2688. So the two residuals are mutually exclusive as in the lever a-loads-source-position-switches-the-whole-allocation-family: order (99.10, rotation) vs registers (99.36, displaced load). No -da/-dl/-dg dump is available in tools/gcc-2.7.2-psx/cc1 (all dump flags produce no file and empty stderr), so the rotation cannot be checked with the floor_log2(refs)*refs/live arithmetic on this toolchain.
 /*
 int func_8007EE34(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1465,6 +1466,7 @@ int func_8007EE34(int index) {
     return nResult;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
+
 
 
 
