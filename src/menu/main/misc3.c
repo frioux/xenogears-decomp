@@ -1279,6 +1279,36 @@ void MenuApplySaveSlot(u32* pSrc) {
    -O3 51.91, 2.7.2 78.09, 2.7.2-cdk 76.13) were measured on the 84% body - re-measure
    before believing them. This round: 2.7.2 -O2 90.19 / -O3 68.64, cdk -O3 68.48 on the
    90.42 body. */
+/* Best attempt: 98.86% (1444 bytes vs retail's 1448; 361 vs 362 insns) under XenoMenu260
+//    (gcc-2.6.0), 107 differing lines. Re-measured fresh in this redo lane from the 98.56 park
+//    left by the previous round; the ONE find this round is a lever:
+//    (1) THE SUM ACCUMULATOR IS A u_char, NOT s32. Retail's loop is `addu v0,a0,v0` + `move a0,v0`
+//    in the bgez delay slot where `sum += *pData++` with `s32 sum` gives the in-place
+//    `addu a0,a0,v0`, one instruction short; the previous note's "second accumulator is
+//    byte-identical" was right and the axis was the TYPE. `u_char sum` (with the then-redundant
+//    `(u8)sum` cast dropped from the compare) - semantically the same, because retail masks the
+//    promoted value with `andi v0,a0,0xff` only at the compare - reproduces retail's two-insn
+//    add exactly: 98.56 -> 98.86%. Found by permute.sh (base 873 -> 573, 1643 iterations).
+//    NAMED RESIDUALS, ONE instruction and one register pair in total:
+//    (a) THE LAST INSTRUCTION IS A LOAD-DELAY SLOT THIS BODY FILLS. Retail leaves a `nop` in the
+//    slot after `lw v0,%lo(g_Menu)(v0)` at 0x63FC and stores `result = 0` (`sb zero,0x58(sp)`) at
+//    0x6408 just before the jal; this body's dbr fills that slot with the same store and emits one
+//    instruction fewer. Measured dead: writing the arm as `result = 0;` AFTER the second
+//    `pManager->characterWindowBuilt = 0;` instead of before it is BYTE-IDENTICAL (gcc reorders the
+//    two stores either way), so statement order is not the knob.
+//    (b) THE $s0/$s1 MIRROR: retail keeps pData in $s0 (with noFd sharing it) and retry in $s1;
+//    this body mirrors them (retry $s0, pData and noFd $s1). Measured dead: splitting the read
+//    loop's counter into its own `u_char readRetry` (two disjoint lives could share $s1 the way
+//    retail's do) is byte-identical; a second permuter run from this body (base 573, 2062
+//    iterations) returned only WRONG-CODE candidates - duplicating `open(path,1)` and
+//    `offset += 0x100`/`pData += 0x100` inside both arms of a dead `if`, and substituting the
+//    u_char `card` for the s32 `offset` (truncates) - all rejected.
+//    Still true from the old note: the copy-loop arm's `MenuIsSlotUsable` must stay declared s32 at
+//    the call site (retail has no andi after the call); the block layout (cold islands at 0x65A4
+//    and 0x65B4 before the happy path, reached by `if (MenuLoadWindow2Text(0x65,...) != 0) goto
+//    cardRead;`), the `s32 noFd = -1` variable, and the explicit `pData = pBuffer + 0x100;` before
+//    the checksum arm are all load-bearing. Presets re-measured on the 90.42 body: 2.7.2 -O2 90.19,
+//    -O3 68.64, cdk -O3 68.48. */
 /*
 u_char func_801CB304(void) {
     char path[0x40];
@@ -1294,7 +1324,7 @@ u_char func_801CB304(void) {
     u8* pBuffer;
     u8* pData;
     s32 offset;
-    s32 sum;
+    u_char sum;
     s32 count;
 
     result = 1;
@@ -1394,7 +1424,7 @@ u_char func_801CB304(void) {
                 do {
                     sum += *pData++;
                 } while (--count >= 0);
-                if ((u8)sum == *pData) {
+                if (sum == *pData) {
                     pData = pBuffer + 0x100;
                     goto cardChecksumOk;
                 }
@@ -1432,9 +1462,9 @@ u_char func_801CB304(void) {
     g_Menu->menuUnk2->cardPollMode = 1;
     g_Menu->unk334 = 1;
     return result;
-}
-*/
+}*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
+
 
 
 
