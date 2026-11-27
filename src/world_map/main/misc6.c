@@ -275,7 +275,7 @@ extern void func_800925A0(void);
 extern int WorldMapSetActorScriptTables(int);
 extern int WorldMapUpdateSlotStateMachine(int);
 extern int func_8007E450(int);
-extern int func_8007E4E4(int);
+extern int WorldMapScrollCameraActor(int);
 extern int WorldMapInitGroup1Actor(int);
 extern int func_8007EE34(int);
 extern int WorldMapInitSlotActor(int);
@@ -532,7 +532,7 @@ void func_8007D918(void) {
     SoundPlayAudioManager(g_SoundAudioManager, SPU_VOL_MAX, 0);
     WorldMapAddSlot(WorldMapModeInitFadeRect, func_800925A0);
     WorldMapAddSlot(WorldMapSetActorScriptTables, WorldMapUpdateSlotStateMachine);
-    WorldMapAddSlot(func_8007E450, func_8007E4E4);
+    WorldMapAddSlot(func_8007E450, WorldMapScrollCameraActor);
     WorldMapAddSlot(WorldMapInitGroup1Actor, func_8007EE34);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
     WorldMapAddSlot(WorldMapInitSlotActor, WorldMapUpdateSlotActor);
@@ -879,7 +879,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 // shared base is what keeps the Y/Z loads below the X store (spelled as separate scalars
 // the scheduler hoists the Z group above it, 97.56%); the volatile stores pin the state
 // and scale writes where sched2 would otherwise hoist them above the CameraRot group.
-s32 func_8007E4E4(int index) {
+s32 WorldMapScrollCameraActor(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
     s16 nState;
