@@ -205,6 +205,20 @@ INCLUDE_ASM("asm/field/nonmatchings/effects/distortion", FieldDistortionDraw);
      note used to blame is simply a strength-reduced (byte-offset) spelling of
      the same address. Writing the two stores as inline subscripts instead drops
      that IV but adds a reload per store (79.98% / 1988 bytes).
+
+   ROUND 532: the preset axis is closed. try_flags.sh on this body: Default
+   (2.7.2 -O2 -G8) 84.72, gcc-2.6.0 82.09, gcc-2.7.2-cdk 75.87, so the
+   allocation is not a compiler-version question. Also re-measured: folding the
+   loop-1 y-block's re-formed `pTmp = &DISTORTION_PRIM_BUFFER()[row * 20 + col]`
+   into `pPrim[-DISTORTION_GRID_ROWS]` measures 81.12% / 1952 bytes / 488 insns
+   (loses 17 insns), so the re-form is load-bearing. Read the residual as
+   retail's SPILL SET, not a swap: retail keeps the 0xFFFFFF addPrim mask, the
+   `lastIndex` index and `row*800` in STACK slots (0x74/0x70/0x78) and reloads
+   them after each rsin, where this body gives the mask a callee-saved home
+   (s8) - the 10 missing instructions are that spill traffic plus retail's own
+   col*40 recompute, and the spill set follows from the IV set, which is the
+   `lastIndex` item above. Parked deliberately; the next attempt should aim at
+   the IV set in BOTH loops, not at a register spelling.
 */
 /*
 void FieldDistortionDraw(void) {
