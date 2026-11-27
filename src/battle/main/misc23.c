@@ -1541,6 +1541,18 @@ extern void func_800A8BF0(s32, u16, Misc23PartBuffer *, Misc23ModelBuffer *, s16
 // parentJointIndex / parentActorSlot / isAttached / skipGroundSnap / attachOffsetX/Y/Z.
 // 93.58% at 688 bytes / 172 insns against retail's 692 / 173 (unit preset gcc 2.6.0).
 // 4 BYTES SHORT - not shippable, but it holds retail's register map exactly.
+// 93.58% at 688 bytes / 172 insns against retail's 692 / 173 (unit preset gcc 2.6.0).
+// ROUND 543 re-unparked and re-measured: 93.58 / 688 / 172, the note is not stale and
+// the body still compiles. ONE new measurement on the biv blocker, with a throwaway
+// 'optimization_flag = -O2 -fno-strength-reduce' on the misc23 cc edge in build.ninja:
+// the same text then emits retail's exact recompute (sll s0,s7,0x1 in the bne slot,
+// addiu v0,s2,0xD, addu s0,s0,v0) at retail's exact 173 insns / 692 bytes, but scores
+// 92.48% with 120 differing lines - the frame grows to 0x70 with a THIRD halfword
+// spill (arg3 to 0x38, reloaded in the loop) and pData/count swap to s3/s4. Identical
+// 92.48 with and without the slotIndex copy, so the flag is not a preset answer and the
+// loop shape is only half the residual: retail wants the recompute AND this body's
+// hand-out, and no source measured here gives both. Preset screen on the live body:
+// 2.6.0 93.58, 2.7.2 87.73, 2.7.2-cdk 75.62 - the unit's compiler is right.
 /*
 void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     u8 *pSrc;
@@ -1596,6 +1608,7 @@ void func_800A979C(s32 arg0, s16 arg1, s16 arg2, s16 arg3, s16 arg4) {
     HeapFree(g_BattleArchiveEntry->pBuffer1);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A979C);
+
 
 
 
