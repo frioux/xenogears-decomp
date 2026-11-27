@@ -1286,6 +1286,18 @@ void BattleDrawCharStatusIfMaskUnset(u8 arg0, u8 arg1) {
 //    &counts slots); the same reading the tensRect digit through countOfs = 92.06, 1560
 //    bytes; retail's RECT declaration order = 87.56 at exactly 1588 bytes/397 insns/0xB0.
 //    Preset confirmed right: 2.7.2 89.42, cdk 73.36, -O3 == -O2.
+//    ROUND 544: the named next axis (a live copy of the counts base) WORKS for the frame but
+//    costs instructions. A `u8 *pCounts = (u8 *)counts;` local read only by the tensRect digit
+//    makes cc1 save fp and frame 0xB0 with all ten saved registers - the PROLOGUE and EPILOGUE
+//    become instruction-identical - at 90.53 (1600 bytes, 400 insns); reading both j-loop sites
+//    through it is 89.87 (1604/401, prologue also identical) and reading all three is 90.95
+//    (1568/392, frame 0xA8 again). So the extra register retail spends is one more live value in
+//    the source, but every spelling tried spills the WRONG value: ours puts rowY in memory and
+//    keeps digitY in a register where retail keeps digitY at 0x70, ofs at 0x78 and countOfs at
+//    0x80 and rowY in fp. Dropping `ofs` (reading countOfs in the j loop) is 90.95 too, and with
+//    the counts base spelled three ways cc1 spills the SAME derived pointer into two slots
+//    (0x78 and 0x80) plus an extra lw/sw pair. Untried: a source value that is live across the
+//    two calls in the preheader and is NOT an address of a local.
 /*
 void func_80093B08(u8 arg0) {
     RECT tensRect;
@@ -1403,6 +1415,7 @@ void func_80093B08(u8 arg0) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80093B08);
+
 
 
 
