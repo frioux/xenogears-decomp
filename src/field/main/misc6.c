@@ -317,49 +317,41 @@ void FieldScriptVMHandlerMoveActorToIndirectPosition(void) {
 }
 
 
-// PARKED 80.25% (656 bytes; retail 664 / 167 insns). No twin, m2c draft agrees
-// with the body, so the structure is settled; the instruction MULTISET is identical
-// and the only size gap is the three load-delay nops retail carries because its
-// schedule is tighter, so this body cannot link as it stands.
-// What this redo added (79.89 -> 80.25): the transform/child matrix t[1] pair needs
-// points[walkmeshId].vy in ONE s16 local. Retail reads it once and stores it twice
-// and so must the C: an inline second read costs 7 instructions, because the store
-// through the pFieldActor base invalidates the stack load.
-// Presets ruled out on this body: 2.6.0 77.34, 2.7.2-cdk 79.80, Default 80.25.
-// Residual (a) schedule: retail puts sh v0,8(a0) where the address is computed and
-// fills the bnez slot with addiu s1,s1,8; gcc hoists the points bump to the top of
-// the body and sinks sh into the delay slot, and it hoists the two g_FieldActors
-// loads of the t[1]/t[2] pairs together where retail interleaves them. Statement
-// order is already retail's.
-// Residual (b) allocator: retail keeps pActor in $a1 and &normals[0] in $a0, this
-// build gives $a0 and $a2 and an extra $t0 for the pair bases. Two declaration
-// orders measured earlier were byte-identical; '&g_FieldActors[idx]' instead of the
-// offset local scores 80.22 and loses retail's index-first addu v0,a0,v0.
-// Tried, all worse or equal: pointer-local do-while loop with &points[i] as a giv
-// (77.55), '&g_FieldActors[idx]' per pair (80.22), m2c's per-pair temp pointers
-// (unchanged).
 extern s16 g_FieldWalkmeshTriCount;
 extern int func_8007B1C4(int x, int z, int walkmeshId, SVECTOR* pOut, VECTOR* pNormal);
 extern u_int FieldActorGetWalkmeshTriMaterial(ActorData* pActor);
 
-// Re-measured this round: 80.25%, 656 bytes / 164 insns against retail 664 / 167.
-// Nothing changed; the residual is still (a) the loop and the tail store order and
-// (b) the pActor $a1 (retail) against $a0 (here) rotation, which mirrors almost every
-// line. One thing fixed: the three externs this body needs (g_FieldWalkmeshTriCount,
-// func_8007B1C4, FieldActorGetWalkmeshTriMaterial) had been dropped from the park by
-// an earlier unpark/repark and the body did not compile without them - they are back
-// inside the block now.
+// PARKED 80.25%: 656 bytes / 164 insns against retail 664 / 167, instruction multiset
+// identical. No twin; m2c agrees; presets ruled out (2.6.0 77.34, 2.7.2-cdk 79.80,
+// Default 80.25). Structure is settled, the residual is local-alloc: retail keeps five
+// values live in the tail (pActor $a1, normals base $a0 - later reused for idx*92 -
+// pair base $v0), this build needs a sixth ($t0: "addu t0,v1,v0" where retail has
+// "addu v0,a0,v0") and, with that extra value in flight, hoists the
+// g_FieldCurActorIndex load early and fills the three load-delay nops retail leaves -
+// so the register rotation and the 3-insn size gap are the same residual.
+// The per-pair FieldActor* local is required: the same six stores written through the
+// plain subscript (g_FieldActors[g_FieldCurActorIndex].transformMatrix.t[0] = ...)
+// score 82.77 but 700 bytes / 175 insns, because with no local the volatile base is
+// reloaded per STORE (8 loads) where retail does one per PAIR (3). It does prove the
+// idx*92 chain CSEs into one register across all three pairs, as retail has it.
+// Also measured dead: per-pair &g_FieldActors[idx] 80.22; no pActor local at all
+// (g_FieldScriptVMCurActor-> throughout) byte-identical to this body; pointer-local
+// do-while loop over &points[i] 77.55; two declaration reorders byte-identical.
+// The t[1] pair needs points[walkmeshId].vy in ONE s16 local - retail reads it once
+// and stores it twice, and an inline second read costs 7 instructions because the
+// store through the pair base invalidates the stack load.
 /*
 void func_8009E574(s32 nX, s32 nY) {
     VECTOR normals[4];
     SVECTOR points[4];
     ActorData* pActor;
+    SpriteData* pSprite;
     int i;
     FieldActor* pFieldActor;
     s16 nWalkY;
     s32 offset;
 
-    pSprite = (SpriteData*)g_FieldActors[g_FieldCurActorIndex].pSpriteData;
+    pSprite = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
     for (i = 0; i < g_FieldWalkmeshTriCount - 1; i++) {
         g_FieldScriptVMCurActor->walkmeshTriIds[i] = func_8007B1C4(nX, nY, i, &points[i], &normals[i]);
     }
