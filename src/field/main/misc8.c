@@ -2712,6 +2712,25 @@ void FieldStopSedsPlayback(void) {
    drops already-matched neighbours (FieldAllocActorData 86.62,
    FieldUpdateActorMovement 96.54), so this is not a preset question.
    permute.sh 4 min from this body: PERMUTER_NONE base=20 best=20.
+   R535: the residual is loop.c HOISTING `streamIndex + 1`, and a goto loop
+   (which gets no NOTE_INSN_LOOP_BEG, so loop.c never runs) reproduces retail's
+   back edge exactly - `addiu v0,s1,1` / `slt v0,a1,v0` / `bnez` - at 96.82%
+   (264 bytes, 66 insns). Same source, same two-line test: `if (streamIndex + 1
+   > 0) { pTable = g_FieldSedsEntries; scan: pEntry = i + pTable; while (1) {
+   if (pEntry->frameOffset == 0xFFFF) break; pEntry++; i++; } i++;
+   g_FieldSedsEntryIndex = i; count++; if (count < streamIndex + 1) goto scan; }`
+   (the `pTable` local is needed because nothing hoists the base without loop.c).
+   What it costs is the OTHER half of loop.c: retail's loop is strength-reduced
+   (`sll v0,a0,2` in the preheader and in the latch delay slot, the head is only
+   `addu v1,v0,a3`), while the goto body re-forms `sll`+addr at the top. So
+   100.00 needs loop.c's hoisting/strength reduction for the base and the
+   0xFFFF sentinel AND no hoist for `streamIndex + 1` - contradictory in 2.7.2,
+   which is why every spelling of the test (`count < streamIndex + 1`,
+   `streamIndex + 1 > count`, `count <= streamIndex`, for-loop, do-while, with
+   and without the explicit guard) collapses to the same 252-byte 63-insn body
+   with `addiu s0,s1,1` shared between the guard and the latch; the bare
+   `for (count = 0; count < streamIndex + 1; count++)` form is worst (92.91) - it
+   also pushes the frame to 0x30 for an extra spill.
    Earlier rounds (bare for-loop body at 93.00): gcc copy-propagated the s16/s32
    pair in every spelling tried (s16+s32, (s32)/(u16) casts, both s16), the
    redundant `move s1,s0` only appears with the `<=` / minus-one comparison
