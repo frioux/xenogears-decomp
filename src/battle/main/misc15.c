@@ -747,6 +747,26 @@ extern void func_8009093C(s32 arg0);
    argument setup (every other line identical, jtbl operands aside). Nothing
    else measured: levers.md c-two-loads-hoist-the already records this exact
    residual from round 447 ("statement order is exhausted", do not re-permute),
+   ROUND 547 (audit pick) re-measured the body below from a fresh unpark: still
+   99.42% / 1156 bytes / 289 insns, one `li` short of retail's 1160 / 290, and the
+   whole residual is the `sw s0,72(sp); li s0,1` pair plus the two 7th-argument
+   stores, which retail feeds from s0 while this body feeds them from s4 (cse
+   substitutes pagePending's const-1). NEW measurement that names the cause: with
+   `u8 pagePending` instead of `s32`, cc1 reproduces retail's ENTIRE prologue
+   byte for byte - `sw s4,88; li s4,1` in slot 11 and `sw s0,72; li s0,1` after
+   `li v0,0x78`, with `sw s16,24(sp)` for both call arguments - i.e. the const-1
+   cse entry is PER MODE (see levers.md a-constant-cse-is-per-mode) and retail's
+   pagePending carries a QImode constant. That body is 98.83% / 1164 bytes / 291
+   insns: the 4 extra bytes are the QImode test at the loop head (`andi s0,s4,0xff`
+   before `beqz`) plus the u8 truncation of `page = pagePending - 1`, where retail
+   has a bare `beqz s4` and `addiu s0,s4,-1` in its delay slot - so retail's
+   pagePending holds a QI constant at the init and an unmasked word at the loop
+   head, and no single declaration gets both. Also measured and dead this round:
+   a `u8 slotFlag = 1;` local (assigned after primCount, passed as the 7th
+   argument of both calls) folds to SI const 1 and compiles BYTE-IDENTICALLY to
+   the body below (1156). Next lane: the gap is the QI-const trick applied to the
+   prologue only - look for a spelling where the calls' 1 and pagePending are
+   different modes without making the loop variable QImode.
    so this is the pre-reload scheduler's slot, not the C. */
 /*
 u8 func_8008BED8(u8 arg0) {
