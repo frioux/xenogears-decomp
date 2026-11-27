@@ -598,6 +598,17 @@ s32 MenuFindFirstValidSlot(s32 a0) {
 // where retail ranks it below. Second difference: case 0's phase-2 hit block is emitted at
 // +0x2a8 where retail has it at +0x258 (placement only - the shared store block; the branch
 // targets are the only lines that differ in that hunk).
+//
+// ROUND 539: re-measured 96.74 / 736 bytes / 184 insns (the note holds). Both cheap
+// spellings of the last-loop rotation are measured dead: a SECOND block-scoped pointer
+// for phase 2's `g_Menu->menuUnk2` read (`MenuUnk2* pStepMenu;` used only in that loop,
+// so the phase-1 pseudo and the phase-2 pseudo are separate allocnos - which is what
+// retail's two different registers, pMenu a0 in phase 1 and a1 in phase 2, suggest) is
+// 96.55% / 736 / 184 with 36 differing lines, i.e. the same rotation. The per-case
+// variable split that DID flip the sibling func_801CA480's case-0/case-2 registers
+// (see its note) does not transfer here, so read this triple as a quotient-closed
+// caller-saved contest: retail hands a0/a1/a2 out in the order {store value, pMenu,
+// table biv} and this build in the order {pMenu, table biv, store value}.
 /*
 void func_801C9EF4(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
