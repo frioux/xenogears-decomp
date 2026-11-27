@@ -876,8 +876,8 @@ typedef struct {
 
 // The default spawn orientation the loader copies onto the stack for the actors
 // it creates (misc3's only .rodata item). Commented out while FieldLoad is a
-// stub, because the stub's own .s supplies this object; an unpark must restore
-// it or the unit loses its 0x10 bytes of .rodata.
+// stub, because the stub's own .s supplies those 0x10 bytes; live C plus the
+// dlabel is two copies and shifts the field overlay. An unpark restores it.
 // const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};
 
 // The 0x100-byte block the loader copies into the sprite placement table
@@ -1039,6 +1039,24 @@ extern u8 g_FieldModelSlotScratch[];
 // are the same residual class; a -dg read of this body prints 5 callee-saved
 // dispositions (16-20) against retail's 6, so the missing $s5 is an extra
 // long-lived retail allocno, not a spelling. Left as a park.
+// ROUND 541 (audit pick): the park did not compile as stored - the body needs
+// `const FieldVector3 D_8006FAF4 = {0, -100, 2000, 0};` live at file scope, so
+// every earlier percentage for it came from a stale object. Repaired and
+// re-measured: 80.99% / 3484 bytes / 871 instructions, which IS retail's exact
+// count, so the note above is current and the number is real this time.
+// Residual, read off the prologue: the locals area is identical (0x00..0x80 on
+// both sides) and this body saves s0-s4 with ra at 0x94 in an 0x98 frame while
+// retail saves s0-s5 with ra at 0x98 in 0xA0 - the 8 bytes are ONE MORE
+// long-lived value, not a dead stack array (the j-an-unused-local-array frame
+// lever cannot apply here: an array would push the saves up and desync every
+// save offset). Retail's $s5 is the actor-spawn cursor (addiu s5,v0,0x190 at
+// 0x1838, last use 0x1A94), live across every HeapAlloc / ModelAllocatePackets /
+// memcpy in the spawn loop, and cc1 -dg on this body prints 5 callee-saved
+// dispositions - so the missing quantity is a source-level local this body does
+// not keep alive over that whole span. Finding it is the only route into the
+// 90s; everything else in the body is already retail's instruction multiset.
+// The .rodata const has to be commented out while FieldLoad is a stub (see above),
+// so restoring it is the first step of any unpark.
 /*
 void FieldLoad(void) {
     FieldActor* pActor;
