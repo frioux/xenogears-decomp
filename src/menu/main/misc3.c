@@ -569,29 +569,38 @@ s32 MenuFindFirstValidSlot(s32 a0) {
     g_Menu->cardSlotState = MENU_CARD_SLOT_STATE_READY;
     return result;
 }
-// Best attempt: 86.49% (720 bytes vs retail's 736 = 184 insns; the old note's 84.07
-// was stale). Case 0 plus the two phase-2 "slti 0x1E" guards are still exact.
-// Residual, measured this round, same class as its three siblings (func_801CA480,
-// func_801CA1D4, func_801CA5F0): in EVERY case except 0 retail keeps a SEPARATE
-// induction register for the store value (case 1: a2 = i + 3 while a1 = i, both
-// `addiu ...,3`-ed in an un-inverted loop that ends "j test / slti / bnez / j loop",
-// with the store block laid out between continue and test so the continue needs its
-// own `j`), and retail RELOADS g_Menu->menuUnk2 (lw ...,812(a3)/0x32C(t0)) at the top
-// of every iteration while g_Menu itself stays in a saved register. This compile
-// hoists menuUnk2 out of the loop (outside the loop body entirely) and recomputes the
-// derived value each pass, so it emits 180 instructions against retail's 184: the
-// missing four are the continue-block `j` in each loop plus case 2's delay-slot
-// `lui v0,0x88888889` (retail puts the magic constant in the dispatch delay slot and
-// `addiu a1,a1,3` in the body; this compile does the reverse).
-// Tried: nothing new on this body this round beyond re-measuring it (the sibling
-// func_801CA5F0 was the one worked); the four attempts spent there are recorded in its
-// park. Screening: gcc-2.6.0 -O2 is the only compiler in reach (2.7.2 -O3 81.59,
-// 2.7.2-cdk 81.59 on the sibling).
-// Next lever: a spelling that makes gcc 2.6 keep the menuUnk2 load inside the loop
-// (retail's break block stores through *menuUnk2, so its loop.c could not hoist) AND
-// leaves the loop un-inverted; solve it once and all four siblings should fall.
+// Best attempt: 96.74% (736 bytes = retail's EXACT size, 184 = 184 insns; 34 differing
+// lines). 86.49 -> 96.74 this round with ONE change of shape, the same lever that took the
+// sibling func_801CA480 from 86.47 to 95.71.
+//
+// THE LEVER: the two-test loops must be written as an INVERTED fail path with an explicit
+// increment-and-continue, so that the store block lands physically INSIDE the loop's
+// instruction range. gcc 2.6 has no alias analysis, so a store between a loop's top and
+// its back edge makes the loop-invariant "lw 0x32C(g_Menu)" non-hoistable; that is exactly
+// what retail shows in every two-test loop here (case 1 phase 1: hit block 0x5084 between
+// the continue block 0x5078 and the test 0x508C). Case 1's phase 1 and phase 2 both became
+// "while (cond) { pMenu = g_Menu->menuUnk2; j = D_801E98xx[i]; if (== 0xFF || hasGameSave
+// == 0) { i += n; continue; } pMenu->selectedSlot = i + n; break; }" with the index the RAW
+// parameter and "+n" the tested/stored value; both loops came out instruction-identical
+// (case 1 phase 1 whole, including retail's loop-inversion copy "move a2,v1" and its
+// separate a2 induction). Case 0 and case 2 keep the non-inverted forms and were already
+// exact - do not touch them: their loops have a single test, retail hoists pMenu there too,
+// and their hit blocks sit outside the loop range in both compiles.
+// The earlier note on this function blamed "gcc 2.6 loop.c move_movables declining the hoist
+// on its savings/register-pressure threshold" and the four siblings were parked on it. That
+// reading was wrong: the hoist is alias-driven and the source shape controls it.
+//
+// NAMED RESIDUAL, 34 lines, no missing instruction: one register triple rotated in the LAST
+// loop (case 1 phase 2). Retail keeps {value a0, pMenu a1, table biv a2}; this build emits
+// {value a2, pMenu a0, table biv a1}, so the loop body is retail's line for line with a1/a2
+// swapped and the induction +1 going to a2 instead of a0. Same rotation as func_801CA480
+// (there: pMenu a1 vs a2), i.e. this build ranks the pointer biv above pMenu in local-alloc
+// where retail ranks it below. Second difference: case 0's phase-2 hit block is emitted at
+// +0x2a8 where retail has it at +0x258 (placement only - the shared store block; the branch
+// targets are the only lines that differ in that hunk).
 /*
 void func_801C9EF4(s32 a0, s32 a1) {
+    MenuUnk2* pMenu;
     s32 i;
     s32 j;
 
@@ -621,12 +630,16 @@ void func_801C9EF4(s32 a0, s32 a1) {
         }
         break;
     case 1:
-        for (i = a1; i + 3 < 0x1E; i += 3) {
+        i = a1;
+        while (i + 3 < 0x1E) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9828[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                g_Menu->menuUnk2->selectedSlot = i + 3;
-                break;
+            if (pMenu->slotRecordIndexes[j] == 0xFF || pMenu->slotHasGameSave[j] == 0) {
+                i += 3;
+                continue;
             }
+            pMenu->selectedSlot = i + 3;
+            break;
         }
         if (i + 3 < 0x1E) {
             break;
@@ -634,12 +647,15 @@ void func_801C9EF4(s32 a0, s32 a1) {
         i = g_Menu->menuUnk2->selectedSlot + 3;
         if (i < 0x1E) {
             if (i + 1 < 0x1E) {
-                for (; i + 1 < 0x1E; i++) {
+                while (i + 1 < 0x1E) {
+                    pMenu = g_Menu->menuUnk2;
                     j = D_801E9820[i];
-                    if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                        g_Menu->menuUnk2->selectedSlot = i + 1;
-                        break;
+                    if (pMenu->slotRecordIndexes[j] == 0xFF || pMenu->slotHasGameSave[j] == 0) {
+                        i++;
+                        continue;
                     }
+                    pMenu->selectedSlot = i + 1;
+                    break;
                 }
             }
         }
@@ -662,6 +678,7 @@ void func_801C9EF4(s32 a0, s32 a1) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
+
 
 /* Best attempt: 83.27% (668 bytes vs retail's 684). Structure is settled: each case
    is a step-3 search over D_801E9810 whose hit stores i - 3 and returns, followed --
