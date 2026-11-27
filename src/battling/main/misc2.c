@@ -816,6 +816,29 @@ extern void BattleResetMessageQueue(Actor *);
 // Second 3-minute permuter run this session: PERMUTER_NONE, base=251 best=251, 1320
 // iterations (matches the earlier 1353-iteration run) - the fill is not reachable by any
 // small edit. Presets re-checked earlier: 2.6.0 89.53, cdk 83.89, -G0 identical.
+// Round 547 audit re-measure: 99.33%, objdiff 1424 bytes / 356 insns against retail 1428 / 357.
+// Residual is still exactly ONE instruction: retail keeps a nop in the delay slot of the third
+// `bne v0,a1,<found1>` and copies its third argument (a2 = s4 = single) as the block third insn;
+// cc1 + reorg puts `move $6,$20` in that slot, so the body is 4 bytes short and can never link.
+// NEW evidence this round (the reason to stop hunting source shapes): compiled the unit .i with the
+// unit flags PLUS -fno-delayed-branch, which prints the pre-reorg block, and it is byte-for-byte
+// retail order -- `addu $4,$sp,32 / addu $5,$sp,48 / move $6,$20 / sw $16,16($sp) / lbu $2,2($18) /
+// move $7,$18 / sw $17,24($sp) / sw $2,20($sp) / jal BattleStoreSlotPositions`. So the target block
+// fed to reorg is NOT the difference: reorg scans the block, skips the two address copies (both set
+// registers that are live on the fall-through loop tail: $4 by `addu $4,$4,84`, $5 = g_BattleDrawFlags
+// compared in the next iteration) and takes the only safe insn, the a2 copy ($6 is dead on that path
+// until the later `bne $6,$0`). Nothing in the source can move that copy later without changing the
+// block, and -dR carries no DEBUG_REORG output in this cc1, so the heuristic cannot be inspected
+// further. Presets re-checked on THIS body: 2.6.0 89.53, 2.7.2-cdk 83.89, -G0 identical to unit flags.
+// Permuter: two runs on this exact body (1353 and 1320 iterations) both PERMUTER_NONE, base=251
+// best=251; a third was not run rather than repeated. Hand shapes measured dead earlier and again
+// named here: ternary instead of if/else, if/else with a pointer local, swapped ternary operands.
+// One more honesty note on this body: the two `taken` tests below (the post-loop `if (taken != 0)`
+// and the second loop guard) are a DEAD local kept only because it reproduces retail `bnez a2` /
+// `beqz a2`; the same two tests written on `single` (the honest spelling) measure 98.80% /
+// 1420 bytes / 355 insns, because gcc then tests a different register. Fix that before shipping
+// this body, if it ever links.
+// Do not re-brief spellings for this one; it needs a reorg-level answer or a different assembler path.
 /*
 void func_800740E4(Actor *pActor, u8 *p1, s32 arg2) {
     VECTOR vecA;
@@ -931,6 +954,7 @@ search:
     }
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_800740E4);
+
 
 
 
