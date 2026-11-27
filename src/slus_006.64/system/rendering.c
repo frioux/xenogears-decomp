@@ -146,6 +146,19 @@ void SpriteEnsureDirTransforms(SpriteData* pSpriteData) {
 //    REMAINING RESIDUAL, one construct: the SPILL SLOTS. Our eight values each take an 8-byte, 8-aligned slot (0x10,0x18,0x20,...,0x48) so vars=64 and the frame is 0x78; retail packs the same eight values into 48 bytes at 0x10 pFrames, 0x14 pOffsets, 0x18 texY, 0x20 defaultMode, 0x28 color, 0x2C count, 0x30 unkFlag, 0x38 the second pSpriteData pseudo. Retail's ALLOCATION ORDER also differs (texY/defaultMode/color before count/unkFlag). Measured this round: 4-mod-8 vars slots are reachable from C in this compiler (372 functions in the tree have them, e.g. battle/misc31 vars=64 with slots 20,36,52,68), and a probe of 20 ints live across calls gets 8-aligned 8-byte slots, so the align-4 path is some pseudo mode / allocation path we have not identified. That frame difference is what keeps the whole s-register map one place off (430 differing lines in round 491).
 //    Preset screened this round on the 92.72 body: gcc-2.6.0 91.23%, gcc-2.7.2-cdk 91.91% - both below the unit compiler, so XenoRendering is right.
 //    Still 3 instructions short of retail (360 vs 363); not yet localised.
+//    ROUND 539 re-measured the park at 92.72% / 1440 bytes / 360 insns (unchanged) and CLOSED the
+//    slot-KIND question round 415 opened: the 4-apart slots ARE reachable by making the locals
+//    memory-resident at expand time. Declaring pFrames, pOffsets, texY, count, color and unkFlag
+//    `volatile` (the 8-apart ones stay plain) gives retail's frame EXACTLY - addiu sp,sp,-104,
+//    saves at 0x40-0x64, slots at 0x10/0x20/0x40/56(sp) - so slot kind, not an extra live value,
+//    is what the 0x10-byte frame gap is. The score falls to 82.53% / 1436 bytes / 359 insns
+//    because a volatile slot re-loads right after its own store (`sw v0,20(sp)/lw v0,20(sp)`) and
+//    retail does not: retail's 0x10/0x14 store once and read once far away, which is what an
+//    addressable-but-not-volatile local gives. So the residual is 'make six scalars addressable
+//    without changing their semantics', and nothing in this body takes their address: pOffsets is
+//    also in a REGISTER across the loop (one sw at 0x14, one lw, 4 accesses total), which no
+//    expand-time decl slot of a value re-assigned in the loop reproduces. Do not re-run the
+//    volatile probe; it is measured above.
 /*
 void func_8001D53C(SpriteData* pSpriteData, s32 index, SpriteAnimPackage* pAnimPackage) {
     u32 i;
