@@ -2236,8 +2236,15 @@ typedef struct {
 #define g_PartySkins ((PartySlots*)g_GamePartyMemberSkins)
 #define PARTY_FB_CHUNKS (FIELD_PARTY_FRAMEBUFFER_SIZE / sizeof(PartyDataChunk))
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
-
+// Round 528 (redo lane): un-parked, re-measured 98.25% (1188 bytes / 297 insns = retail's
+// exact size and count, 70 differing lines, all register names). The body below is
+// kept as-is; the residual is the one lever
+// the-0x14000-copy-end-constant-is-reloads-scratch-in-this-unit-too already records
+// as blocked (reload scratch, no allocno), plus the tail sw that sched2 sinks.
+// Tried this round: `do { } while (0)` around case 0's member/skin epilogue store
+// group (the block-barrier knob that closed func_8008C180, above) - byte-identical,
+// 70 differing lines before and after, so the barrier does not reach a caller-saved
+// hand-out; reverted.
 /*
 void func_8008C334(void) {
     s32 loadState;
@@ -2363,6 +2370,9 @@ void func_8008C334(void) {
     }
     g_FieldScriptVMCurActor->scriptInstructionPointer += 2;
 }*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008C334);
+
+
 
 
 void FieldScriptFreeActorFile(void) {
