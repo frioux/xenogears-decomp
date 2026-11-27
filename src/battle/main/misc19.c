@@ -10,6 +10,7 @@
 #define BATTLE_ACTION_WORK_TABLE 0x5F24
 
 extern BattleWorkBlock* g_BattleCurWorkBlock;
+extern BattleTableEntry g_BattleWorkBlock[];
 
 extern int rand(void);
 
@@ -151,9 +152,7 @@ typedef struct {
     /* 0x2E */ u16 amount; // what the action deals
 } BattleActionWork; // Size: 0x30
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
-
-// PARKED (99.19%, 1256 bytes; retail is 1252 = 313 instructions - the old note's "1248" was
+// PARKED (99.28% after round 541's nudge below; 99.19% without it; 1256 bytes; retail is 1252 = 313 instructions - the old note's "1248" was
 // wrong). Body COMPILES. Structure is retail's: the pointer set (pEntry/pState/pCondition/
 // pGearRow/pWork), the 15-row cost copy loop, the state-code switch (a `switch` reproduces
 // retail's test chain where an if/else-if chain does not), and the tails. Load-bearing shapes:
@@ -211,7 +210,28 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
 // So a 2.6.0 carve-out of this run (0x2A7E4..0x2ACC8) buys 99.74, not a match; the extra
 // `move a2,s2` of the second-pointer body costs exactly one instruction but that body is
 // the one that is 99.19% under the unit's preset, so it is the one parked below.
-
+//
+// Round 541 AUDIT: every percentage above came from a STALE object - the park did not
+// compile. `g_BattleWorkBlock` had no declaration in this unit (the only `extern
+// BattleTableEntry g_BattleWorkBlock[];` lives in misc13.c), so cc1 rejected the body and
+// diff_func.sh scored the previous .o. The declaration is now at the top of this file; the
+// body compiles and re-measured 99.19% / 1256 bytes / 314 insns (retail 313 / 1252), as above.
+// NOTE the else arm's `amount++` reads `amount` uninitialised and retail does the same (its
+// `addiu s1,s1,1` on the maxHp == hp path follows no write to $s1), so that UB is the
+// original's, not the park's.
+// Round 541 NEW, worth keeping: a constant pseudo assigned right BEFORE the amount product
+// and used as the case-3 arm's mask (`s32 new_var3;` ... `new_var3 = 0x40;` then
+// `if (accessoryEffectFlags5 & new_var3)`) moves 117 -> 109 differing lines, 99.19 -> 99.28%
+// at the same 1256 bytes: the product's load cluster becomes retail's exactly
+// (`lbu v0,84(a3)` / `andi v1,s1,0xff` / `addiu v0,v0,5` / `mult v1,v0`). It is an ALLOCATOR
+// NUDGE, not retail's source - retail masks with the immediate (`andi v0,v0,0x40`) as well, and
+// the pseudo is just live across the `rand()` call, which reorders the hand-out. The POSITION is
+// the whole effect: as a declaration initialiser at the top of the body it is 99.19 again.
+// Permuter from the 99.28 body: base=245 best=245 (985 iterations), after the run that found
+// the nudge (275 -> 245, 1068 iterations).
+// Also re-measured this round: dropping the second pointer is 96.59% / 1248 bytes / 312 insns
+// (unchanged by the nudge), and spelling the whole tail through new_var2 so pCondition dies at
+// the head is 96.65% / 1256 (gcc CSEs the two and the hand-out rotates).
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -221,6 +241,7 @@ void func_8009A2D4(u8 arg0) {
         (BattleRow*)(arg0 * BATTLE_GEAR_ROW_STRIDE + BATTLE_GEAR_ROW_TABLE + (u32)g_BattleWorkBlock);
     BattleActionWork* pWork = (BattleActionWork*)((u8*)g_BattleWorkBlock + BATTLE_ACTION_WORK_TABLE);
     u16 new_var;
+    s32 new_var3;
     u8* new_var2;
     u32 quotient;
     u_char i;
@@ -267,6 +288,7 @@ void func_8009A2D4(u8 arg0) {
     } else {
         amount++;
     }
+    new_var3 = 0x40;
     amount = (amount & 0xFF) * (*(u8*)&pEntry->unk54 + 5);
     if ((g_GameState.unk22B6 & 0x4000) == 0) {
         amount = 0;
@@ -325,7 +347,7 @@ void func_8009A2D4(u8 arg0) {
             if (rand() % 100 < (amount & 0xFF)) {
                 pState->activeEffectFlags2 |= 0x4000;
                 g_BattleWorkBlock[arg0].state.conditionTimers[7] = 3;
-                if (g_BattleWorkBlock[arg0].accessoryEffectFlags5 & 0x40) {
+                if (g_BattleWorkBlock[arg0].accessoryEffectFlags5 & new_var3) {
                     g_BattleWorkBlock[arg0].state.conditionTimers[7] = 6;
                 }
                 (*pCondition)++;
@@ -333,6 +355,9 @@ void func_8009A2D4(u8 arg0) {
         }
     }
 }*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
+
+
 
 
 
