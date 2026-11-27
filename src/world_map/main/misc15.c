@@ -290,25 +290,15 @@ void func_80096C0C(s32 mode, u8 *pResult) {
 }
 
 extern SVECTOR D_1F8000A0;
-extern MATRIX D_1F8000F0;
-extern VECTOR D_1F800010;
 
-// Best: 99.74% (344 bytes / 86 insns = retail's exact size and count). NOT shippable:
-// check_bin.sh showed the overlay 4 bytes off, all in block 1. Retail stores the first
-// SVECTOR as vx, then vz = 0 (lui at + sh zero,0xa4(at)), then vy, with the vy load
-// scheduled between the vx and vz stores; cc1 hoists the CONSTANT vz store above the vx
-// store (which depends on its load) whatever the source order -- tried vx/vz/vy,
-// vx/vy/vz, vy/vx/vz and vy/vx/vz with a volatile vx store (that last one unmeasured --
-// the tree was in matching mode); everything else matches,
-// including the frame, $s3 = 0x1F8000A0 and the whole entry-block save schedule.
-// Why the address is spelled two ways: the vx clearing goes through a literal scratch
-// pointer, vy/vz through D_1F8000A0, and that mix is what makes cc1 keep the address in
-// one callee-saved register while re-forming it per store elsewhere. Any uniform
-// spelling changes the frame (all-literal: 3 extra saved regs, 348 bytes; all-symbol:
-// 340 bytes). objdiff cannot read 100% here either way: the expected object holds these
-// scratchpad addresses as literals, this object holds them as relocations.
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_80096F18);
-/*
+#define WORLD_MAP_ROT_VECTOR ((SVECTOR *)0x1F8000A0)
+
+// 99.98% (344 bytes / 86 insns = retail's exact size and count): the only difference is
+// the ENCODING of the first store, `D_1F8000A0.vx` (a relocation the linker resolves to
+// 0x1F8000A0) where retail's object holds the literal. Spelling that store with
+// WORLD_MAP_ROT_VECTOR like its neighbours makes cse keep the whole address in $s3 and
+// form it in the prologue instead of retail's `lui $at,0x1F80` + late `ori $s3` (96.91%),
+// so it stays the one symbol store. Everything else is instruction-identical.
 void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u16 *pAngles) {
     MATRIX *pMtx;
     s16 *pScratch;
@@ -318,27 +308,27 @@ void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u16 *pAngles) {
     pOut->targetX = 0;
     pOut->targetY = *(s32 *)(pSrc + 4) >> 12;
     pOut->targetZ = 0;
-    D_1F8000A0.vy = pAngles[1];
     D_1F8000A0.vx = pAngles[0];
-    D_1F8000A0.vz = 0;
-    RotMatrixYXZ((SVECTOR *)0x1F8000A0, pMtx);
+    WORLD_MAP_ROT_VECTOR->vy = pAngles[1];
+    WORLD_MAP_ROT_VECTOR->vz = 0;
+    RotMatrixYXZ(WORLD_MAP_ROT_VECTOR, pMtx);
     *(s32 *)0x1F800000 = 0;
     *(s32 *)0x1F800004 = 0;
     *(s32 *)0x1F800008 = -(height >> 12);
     ApplyMatrixLV(pMtx, (VECTOR *)0x1F800000, (VECTOR *)0x1F800010);
-    pOut->x = D_1F800010.vx;
-    pOut->y = pOut->targetY + D_1F800010.vy;
-    pOut->z = D_1F800010.vz;
+    pOut->x = ((VECTOR *)0x1F800010)->vx;
+    pOut->y = pOut->targetY + ((VECTOR *)0x1F800010)->vy;
+    pOut->z = ((VECTOR *)0x1F800010)->vz;
     pScratch[0] = 0;
-    D_1F8000A0.vy = pAngles[1];
-    D_1F8000A0.vz = pAngles[2];
-    RotMatrixYXZ((SVECTOR *)0x1F8000A0, pMtx);
+    WORLD_MAP_ROT_VECTOR->vy = pAngles[1];
+    WORLD_MAP_ROT_VECTOR->vz = pAngles[2];
+    RotMatrixYXZ(WORLD_MAP_ROT_VECTOR, pMtx);
     pScratch[0] = 0;
-    D_1F8000A0.vy = -0x1000;
-    D_1F8000A0.vz = 0;
-    ApplyMatrix(pMtx, (SVECTOR *)0x1F8000A0, &pOut->upAxis);
+    WORLD_MAP_ROT_VECTOR->vy = -0x1000;
+    WORLD_MAP_ROT_VECTOR->vz = 0;
+    ApplyMatrix(pMtx, WORLD_MAP_ROT_VECTOR, &pOut->upAxis);
 }
-*/
+
 
 
 typedef struct {
