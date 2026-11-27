@@ -1015,7 +1015,14 @@ void BattleClearAllSlotStates(void) {
 // side of the andi's rank, and both counts are pinned by retail's own eleven instructions there, so
 // the pair is not a spelling away. A 4th permuter run on this body agrees: PERMUTER_NONE, 928
 // iterations, base=330 best=330. Parked on these numbers instead of a 5th run.
-/*void func_80097D5C(void) {
+// ROUND 546 RE-VERIFIED the parked body under the unit's own XenoBattle260 preset: 99.56%, retail's
+// exact 3024 bytes / 752 instructions, 76 differing lines, and the diff is still exactly the three
+// mirrors (a)/(b)/(c) below - nothing else has drifted. One more 4-minute permuter run (-j 2) on this
+// body: PERMUTER_NONE, 986 iterations, base=330 best=330. With 5+ runs on this body and the -dl dump
+// above showing every mirrored value is a block-local local-alloc hand-out, the rank pair is closed;
+// do not spend another spelling here - the open work in this unit is elsewhere.
+/*
+void func_80097D5C(void) {
     BattleTableEntry *pSlot;
     u8 i;
     u8 j;
