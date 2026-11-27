@@ -1010,7 +1010,10 @@ void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1) {
 // prim adder in misc5 renders. arg2 selects the panel kind (item / gear list / gear two
 // columns) and with it the string id base and the dressing room record block.
 // arg1 is s32, not u_char: the body masks it itself, and a u_char parameter makes cc1
-// zero-extend it once more before the first use (483 insns against retail's 482).
+// zero-extend it once more before the first use (483 insns against retail's 482). The
+// file-scope prototype follows this definition; func_801DD790's park wants u_char back
+// at its call site (retail masks $a1 there, 94.46 vs 94.14), so it must re-declare it
+// locally if that body is un-parked.
 void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
     MenuEquipmentSlotRecord* pRecord;
