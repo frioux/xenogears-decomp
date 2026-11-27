@@ -96,7 +96,7 @@ typedef struct {
 } MenuEquipmentSlotRecord; // Size: 0x28
 
 void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1);
-void func_801DCE60(u_char arg0, u_char arg1, u_char arg2);
+void func_801DCE60(u_char arg0, s32 arg1, u_char arg2);
 void func_801DD790(u_char arg0, s32 arg1, u_char arg2);
 void MenuInitializeUnk42CPanel(void);
 void MenuCreateScrollHandle(s32 a0, s32 a1, s32 a2);
@@ -1096,14 +1096,13 @@ void MenuBuildUnk430PanelColumns(u_char arg0, u_char arg1) {
 // its own `andi` zero-extension at the call site). The file-scope declaration at the
 // top of this file was changed from u_char to s32 for that reason - otherwise the
 // definition is a conflicting type (cc1 exit 33) and nothing compiles.
-/*
 void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
     u8* pImage;
     u8* pBase;
     RECT rect;
     u_int flags;
     u16 stringId;
-    s32 row;
+    u16 row;
     s32 i;
 
     switch (arg2) {
@@ -1172,8 +1171,9 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
         }
         MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets,
                                g_Menu->pManager->shouldRenderStrings10E0, row, 0, 2);
+        row = (*pBase & 3) + 3;
         MenuSetRowQuadVertices(MENU_ITEM_ROW_STRING_COUNT, g_Menu->itemRowStrings, g_MenuColumnRowStringIds, g_MenuPanelRowXOffsets,
-                               g_Menu->pManager->shouldRenderStrings10E0, (*pBase & 3) + 3, 0, 2);
+                               g_Menu->pManager->shouldRenderStrings10E0, row, 0, 2);
         ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING].renderContext = g_Menu->renderContext;
         ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING + 1].renderContext = g_Menu->renderContext;
         ((MenuUnk430Panel*)g_Menu->unk430)->strings[MENU_PANEL_COLUMN_STRING + 2].renderContext = g_Menu->renderContext;
@@ -1188,8 +1188,6 @@ void func_801DCE60(u_char arg0, s32 arg1, u_char arg2) {
         }
     }
 }
-*/
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801DCE60);
 
 void MenuSetUnk430PanelShading(u_char arg0) {
     MenuString* pString;
