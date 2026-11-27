@@ -1933,6 +1933,29 @@ extern void FieldSnapPartyToPlayer(void);
 // assigned BEFORE prevActorIndex (decides which of the two is spilled); a s32 rather
 // than u_short return for FieldScriptGetBytecodeOffset (retail has no andi 0xffff);
 // and the explicit entry guard + do/while (not a for) for the guard region.
+// 99.97%: 776 bytes / 194 insns = retail exact both; the residual is ONE thing, the frame.
+// Retail .frame $sp,88 vars=32: slots 0x10,0x18,0x20 (two accesses each: pPrevFieldActor,
+// prevMaxInstructionCount, prevIP) and 0x28 DEAD (zero $sp accesses below 0x30 besides
+// those three). Ours: same three accesses, dummy array at 0x10 pushes them to
+// 0x18/0x20/0x28; without the dummy they land on retail own 0x10/0x18/0x20 and the frame
+// is 0x50 (99.84, all twenty prologue/epilogue operand lines differ).
+// WHY THE 0x28 SLOT CANNOT COME FROM SOURCE (this round): retail keeps 9 values in the
+// nine callee-saved registers (s0-s7,fp) and spills exactly 3, the same set this body
+// spills - instruction count 194 = 194 and six spill accesses on both sides, so there is
+// no 11th live value whose store/load could fill 0x28; the slot is a DEAD ALLOCATION.
+// Slot offsets grow in allocation order and every expand-time object (any aggregate local,
+// whatever its declaration position - re-measured rounds 397/428) is allocated BEFORE the
+// global-alloc spill slots, so a declared-but-unused array can only ever take 0x10. A
+// slot at 0x28 therefore has to be an alter_reg/reload-era allocation whose accesses were
+// dropped afterwards, and no source shape requests one; the permuter cannot reach it
+// either (it does not change allocator slot allocation).
+// Round 542 re-measured, all dead: presets 2.7.2 99.97 (unit flags), 2.7.2-cdk 97.62,
+// 2.6.0 97.84; and permute.sh still refuses the unit - its base candidate fails at two
+// lines INSIDE this function with "conversion to non-scalar type requested" (the printer
+// mangles the two cast-to-pointer expressions), so this function is hand-only.
+// Body kept as-is: the round-397/414 shape plus the in-place subexpression for the found
+// arm described at the end of the note above, which is what closed the addu coin flip to
+// 99.97 (14 -> 12 differing lines).
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
@@ -2007,6 +2030,7 @@ void func_8008B978(int characterId) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
+
 
 
 extern void FieldPartyLoadMemberSkin(int characterId, int partyIndex);
