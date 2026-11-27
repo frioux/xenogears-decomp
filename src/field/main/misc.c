@@ -778,8 +778,8 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
     g_FieldScriptMaxInstructionCount += 4;
 }
 
-// PARKED 79.41% / 280 bytes / 70 insns = retail's EXACT size (round 532). Round 501 called the
-// head's size gap unreachable (cc1 hoists the first FieldScriptVMGetArgument's li a0,1 above the
+// PARKED 79.41% / 280 bytes linkable (parked body below is 87.19% / 284). Round 532 note follows.
+// Round 501 called the head's size gap unreachable (cc1 hoists the first FieldScriptVMGetArgument's li a0,1 above the
 // whole preamble, so the reorder region's jal took a nop where retail has the li). It IS reachable:
 // one do { } while (0) around BOTH argument reads puts a block boundary between the preamble and the
 // reads, cc1 then keeps the li adjacent to the jal, maspsx fills the delay slot with it, and the body
@@ -798,12 +798,29 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
 // tail access 79.41 / 280 (identical to the local); a flags local for the 0x12C read-modify-write 79.13
 // / 280. The 0x12C write must stay whole-word ((u_int*)pCurActor)[0x4B]: the header's flags12C_0x12
 // bitfield makes gcc cse the <<6 with the rect store (sll 0x12 instead of retail's sll 0x18).
+// ROUND 543 REDO: unparked and re-measured 79.41 / 280 (unchanged), then a 4-minute permute.sh run
+// (base=1180 best=635) found THE ONE EDIT THAT MOVES THE ALLOCATION: giving the flags130 mask its own
+// 'long long new_var = ~0x1FF;' (DImode) statement right after the SpriteAllocClutRect call scores
+// 87.19% and hands 0xF003FFFF retail's a0 and the -512 retail's v0, which no SImode spelling does
+// ('u_int new_var = ~0x1FF;' is 79.41, identical to the inline literal). The DImode constant costs a
+// register PAIR (v0/v1), so gcc also materialises its dead high word as an extra 'li v1,-1': 71 insns
+// / 284 bytes against retail's 70 / 280, so this body can never link - it is a lead, not a match.
+// With it the residuals are ONE register plus a schedule: pCurActor comes out in a1 where retail has
+// a2 (a1 is free at that point in both), so 0xFFFCFFFF takes v1 where retail has a1 and the tail's
+// 0x10000 takes v0 where retail reuses a1; the 0x130/0x12C group order follows from that. Everything
+// else - the whole head, both rect stores, the F003FFFF mask in a0, li v0,-512, andi s0,s0,0x1ff,
+// the 0x12C/0x130/0xCC read-modify-writes - is retail's instruction for instruction.
+// MEASURED on the DImode base, reverted: a do-while around the last statement 73.27 / 296 (the barrier
+// costs two instructions), the 0xFFFCFFFF mask as a second DImode local 78.81 / 296, an (s32) cast at
+// the mask use 87.19 / 284 (identical). NEXT: skip a1 for pCurActor, or find a SImode spelling that
+// reproduces the flip.
 /*
 void func_800888A4(void) {
     SpriteData* pSpriteData;
     ActorData* pCurActor;
     int type;
     int value;
+    long long new_var;
 
     pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
     do {
@@ -811,11 +828,12 @@ void func_800888A4(void) {
         value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
     } while (0);
     SpriteAllocClutRect(pSpriteData, 2, 0);
+    new_var = ~0x1FF;
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
     pCurActor = g_FieldScriptVMCurActor;
     ((u_int*)pCurActor)[0x4B] = (((u_int*)pCurActor)[0x4B] & 0xF003FFFF) | (type << 24);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[3] = value;
-    pCurActor->flags130 = (pCurActor->flags130 & ~0x1FF) | (value & 0x1FF);
+    pCurActor->flags130 = (pCurActor->flags130 & (s32)new_var) | (value & 0x1FF);
     pCurActor->flags12C_0x10 = 1;
     pCurActor->scriptInstructionPointer += 5;
 }*/
