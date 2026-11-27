@@ -1442,7 +1442,7 @@ void WorldMapUpdateL2R2PressEdge(void) {
    The reachable fix is all-or-nothing: all nine tables as const label tables (every size is a
    multiple of 4, so .align 2 reproduces +0x00/0x18/0x38/0x58/0x15C/0x18C/0x1BC/0x1EC/0x214
    exactly), or the sub-range from +0x15C carved into a unit of its own. Both wait on
-   func_8008E190 (parked 87.34%), func_8008E76C and func_800914D0 converting first.
+   func_8008E190 (parked 99.79%), func_8008E76C and func_800914D0 converting first.
    Body notes: it is func_80090C68's body plus one arm - the released-0x20 test has an
    else-if (g_WorldMapAreaId != -1) that returns 1 when the area record's mode (0xE) is 1, and
    gcc keeps the -1 in v0 across both compares as retail does. angle is s16 at 0x48 (rcos/rsin
