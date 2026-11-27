@@ -316,6 +316,21 @@ void FieldScriptResetCameraMovements(void) {
 //   per-arm += 3 copies 94.10 (no cross-jumping in 2.7.2).
 // - The switch needs the source case order 0, 2, 3, 1 to reproduce retail block
 //   layout; do not sort it.
+// ROUND 533 re-measure of the same body: 82.87% / 1604 bytes / 401 insns (retail
+// 1620 / 405), so the note is current and the 16 bytes are the four scriptdata
+// load-delay nops, one per arm (retail `lw v1,%lo(g_FieldScriptVMCurScriptData)`
+// then `nop` then `addu`; ours puts the flag `sh` in that slot).
+// - cc1 SCHEDULES THE FLAG READ-MODIFY-WRITE, so its source position is not a
+//   lever in ANY arm, and this is why the two source orders measured identical:
+//   case 2/3 already write `g_CamMovementFlags |= ...` BETWEEN the Current and
+//   the Delta stores and cc1 still emits lhu before the Current stores and
+//   ori/sh after the Delta stores; case 0/1 write it BEFORE the Current stores
+//   and get the same emitted shape. Nothing in the C moves it.
+// - Preset screened again this round with try_flags.sh on this body: -G0 82.87
+//   (identical), -O3 82.87, gcc-2.6.0 77.19, gcc-2.7.2-cdk 62.80. Not a preset
+//   question; retail's split lhu ... ori is the scheduler's placement under its
+//   own register pressure, plus a full four-arm register permutation (retail
+//   case 0 X/Y/Z = a1/a0/v1 with the From words in t1/t0/a3).
 /*
 void FieldScriptStartCameraMovement(void) {
     VECTOR direction;
@@ -435,6 +450,7 @@ void FieldScriptStartCameraMovement(void) {
     g_FieldScriptVMCurActor->scriptInstructionPointer += 4;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/camera/camera_movement", FieldScriptStartCameraMovement);
+
 
 
 
