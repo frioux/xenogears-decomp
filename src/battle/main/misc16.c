@@ -345,46 +345,50 @@ typedef struct {
 extern BattleTileRecord *D_800C2F4C[];
 extern u8 *D_800C3000[];
 
-// 86.41% at 1664 bytes against retail's 1692 (416 vs 423 instructions); up from the
-// previous park's 71.88, unchanged this round after five scored bodies.
-// 
-// THE WHOLE 7-INSTRUCTION GAP IS THE OUTER-LOOP TAIL AND THE PREHEADER SPILL GROUP.
-// Retail keeps four derived pointers in stack slots and walks them in memory - the
-// tail is `lw t1,0x38(sp); addiu t1,t1,1; sw t1,0x38(sp); lw t1,0x40(sp);
-// addiu t1,t1,2; sw t1,0x40(sp); lw t1,0x30(sp); addiu v0,t1,2; lw t1,0x38(sp);
-// slt; bnez; addiu s7,s7,2` (14 insns) against this body's 8-instruction register
-// tail, and the preheader spills a matching group at 0x28/0x30/0x38/0x40. Retail's
-// `addiu s7,s7,2` is a strength-reduced i*2 and its record walk re-reads
-// D_800C2F4C[codes[i]] three times per record, so retail's source IS the index loop
-// and the re-fetch spelling this body already writes: the divergence is gcc's loop
-// strength reduction and register handout, not a spelling. Retail spends all nine
-// callee-saved registers on the j-loop (s5 holds the ADDRESS of
-// g_BattlePrimStartIndex, hoisted before the loop, where this body re-forms lui/lw
-// at each of three uses); this body spends two of them on the cursors. Those two
-// live ranges win the register on live-length x depth, so the fix is to change what
-// is live, not how it is spelled.
-// 
-// Measured this round, all no better than 86.41:
-// - the explicit pointer walk (u16 *pList / u8 *pCode cursors, `pCode < codes + 2`
-//   as the loop test, `*pList` / `*pCode` at every use, init loop walking the same
-//   two cursors): 78.82 at 1540 bytes / 385 insns - the cursors then DO get
-//   callee-saved registers and the body loses the loop's other live values.
-// - `first = count * 2` moved above the BattleDrawSpritePackage call (retail computes
-//   it in that call's delay slot and never needs `count` afterwards, so it has no
-//   spill pair; this body's `first` after the call costs `sw t0,64(sp)` plus a
-//   reload): 85.84 at 1664 / 416 - the gain is lost because the constant 0x80 of the
-//   grey loop is then hoisted all the way to the FUNCTION preheader into a
-//   caller-saved register and spilled/reloaded around both loop calls, ~4 insns
-//   retail does not have (retail materialises it with `ori a3,zero,0x80` at the grey
-//   loop). Killing that hoist is the next thing to try, not the tail.
-// - reading records[r].shade a second time in the 0x2000 compare (retail has two
-//   adjacent `lhu a0,6(s0)` / `lhu v0,6(s0)`) together with
-//   `*(u16 *)(g_BattleCommandQueue + rowOffset + (shade & 0xF) * 2 + 0x1C)` for
-//   retail's queue-plus-rowOffset-first `addu v0,v0,t1`: also 85.84 at 1664 / 416.
-// - already known-good and not to be changed: the re-fetch of D_800C2F4C at every
-//   use (a cached BattleTileRecord *pRecords is 78.35 at 1720), cmd s32, shade u32,
-//   action u32, and the record offset r*1 with addiu +8 versus retail's r*2 (same
-//   eight bytes).
+// 89.96% at 1688 bytes against retail's 1692 (422 vs 423 instructions); the previous
+// park was 86.41 at 1664 / 416.
+//
+// THE J-LOOP IS NOW INSTRUCTION-IDENTICAL TO RETAIL (only the register it reads the
+// global from differs: retail `lw v1,0(s5)` off the hoisted address, this body
+// `lw v1,0(s3)`); what is left is the callee-saved hand-out and retail's outer-loop
+// tail, and the two are one problem.
+//
+// THE FIND: the arm's three prim addresses go through a POINTER LOCAL to the global
+// (`pPrimStart = &g_BattlePrimStartIndex;` just inside the `level != 0` arm, used as
+// `*pPrimStart`). That is the only hoist retail performs (`lui s5,%hi / addiu s5`
+// before .L8008D87C, then one `lw` per use where this body re-formed lui/lw at each
+// of six uses). 86.41 -> 89.43 in one edit; it is what turns the arm from "same
+// shapes, different code" into retail's own instruction stream, so do not undo it.
+//
+// WHERE THE LAST INSTRUCTION GOES MISSING (422 vs 423). Retail still spends two stack
+// slots per outer iteration on the two array cursors (`lw t1,0x38(sp); addiu t1,t1,1;
+// sw t1,0x38(sp)` and likewise +2 at 0x40, then `lw t1,0x30(sp); addiu v0,t1,2`) where
+// cc1 here keeps `i` in a register (s7 = i*2) and reads `listIndex[i]`/`codes[i]`
+// through the arrays directly. Retail's 14-instruction tail against this body's 8 is
+// the allocator running out of callee-saved registers, not a different loop source:
+// all ten are saved in both, and the j-loop above consumes the same set.
+//
+// MEASURED THIS ROUND (all on top of the pPrimStart body):
+// - `first = count * 2;` moved ABOVE the packageCounts update (i.e. before the
+//   BattleDrawSpritePackage call): 89.96 at 1688 / 422 - the best body, and the one
+//   parked. It removes the `sw t0,72(sp)` spill; note retail computes the same value
+//   in the call's delay slot (`sll s1,t0,0x1`), which is what the honest order below
+//   produces, so the two orderings differ only in which instruction reorg selects.
+// - `first = count * 2;` AFTER the call (the honest order, retail's `sll` in the jal
+//   slot): 89.43 at 1688 / 422, 257 differing lines against the parked body's 317, so
+//   if the register hand-out is ever fixed by something else this is the order to
+//   come back to.
+// - `j = count * 2;` before the `if (level != 0)` with both arms as `for (; ... and no
+//   `first`: 85.84 at 1640 / 410 - gcc folds the duplicated pre-test and the arms lose
+//   the six instructions that the redundant `if (first < ...)` guard emits.
+// - the same with `count * 2` spelled inline at both the guard and the for-init (and
+//   no `first` at all): 88.43 at 1688 / 422.
+//
+// STILL STANDING FROM THE LAST ROUND (do not re-measure): re-fetching
+// D_800C2F4C at every use (a cached BattleTileRecord *pRecords is 78.35 at 1720);
+// cmd s32, shade u32, action u32; the record offset r*1 with addiu +8 versus
+// retail's r*2 (same eight bytes); the explicit pointer cursors over listIndex/codes
+// (78.82 at 1540 / 385).
 /*
 s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     u16 listIndex[2];
@@ -397,6 +401,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     s32 count;
     s32 level;
     s32 first;
+    s32 *pPrimStart;
     s32 i;
     s32 r;
     s32 j;
@@ -427,12 +432,12 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
                 action = cmd;
             }
             count = g_BattleDisplayState->packageCounts[listIndex[i]];
+            first = count * 2;
             g_BattleDisplayState->packageCounts[listIndex[i]] += BattleDrawSpritePackage(
                 action,
                 (u8 *)(listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE + g_BattleGraphicsWork) +
                     count * sizeof(BattleSpritePackage),
                 D_800C2F4C[codes[i]][r].x, D_800C2F4C[codes[i]][r].y);
-            first = count * 2;
             shade = D_800C2F4C[codes[i]][r].shade;
             level = (shade & 0xFF) >> 1;
             if (shade >= 0x2000) {
@@ -442,22 +447,23 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
                 }
             }
             if (level != 0) {
+                pPrimStart = &g_BattlePrimStartIndex;
                 if (first < g_BattleDisplayState->packageCounts[listIndex[i]] * 2) {
                     for (j = first; j < g_BattleDisplayState->packageCounts[listIndex[i]] * 2; j += 2) {
                         SetSemiTrans((POLY_FT4 *)(listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
-                                                  g_BattleGraphicsWork + (j + g_BattlePrimStartIndex) * sizeof(POLY_FT4)), 1);
+                                                  g_BattleGraphicsWork + (j + *pPrimStart) * sizeof(POLY_FT4)), 1);
                         SetShadeTex((POLY_FT4 *)(listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
-                                                 g_BattleGraphicsWork + (j + g_BattlePrimStartIndex) * sizeof(POLY_FT4)), 0);
-                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
+                                                 g_BattleGraphicsWork + (j + *pPrimStart) * sizeof(POLY_FT4)), 0);
+                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->r0 = level;
-                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->g0 = level;
-                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->b0 = level;
-                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->tpage |= 0x20;
                     }
@@ -482,6 +488,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     return g_BattlePrimStartIndex;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
+
 
 
 // The per-slot draw block is a raw POLY_FT4 pool (0x28 stride) that
