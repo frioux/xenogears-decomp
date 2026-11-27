@@ -138,7 +138,7 @@ extern void WorldMapFindZoneAtPosition(WorldMapPos *, s32, s32, u8 *, u8 *);
 extern void WorldMapUpdateSpriteGroupFromActor(s32, WorldMapActor *, WorldMapScreenPos *);
 extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 
-/* func_8008A72C, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, WorldMapInitPartyActorSlot and WorldMapUpdatePartyActorTrail
+/* WorldMapModeUpdateActorSlot, WorldMapModeInitActorSlot, WorldMapModeInitActorSlot2, WorldMapInitPartyActorSlot and WorldMapUpdatePartyActorTrail
    each jr through a jtbl_ table of this unit; WorldMapUpdateActorSlot did too
    and is now C. The unit owns its .rodata (config/world_map.yaml), and cc1 emits a
    function's table where the function is in the file, so converting a stub keeps
@@ -168,7 +168,7 @@ extern int WorldMapMoveActorTowardTarget(WorldMapActor *);
 // load-delay nop; pActor[1].targetSlot / pActor[2].targetSlot in cases 8/9/16/17; the
 // trailing "case 0x40: break;" that gives the state table retail's 65 entries; the
 // WorldMapVec write-back for func_80095414's output.
-int func_8008A72C(int index) {
+int WorldMapModeUpdateActorSlot(int index) {
     s32 result = 1;
     s32 *pScratch = (s32 *)0x1F800000;
     WorldMapActor *pActor = &g_WorldMapSlots[index];
