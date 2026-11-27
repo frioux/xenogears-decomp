@@ -578,25 +578,23 @@ void WorldMapUpdateSlots(void) {
     }
 }
 
-// try_flags: --gp -G0 gives 88.53 but drops the matched WorldMapRefreshGrid to
-// 97.21 and WorldMapStartCdRead to 91.63, so the unit preset is right; gcc 2.6.0
-// gives 79.25 with the parked shape.
+// Best: 99.80% (204 bytes / 51 insns = retail's exact size and count).
+// The one residual is a REGISTER TIE on the pEnd constant: retail holds 0x10000
+// in $t0 and adds it in place (`lui t0,0x1` ... `addu t0,a2,t0`), this body gets
+// `lui v0,0x1` ... `addu t0,a2,v0`, i.e. the constant pseudo and the addu output
+// do not share a register. Everything else is instruction-identical.
+// What closed the old 82.47% wall (s0 = &g_WorldMapTilePrimBuffer held across the
+// second HeapAlloc, retail's `sw v0,0(s0)` + `lw v1,0(s0)`): the array-typed
+// alias below. A plain `&g_WorldMapTilePrimBuffer` (also via a `u8 **` local)
+// folds back to a bare symbol store plus a fresh `lui`/`lw` for the read.
+// Tried on top of the 99.80 body, all no better: pEnd from `(u8 *)pSrc + 0x10000`
+// (identical code), pEnd computed from the global before pSrc (208 bytes,
+// 97.45), src/end swapped in the copy loop (208 bytes, 97.35), and a 3-minute
+// permuter run (PERMUTER_NONE, base=10, 1659 iterations).
+// try_flags (pre-alias, parked shape): --gp -G0 88.53 but it drops the matched
+// WorldMapRefreshGrid to 97.21 and WorldMapStartCdRead to 91.63; gcc 2.6.0 79.25.
+extern u8 *g_WorldMapTilePrimBufferSlots[] __asm__("g_WorldMapTilePrimBuffer");
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc15", func_800978FC);
-// Best: 82.47%. Everything matches except that the original holds s0 =
-// &g_WorldMapTilePrimBuffer across the second HeapAlloc and reads the buffer back with
-// `lw v1,0(s0)`; every shape tried (global stores, u8 **ppBuffer, a
-// u8 *pBuffer local) gets lui/at for the store plus a fresh lui for the read,
-// so the frame has no s0 slot and the copy loop's 0x10000 constant lands in
-// v0 instead of t0. The two do-while loops and the +6 slot-filler bias are
-// required for the rest to match. gcc-2.7.2-cdk gives 84.65%, so the preset is
-// not the answer either.
-// Round 19 re-check: the parked shape is the best one (76.88% from a direct
-// `*ppBuffer = ...` form; adding the pSlot[-3..1] form loses the s0 formation
-// entirely -- cc1 rematerialises &g_WorldMapTilePrimBuffer as `lui $at` for the store and a
-// fresh `la` for the reload, because copy-prop turns ppBuffer back into the
-// constant and cse then expands each use separately. Also try_flags.sh
-// compile-fails on every row in this tree (even the default one), so flag
-// experiments here have to be done by hand.
 /*
 void func_800978FC(void) {
     u8 **ppBuffer;
@@ -607,7 +605,7 @@ void func_800978FC(void) {
     Misc15Block16 *pEnd;
     s32 i;
 
-    ppBuffer = &g_WorldMapTilePrimBuffer;
+    ppBuffer = g_WorldMapTilePrimBufferSlots;
     *ppBuffer = HeapAlloc(0x10000, 1);
     g_WorldMapTilePrimBufferCopy = HeapAlloc(0x10000, 1);
     pBuffer = *ppBuffer;
@@ -630,6 +628,7 @@ void func_800978FC(void) {
     } while (pSrc != pEnd);
 }
 */
+
 extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
 extern void ModelLoadTextureBlock(void *pBlock);
 extern void func_800931D8(u8 *pSrc, u8 *pDst, s32 count, u8 *pFactors);
