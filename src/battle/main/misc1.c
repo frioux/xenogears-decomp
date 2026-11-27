@@ -677,7 +677,7 @@ void BattleWaitWhileStateIs8(void) {
 // clear (81.05), volatile DECLARATION of g_BattlePrimStartIndex (79.70, breaks a
 // neighbour), -O1 (77.11), -O3 (compile fails), gcc 2.7.2 (80.54), cdk (73.77), -G0
 // (compile fails) - the preset XenoBattle260 is right.
-/*
+
 // The same byte as an array: its decay is a real address value, so cc1 keeps one
 // `la` in a register instead of folding the constant store into a symbol store.
 extern u8 g_BattleWaitSkipFlag_bytes[] __asm__("g_BattleWaitSkipFlag");
@@ -701,19 +701,42 @@ typedef struct {
     BattleScrollRowQuad rows[8]; // 0x63D0, one per action row index
 } BattleDrawWorkBlock; // Size: 0x6418
 
-// The 0xC-byte script flag block at D_800D2CA4: the five countdown bytes, then
-// the skip flag g_BattleWaitSkipFlag.
-typedef struct {
-     u8 countdown[5]; // 0x0
-     u8 unk5[6]; // 0x5
-     u8 skip; // g_BattleWaitSkipFlag // 0xB
-} BattleScriptFlagBlock; // Size: 0xC
-
+// 83.90% under 2.6.0 (1728 bytes / 432 insns against retail 1756 / 439, round 542).
+// THE STORED PARK DID NOT COMPILE, so every older number for it was a stale object:
+// its preamble (extern g_BattleWaitSkipFlag_bytes, BattleScrollRowQuad,
+// BattleDrawWorkBlock) sat INSIDE the comment block and park.py unpark deletes the
+// whole block, so the body came out live but undeclared. Those declarations are now
+// live ABOVE the stub - keep them there on the next un-park.
+// NEW FIND (round 542): give the else arm its own loop variable (`s32 j`) for the
+// D_800C3D1A clear - retail puts `li v0,0x1C` in the bnez delay slot of the
+// `actorIndex >= 3` test and counts that loop in v0; sharing `i` with the tail loops
+// makes cc1 keep it in s1 and lose the hoist. 83.82 -> 83.90.
+// REMAINING, in the order they cost:
+// A. The prim quad block (~20 insns, most of the differing lines). Retail reloads
+//    g_BattlePrimStartIndex per store (so the volatile read is right) but associates
+//    the +0x10 to the SCREEN ORIGIN: `lhu v0,0(at); addiu v0,v0,0x10; addu v1,v1,v0`.
+//    cc1 2.6.0 reassociates our `origins[...] + 0x10 + idx * 0x60` into
+//    `origin + (idx * 0x60 + 0x10)`. Retail also loads g_BattleCommandQueue into t0
+//    before g_BattleGraphicsWork into a3, keeps pageIndex*3 in a2 across all eight
+//    stores and computes the row pointer per store, where cc1 hoists one of them.
+// B. The two tail loops (D_800C3D1A[i * 4], D_800C3EBA[i * 0x1C]): retail keeps the
+//    SCALED OFFSET biv (s0 += 4, s2 += 0x1C) and re-forms the absolute base with
+//    lui/$at every iteration; cc1 strength-reduces the base into a pointer
+//    accumulator (AGENTS 3.4 unsolved class).
+// C. actorIndex lands in v1 where retail keeps it in a0 (a0 is dead in both bodies -
+//    arg0 was copied to s2 in the first delay slot), which costs the a1 mask argument
+//    of BattleScriptResetActorState and cascades through the 723(v0) reload chain.
+// Also tried and worse (rounds 536/542): plain g_BattleWaitSkipFlag = 0 with a
+// separate D_800D2CA4 clear (81.05), volatile DECLARATION of g_BattlePrimStartIndex
+// (79.70, breaks a neighbour), -O1 (77.11), -O3 (compile fails), gcc 2.7.2 (80.54),
+// cdk (73.77), -G0 (compile fails) - the preset XenoBattle260 is right.
+/*
 void func_80071B94(u8 arg0) {
     BattleDrawWorkBlock *pDraw;
     u8 *pClear;
     u8 *pFlags;
     s32 i;
+    s32 j;
 
     g_BattleTextSlotCount = 1;
     pFlags = g_BattleWaitSkipFlag_bytes;
@@ -757,8 +780,8 @@ void func_80071B94(u8 arg0) {
         BattleClearAllSlotFlagB4();
         BattleSetOverlayArg(0);
     } else {
-        for (i = 0x1C; i >= 0; i -= 4) {
-            D_800C3D1A[i] = 0;
+        for (j = 0x1C; j >= 0; j -= 4) {
+            D_800C3D1A[j] = 0;
         }
         pDraw = (BattleDrawWorkBlock *)g_BattleGraphicsWork;
         pDraw->rows[*(volatile s32 *)&g_BattlePrimStartIndex].x0 =
@@ -825,6 +848,7 @@ void func_80071B94(u8 arg0) {
     g_BattleCountdownsEnabled = 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
+
 
 
 
