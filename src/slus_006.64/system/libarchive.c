@@ -648,6 +648,47 @@ void ArchiveConsolidateStreamFileEntry(int sectionIndex) {
 //  *    pSection->id store; both orderings of that store around nRemaining
 //  *    measured worse.
 //  * Presets on this body: 2.6.0 (unit) 86.08, 2.7.2 86.03, cdk 80.46.
+//  * Best: 90.18% - 1324 bytes / 331 insns = retail's exact size and count
+//  * (was 86.08 / 1324 / 331, so this round bought 4.1 points of pure
+//  * instruction ordering).
+//  *
+//  * THE FIND (round 542): the two pScratch arms - both `pScratch[0] == 1`
+//  * seeks - are `goto fail;` in the source, NOT `*pSectionOut = 0;
+//  * goto search;`. Retail's `sw zero,0(s7)` on those paths is the fail
+//  * label's single store, reached by a `j` that skips fail and takes the
+//  * store in its delay slot (0x80029258 jumps to 0x80029378), which is what
+//  * `goto fail` emits; a store-then-goto spelling has to keep its own copy.
+//  * Three source stores total (fail, the arm-1 success path, the
+//  * -0x28/-0x20 path), not the five the round-531 note inferred.
+//  * On the allocator: pSectionOut drops from 7 refs to 3 and moves from s4
+//  * to s7, which is retail's s7 - the round-531 dump's delta (b) WAS
+//  * reachable and its "no spelling of the statements retail has reaches it"
+//  * conclusion was wrong. The chain above it then falls into retail's order:
+//  * pScratch s0, pHeaders s3, nOffset s4, pData s5, nSections s6,
+//  * pSectionOut s7, pDataOut fp (a0) - every one of retail's.
+//  *
+//  * Residual (named), 140 differing lines, all register names or three
+//  * scheduling details:
+//  *  - i and pSection are SWAPPED: retail i=s1 pSection=s2, this compile
+//  *    i=s2 pSection=s1; the rest of the map matches. The quotient is
+//  *    floor_log2(refs)*refs*size/live per the round-531 dump: i 27 refs /
+//  *    115 insns must outrank pSection 21 / 72 by 1.24x and both have
+//  *    floor_log2 4, so it is refs*size/live, and pSection still wins.
+//  *    Tried this round: declaration-order swap of i/pSection (byte
+//  *    identical, 90.18), the scan loop spelled as
+//  *    g_ArchiveStreamSections[i].size with pSection formed after it
+//  *    (89.56, 332 insns), the queue arm writing g_ArchiveStreamQueueIndex
+//  *    directly instead of through i (90.12). All three tied or lost.
+//  *  - retail keeps an extra `addu v0,s4,v0; move s0,v0` where this compile
+//  *    emits `addu s0,s4,v0` (total count is still retail's 331).
+//  *  - retail loads `lhu v0,8(s0)` before the blockCount store, this
+//  *    compile after it.
+//  *  - in the arm-1 success path retail does the NextSectionId
+//  *    load+increment+store before the payload store, this compile emits the
+//  *    load after the payload store.
+//  * Presets on this body: 2.6.0 (unit) 90.18.
+//  * Variants this round: all four sites goto fail 90.05 (152 lines), the two
+//  * pScratch sites goto fail 90.18 (best, this body), old body 86.08.
 /*
 s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
     s32 i;
@@ -696,8 +737,7 @@ s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
             PCread(g_ArchiveDebugFileHandle, pScratch, 8);
             if (pScratch[0] == 1) {
                 PClseek(g_ArchiveDebugFileHandle, 0x918, 1);
-                *pSectionOut = 0;
-                goto search;
+               goto fail;
             }
         }
 
@@ -747,8 +787,7 @@ s32 func_80028F30(s32* pDataOut, s32* pSectionOut) {
         PCread(g_ArchiveDebugFileHandle, pScratch, 8);
         if (pScratch[0] == 1) {
             PClseek(g_ArchiveDebugFileHandle, 0x918, 1);
-            *pSectionOut = 0;
-            goto search;
+           goto fail;
         }
     }
 
@@ -793,6 +832,7 @@ search:
     return 0;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/libarchive", func_80028F30);
+
 
 
 
