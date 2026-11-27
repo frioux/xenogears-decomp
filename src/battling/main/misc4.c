@@ -1103,10 +1103,19 @@ extern void func_8007920C(Actor*);
 //    gives different code for this function.  Without it the lbu does stay at the top,
 //    but the slot-index/frame-rate/arg-copy registers all shift down one, so that is
 //    not a match either.  The tie is a pre-register-allocation priority contest.
-INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
-
+// Round 540 (audit re-measure, best 99.96% / 1068 bytes = retail's exact size, 4
+// differing lines: retail `or v1,v1,v0 / sw v1,208(s1)` against `or a2,v1,v0 /
+// sw a2,208(s1)`):
+//  - ONE chain local shared by BOTH words (`flags = p1->flags; flags &= ~0x40;
+//    flags |= ...; p1->flags = flags;` then the same again for p2) - a shape the
+//    per-combatant-pair experiment above did not cover - gives both chains retail's
+//    shape but sinks the frame-rate lbu exactly as flags1/flags2 do: 96.04%, 268
+//    insns / 1072 bytes.
+//  - fourth 4-minute permuter run (1684 iterations): PERMUTER_NONE, base 10 best 10.
+//    With the three earlier runs and try_flags (cdk 99.96, 2.6.0 99.96) this class is
+//    closed; the residual is sched1 sinking the one-use frame-rate load whenever the
+//    scratch pseudo is not the chain.
 /*
-
 // The battle's frame update for the combatant pair: frame skipping, the state-slot
 // pair, the gauge/animation refresh, the input pass (one controller-pop state per
 // loop, which is where the pad whose START prompt is up is chosen) and the ground,
@@ -1227,8 +1236,8 @@ skipFacing:
     if (g_BattleOptionOn != 0) {
         BattleEffectQueueLineByType(&p1->midPosition, &p2->midPosition, 0x13);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80079DF0);
 
 void BattleSaveActorVectors(s32 unk0) {
     if (unk0 < BATTLE_TRANSITION_COUNTDOWN_MAX) {
