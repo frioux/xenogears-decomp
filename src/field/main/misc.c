@@ -778,22 +778,26 @@ void FieldScriptInitializeParticleSystemByActorIndex(void) {
     g_FieldScriptMaxInstructionCount += 4;
 }
 
-// PARKED 82.99% (284 bytes, 71 insns against retail's 276 bytes, 69 insns). Round 501 re-measured
-// the body below; what matches is the whole preamble, both argument reads, the SpriteAllocClutRect
-// call and every store in retail's own order and registers.
-// THE SIZE GAP (and the reason it cannot link) is ONE construct, now named exactly:
-// cc1 emits the first FieldScriptVMGetArgument's argument load as 'li a0,1' ABOVE the whole preamble
-// (it lands in the load delay slot of 'lw v1,%lo(g_FieldCurActorIndex)'), and the reorder-enabled
-// region's jal then gets a nop where retail has the li. Retail's cc1 left the li ADJACENT to the jal,
-// so GNU as's reorder fill moved it INTO the delay slot - retail's bytes are jal / li / li / jal.
-// Proven with a cc1_probe snippet of this exact body (tools/scripts/cc1_probe.sh field/main/misc):
-// cc1 always hoists the FIRST constant-argument load to the top of the entry block, so no spelling of
-// the two arg reads removes it (measured: second read as arg 2 - no constant sharing - hoists it too;
-// value-then-type order hoists it too). gcc 2.6.0, 2.7.2-cdk and -G0 all measure 82.99 (try_flags).
-// THE TAIL is sched2, not source order: retail loads 0x130 then 0x12C and stores 0x130, 0x12C, 0xCC;
-// this body stores 0x12C, 0x130, 0xCC from the same statement order (both source orders measured).
-// The 0x12C write must stay whole-word ((u_int*)pCurActor)[0x4B] - the header's flags12C_0x12 bitfield
-// makes gcc cse the <<6 with the rect store (sll 0x12 instead of retail's sll 0x18).
+// PARKED 79.41% / 280 bytes / 70 insns = retail's EXACT size (round 532). Round 501 called the
+// head's size gap unreachable (cc1 hoists the first FieldScriptVMGetArgument's li a0,1 above the
+// whole preamble, so the reorder region's jal took a nop where retail has the li). It IS reachable:
+// one do { } while (0) around BOTH argument reads puts a block boundary between the preamble and the
+// reads, cc1 then keeps the li adjacent to the jal, maspsx fills the delay slot with it, and the body
+// is 280 bytes / 70 insns. Barrier placement measured: both reads in one block 79.41 / 280 <- best,
+// first read only 73.70 / 280, each read in its own block 73.70 / 280, value read only 72.27 / 284,
+// no barrier 82.99 / 284 (unlinkable).
+// THE RESIDUAL is allocation and scheduling, not statement order:
+//  (1) retail keeps pCurActor in a2 and 0xF003FFFF in a0; this body takes a0 and a1, so ~20 rows read
+//      a0/a1/v1 where retail reads a2/a0/v1 (0xFFFCFFFF: v1 here, a1 in retail);
+//  (2) the tail's two read-modify-writes emit the 0x12C group first where retail does 0x130 first and
+//      sinks both stores after both loads;
+//  (3) addiu sp lands in the load-delay slot of the g_FieldCurActorIndex load here (artefact of the
+//      barrier, same count).
+// MEASURED on top of this head, all reverted: a do-while around the tail statements 69-77% at
+// 284-288; pCurActor loaded before the rect writes 70.47 / 288; inline g_FieldScriptVMCurActor at every
+// tail access 79.41 / 280 (identical to the local); a flags local for the 0x12C read-modify-write 79.13
+// / 280. The 0x12C write must stay whole-word ((u_int*)pCurActor)[0x4B]: the header's flags12C_0x12
+// bitfield makes gcc cse the <<6 with the rect store (sll 0x12 instead of retail's sll 0x18).
 /*
 void func_800888A4(void) {
     SpriteData* pSpriteData;
@@ -802,8 +806,10 @@ void func_800888A4(void) {
     int value;
 
     pSpriteData = g_FieldActors[g_FieldCurActorIndex].pSpriteData;
-    type = FieldScriptVMGetArgument(1) & 0xF;
-    value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    do {
+        type = FieldScriptVMGetArgument(1) & 0xF;
+        value = ((FieldScriptVMGetArgument(1) >> 4) << 8) + FieldScriptVMGetArgument(3);
+    } while (0);
     SpriteAllocClutRect(pSpriteData, 2, 0);
     ((u_short*)((SpriteDataI3*)pSpriteData->field_0x7C)->field_0x18)[2] = type << 6;
     pCurActor = g_FieldScriptVMCurActor;
@@ -814,6 +820,7 @@ void func_800888A4(void) {
     pCurActor->scriptInstructionPointer += 5;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_800888A4);
+
 
 
 // 88.92% (432 bytes against retail's 428; frame 0x28 and the saved set s0-s4+ra
