@@ -586,8 +586,11 @@ void WorldMapUpdateSlots(void) {
 // folds back to a bare symbol store plus a fresh `lui`/`lw` for the read.
 // Tried on top of the 99.80 body, all no better: pEnd from `(u8 *)pSrc + 0x10000`
 // (identical code), pEnd computed from the global before pSrc (208 bytes,
-// 97.45), src/end swapped in the copy loop (208 bytes, 97.35), and a 3-minute
-// permuter run (PERMUTER_NONE, base=10, 1659 iterations).
+// 97.45), src/end swapped in the copy loop (208 bytes, 97.35), declaring pEnd
+// before pSrc/pDst (identical code - so the tie is not pseudo creation order),
+// and TWO permuter runs (PERMUTER_NONE base=10 best=10, 1659 and 2202
+// iterations). Retail's `lui t0,0x1` is the register ALLOCATOR reusing pEnd's
+// own $t0 for the constant temp; no spelling of `pSrc + 0x1000` reaches it.
 // try_flags (pre-alias, parked shape): --gp -G0 88.53 but it drops the matched
 // WorldMapRefreshGrid to 97.21 and WorldMapStartCdRead to 91.63; gcc 2.6.0 79.25.
 extern u8 *g_WorldMapTilePrimBufferSlots[] __asm__("g_WorldMapTilePrimBuffer");
@@ -625,6 +628,7 @@ void func_800978FC(void) {
     } while (pSrc != pEnd);
 }
 */
+
 
 extern void *LZSSHeapDecompress(void *pCompressedData, int flags);
 extern void ModelLoadTextureBlock(void *pBlock);
