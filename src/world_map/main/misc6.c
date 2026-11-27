@@ -1190,6 +1190,7 @@ int WorldMapInitGroup1Actor(int index) {
 // scores 99.87 with that one instruction as the only difference, so the displacement is
 // sched2's SI-mode vs QI-mode priority, not source order. Permuter (3 min, -j 2):
 // PERMUTER_NONE base 120 best 120. Preset ruled out earlier: 2.7.2-cdk gives 83.56.
+// AUDIT ROUND 547: re-measured 99.36% / 2680 bytes = retail's exact size; the sole residual is the g_WorldMapPlayerPosition load in the shared case 3/23 tail (see the notes above; unbriefed audit pick, nothing moved).
 /*
 int func_8007EE34(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
@@ -1465,6 +1466,7 @@ int func_8007EE34(int index) {
     return nResult;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007EE34);
+
 
 
 
