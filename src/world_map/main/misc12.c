@@ -1993,6 +1993,31 @@ extern void WorldMapStartSlot(s32, s32);
 //   ([0]) through the u16 array extern at the top of the file — the bare name truncates.
 // - The WorldMapScrollDelta typedef, the s16 alias for g_WorldMapViewRotationY and the
 //   externs above this stub exist so the parked body below still compiles.
+// ROUND 532 re-measured the stored body from the live C: 99.76% / 1668 bytes / 417 insns =
+// retail's exact size, and the whole stream differs in exactly two places - the two
+// `lw %lo(jtbl)` operands and five instructions in EACH ramp block, a pure caller-saved
+// tie. Retail shifts nDelta in place in v1 and gives the unk58 load v0
+// (`sll v1,v1,0xc / lw v0,88(s0) / sra v1,v1,0x3 / addu v0,v0,v1 / and v0,v0,a0`), ours
+// makes a temp in v0 and lets the load take the freed v1
+// (`sll v0,v1,0xc / lw v1,88(s0) / sra v0,v0,0x3 / addu v1,v1,v0 / and v0,v1,a0`).
+// permute.sh 3 min / 1309 iterations: PERMUTER_NONE base=80 best=80, so no spelling of
+// this body moves it. Re-tried and rejected here: the in-place form
+// `nDelta = (nDelta << 12) >> 3; pPlayer->unk58 = (pPlayer->unk58 + nDelta) & 0xFFFFFF;`
+// -> 1672 bytes / 97.81% (nDelta lands in a1 and the shift copies back through v0, +1
+// insn) and the swapped sum `(((nDelta << 12) >> 3) + pPlayer->unk58)` -> 1672 / 99.21%.
+// The state-0x10 block carries the same tie with `>> 5`, so one spelling has to close both.
+// The +4 below was re-measured first-hand this round with the body live: check_bin.sh
+// world_map gives build/out/world_map.bin 180426 against disc's 180422, first differing
+// byte at file 0x4. The split that fixes it (i-jtbl-align-3-hardcoded, unchanged):
+// `[0xF08, .rodata, main/misc12]` + `[0x1064, .rodata, main/misc12_b]` and
+// `[0x1E504, c, main/misc12]` + `[0x20F94, c, main/misc12_b]` (func_80090A84's file
+// offset), with func_80090A84/90FB4/90C68/90E14/914D0/91C18/91FF8/925A0 moved into
+// src/world_map/main/misc12_b.c. misc12.c.o's rodata then tiles to exactly 0x15C - E190's
+// two asm tables 0x18+0x20, E4F4's C table 0x20 at +0x38, E76C's asm 0x104 at +0x58 - so
+// WorldMapModeInitGroupRotations must stay in misc12.c, and the new range starts at parity
+// 4 with its five tables at internal 0/0x30/0x60/0x90/0xB8 = retail's 0x1064/0x1094/
+// 0x10C4/0x10F4/0x111C and no pad. That un-parks four bodies at once (A84 99.92,
+// C68 99.91, E14 99.90, 914D0 99.76).
 /*
 s32 func_800914D0(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -2205,6 +2230,7 @@ s32 func_800914D0(s32 idx) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12", func_800914D0);
+
 
 
 
