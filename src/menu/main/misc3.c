@@ -1955,48 +1955,68 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
 
 
 
-/* Best attempt: 81.86% (2860 bytes vs retail's 2960, 715 insns vs retail's 757).
-   The save-COPY routine of the card submenu: it moves the record of the selected
-   slot (records[slotRecordIndexes[g_MenuCardSlotOrder[selectedSlot]]]) from the
-   card the slot lives on to the OTHER card -- read its file a 0x200 block at a
-   time and write the blocks to that card's D_801C50B8 temp name, then rename it
-   to prefix+ids. Everything below the first MenuHandleCardSlotInput arm therefore
-   keys off the DESTINATION card: retail's index is `sltiu` of
-   selectedSlot / MENU_CARD_SLOT_COUNT, i.e. otherCard = (ownCard == 0), and that
-   same value indexes cardStatus/cardErrorCodes/g_MenuCardSlotTotals/
-   cardSlotCounts and is the MenuWaitForCardStatusChange argument, while the
-   source-file retries wait on ownCard (retail's sp+0x4E0 slot). Getting this
-   backwards costs ~2.4% (78.05 -> 80.48).
-   Named residuals:
-   (1) 42 MISSING INSTRUCTIONS: retail is 757 insns, this body 715, and the call
-       sequence matches except that this body emits THREE copies of the
-       close(fileFd)/close(destFd)/erase(tempPath) failure exit where retail has
-       two distinct ones (one rebuilds tempPath with strcpy+strcat before erasing,
-       the other erases it as is), so most of the gap is elsewhere -- start by
-       finding the block retail has that this body lacks, before touching registers.
-   (2) MENU_CARD_PREFIX COPY IS A STRUCT ASSIGNMENT in retail (lw + lh, `sh` for
-       the 2-byte tail) where `memcpy(&x, &g_MenuCardPathPrefix0, 6)` (the idiom
-       MenuLoadCardChunk uses) emits a different shape; this body's
-       `ownPrefix = g_MenuCardPathPrefix0;` gives lw + lw + sw + sw (it reads the
-       struct as 8 bytes), so neither spelling has been proven here yet.
-   (3) MenuIsSlotUsable(0) needs no `andi 0xff` in retail (`bnez v0` straight off
-       the jal) but the u_char return type of this file's own definition forces
-       one; the prototype is the thing to test, not the call.
-   (4) The 0x530 frame and every stack offset still differ (this body's tail
-       scalars are 8 apart in retail: 0x4E0 ownCard, 0x4E8 ready, 0x4F0 result,
-       0x4F8 chunkMissing).
-   Tried: card as the destination index and as the own-card index (2.4% worse),
-   the read/write arms of the block loop in both orders (retail's read is the
-   fall-through: +1.4%), a `slot` local for MenuFindFirstValidSlot instead of
-   re-reading menuUnk2->selectedSlot, and the own/other prefix swap folded out of
-   the arm. Not tried: the permuter (structure is still moving), and a search for
-   the missing block. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CC6D8);
+/* Best attempt: 82.15% (2904 bytes vs retail's 2960, 726 insns vs retail's 757)
+   with the `== 0` spelling in residual (2); the body parked below uses the honest
+   `!= 0` and measures 81.46% at the same 2904 bytes. Frame 0x528 vs retail's 0x530.
+//    The save-COPY routine of the card submenu: it
+//    moves the record of the selected slot
+//    (records[slotRecordIndexes[g_MenuCardSlotOrder[selectedSlot]]]) from the card
+//    the slot lives on to the OTHER card -- read its file a 0x200 block at a time
+//    and write the blocks to that card's D_801C50B8 temp name, then rename it to
+//    prefix+ids. Everything below the first MenuHandleCardSlotInput arm keys off the
+//    DESTINATION card: retail's index is `sltiu` of selectedSlot / MENU_CARD_SLOT_COUNT,
+//    i.e. otherCard = (ownCard == 0), and that value indexes
+//    cardStatus/cardErrorCodes/g_MenuCardSlotTotals/cardSlotCounts and is the
+//    MenuWaitForCardStatusChange and write-arm MenuWaitCardOperationFrames argument,
+//    while the SOURCE-file retries (open(ownPath), read(headerBlock), the block-read
+//    arm) pass ownCard (`lbu a0,0x4E0($sp)` in retail). Those three now pass ownCard
+//    (+0.29%).
+//    FIXED THIS ROUND: the body did not compile at all -- `MenuWaitCardOperationFrames(card)`
+//    kept a name that no longer exists, so the old 81.86% note was measured against a
+//    STALE object. Now six waits with retail's arguments.
+//    FIXED THIS ROUND: the two block-loop failure exits are the ONE shared retail
+//    block `.L801CCF00` = close(fileFd); close(destFd); strcpy(tempPath, ownPath-slot);
+//    strcat(tempPath, D_801C50B8); erase(tempPath); goto copyDone (retail reaches it
+//    from both loops with `j`, i.e. gcc cross-jumped the two copies). Adding the
+//    strcpy/strcat rebuild before erase produced exactly that merge.
+//    Residuals, in order of what is left:
+//    (1) 14 instructions (56 bytes) and 8 bytes of locals short. One call still
+//        missing: retail's open(tempPath,2) retry-exhaust is close(fileFd);
+//        erase(tempPath) and is NOT cross-jumped into `.L801CCF00`, while this body's
+//        identical tail IS merged into it, so my erase count is 3 against retail's 4.
+//        Retail keeps them apart because the shared block reaches tempPath through
+//        $fp (`addu a0,$fp`) while the exhaust uses `addiu a0,$sp,0x98`; $fp is set
+//        once at entry (`addiu $fp,$sp,0x98`). A pointer local for that temp name
+//        (so the address is a register, not sp-relative) is the untested lever;
+//        it is also why retail's `strcpy`/`erase` in that block differ from mine.
+//    (2) SEMANTICS QUESTION in the cardErrorCodes[otherCard] == -2 arm: retail is
+//        `beqz v0` straight off MenuWaitForCardStatusChange, i.e. the
+//        shouldUpdatePosition[0] = 1 block runs when the call returns NON-zero, so
+//        the honest spelling is `!= 0`. That spelling measures 81.46% while `== 0`
+//        (wrong code) measured 82.15%; with 82% of the body still off, do not read
+//        anything into the 0.7%, keep `!= 0`.
+//    (3) MenuIsSlotUsable(0) needs no `andi 0xff` in retail (`bnez v0` straight off
+//        the jal) but the u_char return type of this file's own definition forces
+//        one; the prototype is the thing to test, not the call.
+//    (4) MENU_CARD_PREFIX COPY IS A STRUCT ASSIGNMENT in retail (lw + lh, `sh` for
+//        the 2-byte tail) where `memcpy(&x, &g_MenuCardPathPrefix0, 6)` (the idiom
+//        MenuLoadCardChunk uses) emits a different shape; `ownPrefix =
+//        g_MenuCardPathPrefix0;` gives lw + lw + sw + sw (reads the struct as 8
+//        bytes), so neither spelling is proven here yet.
+//    (5) Every stack offset still differs by the 8-byte frame gap. Retail's array
+//        layout is sp+0x10 otherPath, sp+0x50 ownPath, sp+0x90 a prefix, sp+0x98
+//        tempPath ($fp), sp+0xE0 block, sp+0x2E0 headerBlock, sp+0x4E0 ownCard,
+//        0x4E8 ready, 0x4F0 result, 0x4F8 chunkMissing; finding which local this body
+//        is missing is what closes (1).
+//    Tried: card as the destination index and as the own-card index (2.4% worse),
+//    the read/write arms of the block loop in both orders (retail's read is the
+//    fall-through: +1.4%), a `slot` local for MenuFindFirstValidSlot, the own/other
+//    prefix swap folded out of the arm, the wait-argument assignment above, the
+//    shared-exit rebuild above, `== 0` vs `!= 0` in the -2 arm.
+//    Not tried: a pointer local for the temp path (residual 1), the permuter (81.5%
+//    is far below its floor: structure is still moving), the prefix copy spellings.
+//    Was 757 insns / 2960 bytes retail. */
 /*
-extern void MenuPlaySoundEffect(u8 arg0);
-extern void Vsync(s32 count);
-extern u8 D_801C50B8[];
-
 u_char func_801CC6D8(void) {
     char otherPath[0x40];
     MenuCardPrefix otherPrefix;
@@ -2103,7 +2123,7 @@ u_char func_801CC6D8(void) {
                     otherPrefix = g_MenuCardPathPrefix0;
                 }
                 if (g_Menu->menuUnk2->cardErrorCodes[otherCard] == -2) {
-                    if (MenuWaitForCardStatusChange(otherCard) == 0) {
+                    if (MenuWaitForCardStatusChange(otherCard) != 0) {
                         g_Menu->pCursors->shouldUpdatePosition[0] = 1;
                         break;
                     }
@@ -2154,7 +2174,7 @@ u_char func_801CC6D8(void) {
                         fd = open(ownPath, 1);
                         if (fd == -1) {
                             fd = 0;
-                            MenuWaitCardOperationFrames(card);
+                            MenuWaitCardOperationFrames(ownCard);
                         }
                         if (fd != 0) {
                             break;
@@ -2170,7 +2190,7 @@ u_char func_801CC6D8(void) {
                         while (1) {
                             if (read(fileFd, headerBlock, 0x200) == -1) {
                                 fd = 0;
-                                MenuWaitCardOperationFrames(card);
+                                MenuWaitCardOperationFrames(ownCard);
                             }
                             if (fd != 0) {
                                 break;
@@ -2205,7 +2225,7 @@ u_char func_801CC6D8(void) {
                                 destFd = open(tempPath, 2);
                                 if (destFd == -1) {
                                     fd = 0;
-                                    MenuWaitCardOperationFrames(card);
+                                    MenuWaitCardOperationFrames(otherCard);
                                 }
                                 if (fd != 0) {
                                     break;
@@ -2222,7 +2242,7 @@ u_char func_801CC6D8(void) {
                             while (1) {
                                 if (write(destFd, headerBlock, 0x200) == -1) {
                                     fd = 0;
-                                    MenuWaitCardOperationFrames(card);
+                                    MenuWaitCardOperationFrames(otherCard);
                                 }
                                 if (fd != 0) {
                                     break;
@@ -2244,7 +2264,7 @@ u_char func_801CC6D8(void) {
                                     while (1) {
                                         if (read(fileFd, block, 0x200) != 0x200) {
                                             fd = 0;
-                                            MenuWaitCardOperationFrames(card);
+                                            MenuWaitCardOperationFrames(ownCard);
                                         }
                                         if (fd != 0) {
                                             break;
@@ -2253,6 +2273,8 @@ u_char func_801CC6D8(void) {
                                         if (retry == 0) {
                                             close(fileFd);
                                             close(destFd);
+                                            strcpy(tempPath, (char*)&otherPrefix);
+                                            strcat(tempPath, D_801C50B8);
                                             erase(tempPath);
                                             goto copyDone;
                                         }
@@ -2263,7 +2285,7 @@ u_char func_801CC6D8(void) {
                                     while (1) {
                                         if (write(destFd, block, 0x200) != 0x200) {
                                             fd = 0;
-                                            MenuWaitCardOperationFrames(card);
+                                            MenuWaitCardOperationFrames(otherCard);
                                         }
                                         if (fd != 0) {
                                             break;
@@ -2272,6 +2294,8 @@ u_char func_801CC6D8(void) {
                                         if (retry == 0) {
                                             close(fileFd);
                                             close(destFd);
+                                            strcpy(tempPath, (char*)&otherPrefix);
+                                            strcat(tempPath, D_801C50B8);
                                             erase(tempPath);
                                             goto copyDone;
                                         }
@@ -2332,5 +2356,7 @@ u_char func_801CC6D8(void) {
     g_Menu->menuUnk2->cardPollMode = 1;
     g_Menu->unk334 = 1;
     return result;
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CC6D8);
+
+
