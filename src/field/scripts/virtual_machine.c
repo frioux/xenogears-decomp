@@ -1137,14 +1137,26 @@ void func_800A3474(void) {
 //  - blocks 2 and 3 need SEPARATE element-pointer locals (pFieldActor / pSavedActor); one
 //    shared variable is one pseudo with ONE register, and retail keeps block 2's element in
 //    $a0 and block 3's in $a1.
-// LEFT: one register pair swapped in block 2 only - retail is addu a0,s1,v0 / lw a1,76(a0)
-// (element $a0, pActorData $a1), this body is addu a1,s1,v0 / lw a0,76(a1). Every other
-// instruction, both jump paths and the frame are identical (26 differing lines, all names).
+// LEFT: register names only, in blocks 2 and 3 (26 differing lines, 704 bytes / 176 insns
+// on both sides, so the residual costs no byte and cannot link):
+//  - block 2: retail addu a0,s1,v0 / lw a1,76(a0) (element $a0, pActorData $a1); this body
+//    addu a1,s1,v0 / lw a0,76(a1). Retail's stream ties the pair: the element has 3
+//    defs/uses (addu dest + the two `lw 76(...)` loads) and pActorData 3 (the load dest +
+//    `lw 4(...)` + `lw 0(...)`), so local_alloc breaks an even tie by qty order and no
+//    spelling moves either count without changing the emitted instructions.
+//  - block 3: retail keeps element $a1, pActorData $v0 (tied to the g_FieldActors load base
+//    that dies in the addu) and cursor $a0, i.e. four registers; this body spends five
+//    (element $a2, pActorData $a0, cursor $a1).
 // Tried with no change: pFieldActor declared before pActorData, the two-statement form
-// (pActorData = pFieldActor->pActorData) instead of inline member chains in block 2, and one
-// shared element local for blocks 2+3 (99.43, element -> $a2). The permuter CANNOT run on
-// this body: its parser rejects the __asm__ label declaration ("conversion to non-scalar
-// type requested", base.c does not compile).
+// (pActorData = pFieldActor->pActorData) instead of inline member chains in block 2, one
+// shared element local for blocks 2+3 (99.43, element -> $a2), block 2 spelled with the
+// inline member chain in both tests (no pActorData local - byte-identical, same 26 lines),
+// and an empty one-iteration `do { } while (0);` between the pActorData assignment and
+// block 2's `if` (byte-identical). A `-dl`/`-dg` dump of this body was taken with
+// tools/gcc-2.7.2-psx/cc1 on build/src/field/scripts/virtual_machine.c.i and adds nothing:
+// the pair is not a quotient gap. The permuter CANNOT run on this body: its parser rejects
+// the __asm__ label declaration ("conversion to non-scalar type requested", base.c does not
+// compile; `permute.sh ... --minutes 0` reproduces it).
 /*
 extern s32 g_FieldNumActorsWords[] __asm__("g_FieldNumActors");
 void func_800A3C8C(void) {
