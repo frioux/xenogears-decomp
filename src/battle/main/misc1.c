@@ -205,7 +205,7 @@ extern u8 g_GameSelectedSkinLoadPending;
 extern u8 g_GameDiscChangeRequest;
 extern u8 g_SoundEffectBankIndex;
 extern u8 g_BattleActorCharIds[];
-extern u16 g_BattleStateFlags;
+extern volatile u16 g_BattleStateFlags;
 extern u8 g_BattleLastMenuEvent;
 extern u8 g_BattleSoundEnabled;
 extern u8 g_BattleDisplayMode;
@@ -861,33 +861,30 @@ void BattleResetActorCommandSlots(void) {
     }
 }
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
-/* 81.43% under 2.6.0 (356 bytes against retail's 332, 89 vs 83 insns; round 425
-   re-measured it). Structure, both call sites, the charIndex arm and every
-   load/store are retail's; the residual is the loop ENTRY, and everything else
-   follows from it:
-   1. Retail inverts the loop with an entry jump: at the preheader it loads the
-      state byte, then `j .L800724CC` with `ori a3,zero,0xB` in the delay slot, so
-      the ONE compare (bne v0,t0) at the bottom is shared by the entry and the back
-      edge. gcc 2.6.0 duplicates the exit test inline instead (`li v0,1` +
-      `beq v0,t0 -> found`), which (a) costs the extra constant, (b) makes the
-      found handler a branch target and so costs it a fresh `li v0,0xB` and a
-      `nop` in the wrap-branch delay slot where retail reuses a3 and the loop's
-      `addiu a1,a1,1`. That is the whole 6-insn gap.
-   2. Retail's wrap test is a BACKWARD branch into the loop body (bne v0,a3 with
-      delay addiu a1,a1,1), i.e. the source continues the loop; the path is
-      equivalent to the forward branch (a1 == *pCurrent on arrival, so it goes
-      straight to the call), so our `if ((*pCurrent = i + 1) == 0xB)` is the same
-      code and scores the best of the shapes tried.
-   Folded since the round-411 park (77.55 -> 81.43): a `u8 targetSlot` local for
-   the actor id in the condition removes the found handler's D_800D2DD8[i]
-   reload, and the embedded assignment `(*pCurrent = i + 1)` removes its
-   *pCurrent reload (`andi v1,v1,0xff` reuses the stored value, as retail does).
-   Also tried here: `i++; if (i == 0xB) i = 0; *pCurrent = i;` for the tail
-   (79.51, 352 bytes), and the old post-loop fixup form (77.55). Presets: round
-   411 measured -G0, 2.7.2 and cdk. The compiler that inverted the loop is the
-   answer; none in tools/ does it for this shape (cc1_probe.sh kept the inline
-   entry test for while/for/do-while/goto).
+// 81.43% under 2.6.0 (356 bytes against retail's 332, 89 vs 83 insns; round 425
+// re-measured it, round 534 re-measured the same body unchanged). ROTATED_ENTRY and
+// CLOSED: see lever g-rotated-entry-j-to-bottom-test (round 398). Retail inverts the
+// loop with an entry jump - the preheader evaluates the state byte, then `j
+// .L800724CC` with `ori a3,zero,0xB` in the delay slot - so ONE compare (bne v0,t0)
+// at the bottom is shared by the entry and the back edge. gcc 2.6.0 duplicates the
+// exit test inline instead (`li v0,1` + `beq v0,t0 -> found`), which (a) costs the
+// extra constant, (b) makes the found handler a branch target and so costs it a fresh
+// `li v0,0xB` and a `nop` in the wrap-branch delay slot where retail reuses a3 and
+// the loop's `addiu a1,a1,1`. That is the whole 6-insn gap. cc1_probe.sh measured
+// while, for, do-while, guarded-do-while and goto-check shapes under 2.6.0, 2.7.2 and
+// 2.7.2-cdk: every one emits [preheader: eval; beq -> exit][body][eval; bne -> body]
+// and never retail's [preheader: eval; j bottom-test]. The threading needs a compiler
+// pass none of the three installed has (2.8+?); worth re-probing if a 2.8.x preset is
+// added. Everything below the entry is retail's: both call sites (func_80071B94(0) on
+// the wrapped-out path and after the scan, BattleResetActorCommandSlots on the
+// non-zero-mask arm, the if/else chain with the reset arm last), the charIndex arm and
+// every load/store shape. Folded since the round-411 park (77.55 -> 81.43): a `u8
+// targetSlot` local for the actor id in the condition removes the found handler's
+// D_800D2DD8[i] reload, and the embedded assignment `(*pCurrent = i + 1)` removes its
+// *pCurrent reload (`andi v1,v1,0xff` reuses the stored value, as retail does). Also
+// tried and worse: `i++; if (i == 0xB) i = 0; *pCurrent = i;` for the tail (79.51,
+// 352 bytes), the old post-loop fixup form (77.55), -G0 / 2.7.2 / cdk presets.
+/*
 void func_800723E0(void) {
     u8 *pCurrent;
     u8 targetSlot;
@@ -922,46 +919,46 @@ void func_800723E0(void) {
     } else {
         BattleResetActorCommandSlots();
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_800723E0);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
-/* 93.02% under 2.6.0 (904 bytes against retail's 908, 226 vs 227 insns).
-   Control flow, both loops and every load/store shape are retail's. Three
-   residuals, in the order they cost:
-   1. TAIL, 3 of the 4 missing bytes: retail RELOADS g_BattleStateFlags for the
-      0x7F8 test, again for the 0x7 test, and once more for `mask`; our non-volatile
-      global is cse'd into one load. Measured cure: `extern volatile u16
-      g_BattleStateFlags;` (line ~164) makes both test loads appear (91.63 -> 93.02,
-      892 -> 904 bytes) but ALSO turns the `mask = g_BattleStateFlags` load into
-      `lhu v0 / andi s2,v0,0xffff` where retail has a bare `lui s2 / lhu s2`, so
-      that one read has to stay non-volatile (a `*(u16 *)&` cast-away, or a second
-      alias). The other user of the global in this unit (animFlags, line ~370) is a
-      single load, so a volatile declaration does not change its code - it was not
-      re-diffed, verify before committing it.
-   2. REGISTER NUMBERING, the remaining byte: retail uses 7 callee-saved regs
-      (s0 = the masked slot, s1 = i, s2..s5 = the four bivs, s6 = 0xFF; 0x30 frame
-      saving ra+s0-s6) and we use 6, so every register from s0 up is one lower and
-      the prologue/epilogue are 2 instructions shorter (the whole 4 byte gap is
-      prologue/epilogue + the tail load). Retail materialises `(u8)i` into s0 in the
-      `beqz` delay slots at +0x148/+0x1B0 and then passes it with `move a1,s0` /
-      `move a0,s0`, i.e. the u8 conversion is one CSE'd pseudo with a callee-saved
-      register; gcc 2.6.0 keeps our equivalent in a1 and re-does `andi` at each call.
-      Tried: `u8 slot = i;` at the top of the loop body (slot lands in a1, 90.13%),
-      `s32`/`u16` mask (the s32 form is what reproduces retail's bare `bnez s2`), a u8
-      loop counter (gcc emits sltu plus an andi per iteration - wrong), three if/else
-      arm orderings (retail's order is the best one and is what the body below uses).
-   3. An addu-operand-only difference on the loop-2 enabled test: retail spells it
-      D_800D2DCF[j] with j = i-3 in its own biv, we spell it g_BattleSlotEnabledFlags[i]
-      with a 3(at) immediate. Same bytes after linking, folded by diff_func, still
-      worth one objdiff point.
-   A 4 minute permuter run (base 2434 -> best 1584) only found bodies that hoist
-   `BattleSlotBitMask(i)` out of the branches - a call retail does not make on the
-   continue paths, so wrong code; and one earlier run did the same.
-*/
+
+
+// 93.02% under 2.6.0 (904 bytes against retail's 908, 226 vs 227 insns; round 534
+// re-measured this body and reproduced the round-425 number). Control flow, both loops
+// and every load/store shape are retail's. The declaration this body needs is the
+// `extern volatile u16 g_BattleStateFlags;` at line 208: retail RELOADS the global for
+// the 0x7F8 test, again for the 0x7 test and once more as the loop-3 `mask`, and the
+// non-volatile global is cse'd into one load (that body is 91.63% / 892 bytes). The
+// other user of the global in this unit is BattleRunScene (line ~377, one load); it was
+// re-diffed with the volatile declaration in place and stays 99.98% / 1944 bytes, the
+// same 6-line residual it has without it, so the change costs nothing there.
+// RESIDUAL 1, the whole 4-byte gap - ONE callee-saved register. Retail keeps SEVEN
+// (s0-s6, 0x30 frame, saves ra+s0..s6): s1 = i, s2 = i*0x170, s3 = (i-3)*0x1C, s4 = i-3,
+// s5 = a walking pointer to D_800C3D1B (+4 per iteration), s6 = 0xFF. We keep six, all
+// one register lower, and the prologue/epilogue are 2 instructions short. Retail's
+// extra register is the `j = i - 3` biv: it spells the loop-2 enabled test and the
+// countdown store through the SHIFTED bases (D_800D2DCF[j] and D_800D2DE7[j], i.e.
+// g_BattleSlotEnabledFlags[i] and g_BattleActorCountdownState[i] three bytes along) and
+// walks D_800C3D1B with a pointer. Our i-based bases fold the 3 into the address
+// (`3(at)`) and need no j biv - same linked bytes (folded by diff_func), one objdiff
+// point and one register. Measuring that respelling means writing
+// `g_BattleSlotEnabledFlags[j + 3]` with a `j = i - 3` local, which is not the natural
+// spelling of these arrays; not tried yet.
+// RESIDUAL 2, one instruction: `mask = g_BattleStateFlags` is a volatile read, so cc1
+// emits `lhu v0 / andi s2,v0,0xffff` where retail loads straight into the variable's
+// register (`lui s2,%hi / lhu s2,%lo`). Spelling it `mask = *(u16 *)&g_BattleStateFlags;`
+// to cast the volatile away gives retail's bare load - MEASURED 92.27% / 900 bytes / 225
+// insns, i.e. the register hand-out it buys back costs more than the instruction it
+// saves, so the volatile read is the better half.
+// Tried and worse: `u8 slot = i;` at the top of the loop body (slot lands in a1,
+// 90.13%), s32/u16 `mask` (s32/LONG reproduces retail's bare `bnez s2`), a u8 loop
+// counter (gcc emits sltu plus an andi per iteration - wrong), three if/else arm
+// orderings (retail's order is the best one and is what the body below uses). A 4 minute
+// permuter run from an earlier body (base 2434 -> best 1584) only found bodies that hoist
+// `BattleSlotBitMask(i)` out of the branches - a call retail does not make on the
+// continue paths, so wrong code.
 /*
-// Rebuilds g_BattleStateFlags, the mask of the slots that have an active action
-// pending, and then reconciles D_800C48EA (the battle menu event) with it.
 void func_8007252C(void) {
     s32 i;
     s32 mask;
@@ -1028,8 +1025,10 @@ void func_8007252C(void) {
             }
         }
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_8007252C);
+
+
 
 // Adds every second prim of a run of packages to the current ordering table: each
 // package holds one POLY_FT4 per render context, and primStart selects which.
