@@ -569,32 +569,33 @@ extern void WorldMapStartSlot(s32, s32);
 
 #define WORLD_MAP_SCROLL_SNAP_STEP 64
 
-// best: 99.76% (objdiff), 1668 bytes / 417 insns = retail's exact size (nm -S on both
-// objects: 0x684). Whole structure, both switches, both ramps and both walk tails decode;
-// the residual is one allocator tie inside the two ramp blocks plus the two jtbl operands.
-// CANNOT BE CONVERTED HERE (JTBL_LAYOUT, and the cause is ALIGNMENT, not placement: the
-// old note here said cc1 puts C rodata before asm rodata, which is false for jump tables -
-// cc1 emits each table in .rdata at its own function's point in the text order, and this
-// object's tables do come out in retail's order). The unit's .rodata range is
-// [0xF08,0x1160) and retail's two tables sit at +0x1EC / +0x214 (0x80070BE4 / 0x80070C0C),
-// which are both 4 mod 8, while cc1 emits `align 3` (8-byte) before every switch table.
-// Measured with this body live: build/src/world_map/main/misc12.c.o has .rodata 0x25C
-// against retail's 0x258, a 4-byte zero pad at internal 0x1EC and the tables at 0x1F0 /
-// 0x218; check_bin.sh world_map then prints MISMATCH (build/out/world_map.bin 180426 bytes
-// against disc's 180422, every address table in the overlay off by +4) and culprit.sh
-// reports 147395 differing bytes in 450 symbols. Converting the neighbours cannot fix it:
-// retail's tables are packed 4-byte all the way down the chain (func_8008E76C's 0x104-byte
-// table ends at +0x15C, itself 4 mod 8, so WorldMapUpdateSlotTurnAndAreaEntry's table can never be a C table
-// either). Not a preset question: gcc-2.6.0 and gcc-2.7.2-cdk emit the same `align 3`
-// (cc1_probe.sh on a switch snippet). The route that IS open is the unit split sketched in
-// tools/rounds/levers.md under i-jtbl-align-3-hardcoded: move WorldMapUpdateSlotTurnAndAreaEntry/C68/E14/914D0
-// and everything after them into a new main/misc12_b with [0x1064, .rodata] + [c] ranges,
-// whose .rodata then starts at parity 4 and puts all five tail tables at retail's offsets.
-// That is a config/world_map.yaml + gears.toml + new-file change, so it is not this lane's.
-// The frame here is retail's exactly, so only these 4 bytes stand between this body and the
-// link; no C spelling can move an assembler alignment pad, which is why no permuter run was
-// made for the remaining 0.24% (the register tie below: both ramp blocks, retail's in-place
-// `sll v1,v1,0xc / sra v1,v1,0x3` on nDelta against our fresh-`v0` shift).
+// best: 99.66% (objdiff), 1668 bytes / 417 insns = retail's exact size (nm -S on both
+// objects: 0x684). Both switches, both ramp blocks, both walk tails and every position
+// store are retail's; the ONE residual is a single opcode in each of the two later ramp
+// blocks, the view-yaw shift: retail `sra v0,v0,0xc`, ours `srl v0,v0,0xc`. The value is
+// masked to 24 bits, so the two are bit-identical; the two `lw %lo(jtbl)` operands differ
+// as usual (this unit owns its tables, so diff_func prints MATCH and only objdiff stays
+// under 100).
+// Why retail's sra is not reachable from here: the sum's in-place tie and the yaw's
+// arithmetic shift come from two different spellings. Storing the masked sum straight
+// into the field (`pPlayer->unk58 = (...) & 0xFFFFFF;`) ties the whole chain in place
+// (`sll v1,v1,0xc / lw v0,88(s0) / sra v1,v1,0x3 / addu v0,v0,v1 / and v0,v0,a0` - retail),
+// but the yaw read back through that store carries the mask's range note, so combine
+// folds `(and x 0xffffff) >> 12` into a LOGICAL shift. Naming the masked value in a local
+// keeps retail's sra and instead hands the sum's `sll` a fresh v0 (the older 99.76 tie).
+// Measured this round, 1668 bytes unless noted: field-direct store with no yaw local at
+// all (`g_...[0] = pPlayer->unk58 >> 12;` then `nYaw = pPlayer->unk58 >> 12;`) does give
+// retail's exact `sra v0,v0,0xc / sh v0` but reloads the second read as `lb` (1676,
+// 99.47); `pPlayer->unk58 = nYaw = (...) & 0xFFFFFF;` -> sra in place with the sum's sll
+// fresh (99.76); `nYaw = pPlayer->unk58 >> 12;` -> sra but in a fresh v1 and the xor's
+// operands flipped (99.83); permuter 3 + 1 min from the field-direct body ->
+// PERMUTER_NONE base=400 best=400 (it only proposed renaming nYaw to nRotY).
+// The `do { } while (0);` below is load-bearing: without it sched2 hoists the yaw shift
+// above `sw v0,88(s0)` and it takes a second register; with it the shift stays after the
+// store, in place.
+// The unit split that used to block this body is DONE (this file is misc12_b, its own
+// [0x1064, .rodata] range), so check_bin no longer reports the +4 pad.
+
 // Facts a later agent should not re-derive:
 // - The two walk tails were 2 insns short (1656, 96.66%) because cc1 hoists the final
 //   `pPlayer->z = g_WorldMapScrollTargetZ` statement to the top of the arm (its load fills
@@ -623,31 +624,20 @@ extern void WorldMapStartSlot(s32, s32);
 //   ([0]) through the u16 array extern at the top of the file — the bare name truncates.
 // - The WorldMapScrollDelta typedef, the s16 alias for g_WorldMapViewRotationY and the
 //   externs above this stub exist so the parked body below still compiles.
-// ROUND 532 re-measured the stored body from the live C: 99.76% / 1668 bytes / 417 insns =
-// retail's exact size, and the whole stream differs in exactly two places - the two
-// `lw %lo(jtbl)` operands and five instructions in EACH ramp block, a pure caller-saved
-// tie. Retail shifts nDelta in place in v1 and gives the unk58 load v0
-// (`sll v1,v1,0xc / lw v0,88(s0) / sra v1,v1,0x3 / addu v0,v0,v1 / and v0,v0,a0`), ours
-// makes a temp in v0 and lets the load take the freed v1
-// (`sll v0,v1,0xc / lw v1,88(s0) / sra v0,v0,0x3 / addu v1,v1,v0 / and v0,v1,a0`).
-// permute.sh 3 min / 1309 iterations: PERMUTER_NONE base=80 best=80, so no spelling of
-// this body moves it. Re-tried and rejected here: the in-place form
+// ROUND 542 (this round) moved the tie: the field-direct store below replaced
+// `nYaw = (...) & 0xFFFFFF; pPlayer->unk58 = nYaw;`, which is what made the two later ramp
+// blocks' `sll/addu/and` chain tie in place; the residual is now the yaw shift's opcode
+// alone (see above). Older measurements kept for the record: the in-place form
 // `nDelta = (nDelta << 12) >> 3; pPlayer->unk58 = (pPlayer->unk58 + nDelta) & 0xFFFFFF;`
-// -> 1672 bytes / 97.81% (nDelta lands in a1 and the shift copies back through v0, +1
-// insn) and the swapped sum `(((nDelta << 12) >> 3) + pPlayer->unk58)` -> 1672 / 99.21%.
-// The state-0x10 block carries the same tie with `>> 5`, so one spelling has to close both.
-// The +4 below was re-measured first-hand this round with the body live: check_bin.sh
-// world_map gives build/out/world_map.bin 180426 against disc's 180422, first differing
-// byte at file 0x4. The split that fixes it (i-jtbl-align-3-hardcoded, unchanged):
-// `[0xF08, .rodata, main/misc12]` + `[0x1064, .rodata, main/misc12_b]` and
-// `[0x1E504, c, main/misc12]` + `[0x20F94, c, main/misc12_b]` (WorldMapUpdateSlotTurnAndAreaEntry's file
-// offset), with WorldMapUpdateSlotTurnAndAreaEntry/90FB4/90C68/90E14/914D0/91C18/91FF8/925A0 moved into
-// src/world_map/main/misc12_b.c. misc12.c.o's rodata then tiles to exactly 0x15C - E190's
-// two asm tables 0x18+0x20, E4F4's C table 0x20 at +0x38, E76C's asm 0x104 at +0x58 - so
-// WorldMapModeInitGroupRotations must stay in misc12.c, and the new range starts at parity
-// 4 with its five tables at internal 0/0x30/0x60/0x90/0xB8 = retail's 0x1064/0x1094/
-// 0x10C4/0x10F4/0x111C and no pad. That un-parks four bodies at once (A84 99.92,
-// C68 99.91, E14 99.90, 914D0 99.76).
+// -> 1672 / 97.81 (nDelta lands in a1, +1 insn); the swapped sum
+// `(((nDelta << 12) >> 3) + pPlayer->unk58)` -> 1672 / 99.21; the pre-cdr body scored
+// 99.76 with five instructions per ramp block (sll v0 fresh, load in v1).
+// The +4 rodata pad that used to block this body is gone: config/world_map.yaml now has
+// the [0x1064, .rodata, main/misc12_b] range this file was split into (misc12.c.o's rodata
+// tiles to 0x15C, so this range starts at parity 4 and its five tables land at retail's
+// 0x1064/0x1094/0x10C4/0x10F4/0x111C with no pad).
+// PARKED 99.66%: 1668 bytes = retail's 0x684, 417 insns. Residual: one opcode per later
+// ramp block - `srl` where retail has `sra` on the view yaw (bit-identical value).
 /*
 s32 func_800914D0(s32 idx) {
     WorldMapPlayer *pPlayer;
@@ -757,8 +747,10 @@ s32 func_800914D0(s32 idx) {
                 nDelta = 0x180;
             }
         }
-        nYaw = (pPlayer->unk58 + ((nDelta << 12) >> 3)) & 0xFFFFFF;
-        pPlayer->unk58 = nYaw;
+        pPlayer->unk58 = (pPlayer->unk58 + ((nDelta << 12) >> 3)) & 0xFFFFFF;
+        do {
+        } while (0);
+        nYaw = pPlayer->unk58;
         g_WorldMapViewRotationYAngle[0] = nYaw >> 12;
         if (((nYaw >> 12) == pPlayer->unk50) & (pPlayer->unk60 == 0)) {
             pPlayer->state = 3;
@@ -798,8 +790,10 @@ s32 func_800914D0(s32 idx) {
                 nDelta = 0x180;
             }
         }
-        nYaw = (pPlayer->unk58 + ((nDelta << 12) >> 5)) & 0xFFFFFF;
-        pPlayer->unk58 = nYaw;
+        pPlayer->unk58 = (pPlayer->unk58 + ((nDelta << 12) >> 5)) & 0xFFFFFF;
+        do {
+        } while (0);
+        nYaw = pPlayer->unk58;
         g_WorldMapViewRotationYAngle[0] = nYaw >> 12;
         if (((nYaw >> 12) == pPlayer->unk50) & (pPlayer->unk60 == 0)) {
             pPlayer->state = 3;
@@ -860,10 +854,6 @@ s32 func_800914D0(s32 idx) {
     return 1;
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc12_b", func_800914D0);
-
-
-
-
 
 s32 WorldMapModeInitActorAngleSets(s32 idx) {
     WorldMapPlayer *pPlayer;
