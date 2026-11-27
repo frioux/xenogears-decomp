@@ -909,58 +909,46 @@ void func_8007F05C(s32 idx, POLY_FT4* pPkt, s32 flag, s32 x, s32 shade);
 s32 BattleTestSlotBit(s32 slot);
 
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc6", func_8007F258);
-// PARKED 86.07% / 1496 bytes / 374 insns against retail's 1500 by 4 / 375 (round 536, Default).
-//   The old 81.01% body was WRONG CODE and its note is superseded: the SECOND call of each cursor
-//   block passes shade = (abs(step) << 6) / 0x24, NOT ((0x24 - abs(step)) << 6) / 0x24 - retail has
-//   no subu between the abs and the `sll 6` at F4D0 / F614, while the FIRST call's shade does
-//   subtract from 0x24. With that fixed plus the offset table indexed directly (below) every
-//   segment of the function is either instruction-identical or explained:
-//   * EXACT: the six decay blocks, the 3rd/4th call of each block (12/12 and 12/11 insns), the
-//     whole HUD tail from BattleSetTextCursor(0xA0,0x78), the jal/delay-slot structure.
-//   * The offset table MUST be indexed at the use - D_800912E0[sign].indexDelta1, ...xOffset - and
-//     not through a `pOff` pointer local: retail re-forms the base per access (`lui
-//     at,%hi(D_800912E2)` / `addu at,at,s0` / `lh %lo(at)`), 2 instructions per access. pOff local
-//     = 81.01% / 364 insns; direct indexing = +14 insns and those four segments become exact.
-//   Left, in order of size:
-//   1. THE ALIAS TRAP (+8, the biggest single item). Each cursor block ends with
-//      `sw Step / lw Step / sw Step / sw Offset` (four instructions, twice); ours is `sw / sw`.
-//      Store, then load of that same word, then another store of it: the original had two
-//      distinct gcc objects at 0x80092718, so gcc could neither forward the load nor delete the
-//      first store. Needs a second name at that address -
-//      `extern s32 g_BattleCursor0StepW[] __asm__("g_BattleCursor0Step");` with
-//      `g_BattleCursor0Step = step; step = g_BattleCursor0StepW[0]; g_BattleCursor0Step = step;
-//      g_BattleCursor0Offset = step;` does give the four instructions, but that is not shippable
-//      C, so it more likely came from a getter/setter pair or a struct alias we cannot see. Note
-//      +8 there would leave this body 7 OVER, so the alias alone is not the whole answer.
-//   2. s2/s3 REMATERIALISATION (+3 in the second cursor block, +2 in the first): retail holds the
-//      0x38E38E39 magic in s2 and the literal 0x24 in s3 across the whole function (5 saves, frame
-//      0x50); ours re-emits `lui s2 / ori s2` and `li v0,0x24` before the second block's division
-//      (4 saves, frame 0x48 - hence the prologue, the epilogue and the `s32 tmp[8]` filler differ).
-//      gcc rematerialises a twice-used constant rather than spend a save/restore pair, so this
-//      follows the register pressure, not a spelling.
-//   3. the ABS of delta (+2): retail is `bgez v1,L / move v0,v1 / negu v0,v0 / L: slti v0,v0,4`
-//      (delta stays live in v1, the absolute value gets v0); ours negates a copy and reorg
-//      duplicates the slti into the bgez delay slot, and then RELOADS the step (`lui a3 / lw a3`)
-//      where retail reuses the abs's source register (`addu a3,a3,t0`). All measured identical
-//      (374 insns, 86.07 every time): `step = delta; if (step < 0) step = -step;`,
-//      `if (delta < 0) step = -step;` on the copy, the if/else form and the ternary.
-//   4. the step sign polarity: retail is `bgtz v1` with `li -0x24` in the delay slot; ours is the
-//      inverted `blez` with `li 0x24` first, however the source writes it.
-//   5. the function takes NO parameters (ghidra: size 0x5DC, frame 0x50, void f(void); its callers
-//      misc10.c and misc7.c pass two arguments that neither side reads), so the body is written
-//      `(void)`; those two caller externs still say (void*, s32) and are left alone.
-//   Also proved: D_800912E0 is two 8-byte s16 quads, {1,-1,2,36} for a negative step and
-//   {-1,-2,1,-36} for a non-negative one, indexed by the s32 compare g_BattleCursor0Step >= 0, and
-//   that compare is evaluated BEFORE the block's first call while its `sll 3` lands inside the if
-//   body, so keep it in a local above the call; D_80099DA8[g_BattleDrawBufferIndex * 10] gives the
-//   mul-by-0x190 chain; the 3rd/4th calls pass x = -0x24 / 0x24 with shade 0; the 4th call of
-//   each block does advance pPkt (12/11-insn segments match retail exactly).
+// PARKED 86.78% / 1500 bytes / 375 insns - EXACTLY retail's size (round 545, Default).
+//   Round 545 progress: the old 86.07/1496 body re-read each cursor's offset global twice (once
+//   for the abs, once as arg3) and rematerialised BOTH constants, so its frame was 0x48 with three
+//   saved regs.  Giving the shade range a source local (`s32 range = 0x24;` before the first shade
+//   block, used in the two `range - step` subtractions, divisor still the literal) buys retail's
+//   `ori s3,zero,0x24`, the s3 save/restore and therefore retail's 0x50 frame and 1500 bytes with
+//   375 insns, and the whole prologue now matches.  Placing that assignment at the top of the
+//   function instead of at the first use is 86.75 and puts `li s3,0x24` in the prologue (retail
+//   sets it at the use).
+//   Still open, in order of size:
+//   1. THE ALIAS TRAP (+4 per cursor block = +8): each decay block ends
+//      `sw Step / lw Step / sw Step / sw Offset`; ours is `sw / sw` because cse forwards the store
+//      to the load.  Measured unreachable by spelling in round 536 (a second name at the address
+//      does give the four instructions but is not shippable C).  Retail's load re-forms the address
+//      into v0 (`lui v0,%hi` / `lw 0(v0)`) while its stores go through $at, so in RTL the store was
+//      `(mem (symbol_ref))` and the load went through a pseudo holding the address - i.e. the read
+//      was written through a pointer.  Not tried: `s32 *pStep = &g_BattleCursor0Step;` live across
+//      the store (a pointer local makes the two MEMs unequal, which is the only shape that stops
+//      the forward), but +8 would put the body 7 over, so it cannot be the whole answer.
+//   2. THE DECAY BLOCK delta/abs SHAPE (+2, both blocks): retail is
+//      `subu v1,a1,v1 / bgez v1,L / move v0,v1 / negu v0,v0 / L: slti v0,v0,4 / bnez` and
+//      `bgtz v1,L(delay li v0,-0x24) / li v0,0x24`; ours gets delta in a1 (`subu a1,a1,v1` then
+//      `move v1,a1`), negates that copy in place so reorg duplicates the `slti` into the bgez delay
+//      slot, and gets the inverted polarity `blez a1,L(delay li v1,0x24) / li v1,-36`.  Round 536
+//      measured `step = delta; if (step < 0) step = -step;`, the if/else and the ternary all
+//      identical at the old body; the different allocation above may make them differ now.
+//   3. the s2 magic (0x38E38E39) is materialised once by retail (3 insns: two `lui` from reorg plus
+//      one `ori`) and twice by us; it follows the same register pressure as (1).
+//   Proved earlier and still true: the second call of each cursor block passes shade =
+//   (abs(step) << 6) / 0x24 (NOT the 0x24 - abs form of the first call); the offset table must be
+//   indexed at the use (D_800912E0[sign].indexDeltaN); D_800912E0 is two 8-byte s16 quads
+//   {1,-1,2,36} / {-1,-2,1,-36} indexed by `g_BattleCursorNStep >= 0`; the function takes no
+//   parameters; the six decay blocks, the 3rd/4th calls and the HUD tail are exact.
 /*
 void func_8007F258(void) {
     s32 tmp[8]; // unused: reproduces the original's 0x50 frame
     POLY_FT4* pPkt;
     s32 delta;
     s32 step;
+    s32 range;
     s32 shade;
     s32 sign;
 
@@ -1040,12 +1028,13 @@ void func_8007F258(void) {
         g_BattleCursor1Offset = step;
     }
 
+    range = 0x24;
     sign = g_BattleCursor0Step >= 0;
     step = g_BattleCursor0Offset;
     if (step < 0) {
         step = -step;
     }
-    shade = ((0x24 - step) << 6) / 0x24;
+    shade = ((range - step) << 6) / 0x24;
     g_BattlePrevCursorIndex0 = g_BattleCursorIndex0;
     g_BattlePrevCursorIndex1 = g_BattleCursorIndex1;
     func_8007F05C(g_BattleCursorIndex0, pPkt++, 0, g_BattleCursor0Offset, shade);
@@ -1065,7 +1054,7 @@ void func_8007F258(void) {
     if (step < 0) {
         step = -step;
     }
-    shade = ((0x24 - step) << 6) / 0x24;
+    shade = ((range - step) << 6) / 0x24;
     func_8007F05C(g_BattleCursorIndex1, pPkt++, 1, g_BattleCursor1Offset, shade);
     if ((g_BattleSlotConfirmFlags & 2) == 0) {
         step = g_BattleCursor1Step;
@@ -1097,6 +1086,7 @@ void func_8007F258(void) {
     BattleSetTextColor(0);
 }
 */
+
 
 
 
