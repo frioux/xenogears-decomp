@@ -1004,6 +1004,15 @@ int WorldMapInitActorParamsFromTable(int idx) {
 // .sbss entries, tools/maspsx/maspsx/__init__.py:560 - so the directive is cc1's and no
 // assembler flag of this preset can move it.
 // PARKED AGAIN, body unchanged and un-touched: do not re-hunt it.
+// RE-MEASURED round 540 (audit pick): un-parked, diff_func.sh prints 99.95% / 876
+// bytes (retail's exact size, no instruction differs) and permute.sh prints
+// RESULT PERMUTER_ZERO base=0 best=0 on its first score, matching round 445.
+// check_bin.sh world_map with the body live: 180422 bytes = disc's exact size, 30
+// differing bytes - all inside the table (retail's 65 entries at file 0x160..0x263 then
+// its zero word at 0x264; ours has the zero pad at 0x160 and the entries at 0x164..0x267)
+// plus the single lw addend at 0xC904. Re-measured from the object: misc5's .rodata is
+// 0x1C8 = the yaml range exactly, with cc1's pads at range 0x4C and 0x8C, so only this
+// table is displaced. Nothing in the body changed; the split below is still the only fix.
 /*
 s32 func_8007C3B8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
