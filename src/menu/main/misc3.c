@@ -945,19 +945,23 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
 // Tried this round: case 2 with an explicit 'j = i / MENU_CARD_SLOT_COUNT' local read before the
 // pMenu load (absorbed, byte-identical at 95.51). Preset already screened by the previous note
 // (2.6.0 -O2 is right: -O3 84.60, -O1 61.64, 2.7.2 -O3 81.59, cdk -O2/-O3 81.59).
+// best 96.08% / 88 insns / 352 bytes = retail's exact size (XenoMenu260), 30 differing lines, up from 95.51. THE FIND: give case 0 its OWN MenuUnk2 pointer local (pMenuFirst) instead of sharing one pMenu across all three cases - a single pMenu pseudo is live in every case, so gcc hands it one register (a2) in all of them, while retail has a DIFFERENT register per case (a0 in case 0, a1 in case 1, v1 in case 2), i.e. a separate value per case. With the split, case 0 becomes instruction-identical. 95.51 -> 96.08 on the same byte count.
+// Residual, two things: (1) case 1 keeps pMenu in a2 and the D_801E9818 biv in a1 where retail is the mirror (a1/a2); the loop's instruction order and shape are already retail's, so this is a pure caller-saved allocator tie between the pMenu pseudo and the strength-reduced index pointer. Splitting case 1 onto its own pointer too (pMenuLast) gives a0 for pMenu and RE-BREAKS the loop shape (85 insns, 92.70), so the shared case1+2 pMenu is load-bearing. (2) case 2: reorg puts 'addiu a1,a1,-1' (i = a1 - 1) in the switch's beq delay slot where retail puts 'lui v0,0x8888' and does the addiu at the case head; the shared pMenu also takes a2 there instead of retail's v1.
+// Tried (all byte-identical): case 1 with D_801E9818[i] inline at both field uses instead of the j local; declaration order i/j swapped.
 /*
 void func_801CA5F0(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
-    s32 i;
+    MenuUnk2* pMenuFirst;
     s32 j;
+    s32 i;
 
     switch (a0) {
     case 0:
         for (i = a1; i - 1 >= 0; i--) {
-            pMenu = g_Menu->menuUnk2;
+            pMenuFirst = g_Menu->menuUnk2;
             j = D_801E9818[i];
-            if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
-                pMenu->selectedSlot = i - 1;
+            if (pMenuFirst->slotRecordIndexes[j] != MENU_SLOT_NONE) {
+                pMenuFirst->selectedSlot = i - 1;
                 break;
             }
         }
@@ -985,6 +989,7 @@ void func_801CA5F0(s32 a0, s32 a1) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
+
 
 
 s32 MenuHandleCardSlotInput(s32 a0) {
@@ -1335,6 +1340,11 @@ void MenuApplySaveSlot(u32* pSrc) {
 //    cardRead;`), the `s32 noFd = -1` variable, and the explicit `pData = pBuffer + 0x100;` before
 //    the checksum arm are all load-bearing. Presets re-measured on the 90.42 body: 2.7.2 -O2 90.19,
 //    -O3 68.64, cdk -O3 68.48. */
+// ROUND 542 re-measured this body at the same 98.86 / 361 / 1444 and adds two dead ends to (a):
+// putting `result = 0;` FIRST in the arm is byte-identical too, an empty `do { } while (0);`
+// before it changes nothing (the barrier splits the region but the store is already first in the
+// new one), and the other plausible source order - the second `characterWindowBuilt = 0` AFTER
+// MenuLoadWindow2Text - is worse: 96.58% / 360 insns / 1440 bytes.
 /*
 u_char func_801CB304(void) {
     char path[0x40];
@@ -1490,6 +1500,7 @@ u_char func_801CB304(void) {
     return result;
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CB304);
+
 
 
 
