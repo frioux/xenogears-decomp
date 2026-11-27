@@ -345,50 +345,31 @@ typedef struct {
 extern BattleTileRecord *D_800C2F4C[];
 extern u8 *D_800C3000[];
 
-// 89.96% at 1688 bytes against retail's 1692 (422 vs 423 instructions); the previous
-// park was 86.41 at 1664 / 416.
-//
-// THE J-LOOP IS NOW INSTRUCTION-IDENTICAL TO RETAIL (only the register it reads the
-// global from differs: retail `lw v1,0(s5)` off the hoisted address, this body
-// `lw v1,0(s3)`); what is left is the callee-saved hand-out and retail's outer-loop
-// tail, and the two are one problem.
-//
-// THE FIND: the arm's three prim addresses go through a POINTER LOCAL to the global
-// (`pPrimStart = &g_BattlePrimStartIndex;` just inside the `level != 0` arm, used as
-// `*pPrimStart`). That is the only hoist retail performs (`lui s5,%hi / addiu s5`
-// before .L8008D87C, then one `lw` per use where this body re-formed lui/lw at each
-// of six uses). 86.41 -> 89.43 in one edit; it is what turns the arm from "same
-// shapes, different code" into retail's own instruction stream, so do not undo it.
-//
-// WHERE THE LAST INSTRUCTION GOES MISSING (422 vs 423). Retail still spends two stack
-// slots per outer iteration on the two array cursors (`lw t1,0x38(sp); addiu t1,t1,1;
-// sw t1,0x38(sp)` and likewise +2 at 0x40, then `lw t1,0x30(sp); addiu v0,t1,2`) where
-// cc1 here keeps `i` in a register (s7 = i*2) and reads `listIndex[i]`/`codes[i]`
-// through the arrays directly. Retail's 14-instruction tail against this body's 8 is
-// the allocator running out of callee-saved registers, not a different loop source:
-// all ten are saved in both, and the j-loop above consumes the same set.
-//
-// MEASURED THIS ROUND (all on top of the pPrimStart body):
-// - `first = count * 2;` moved ABOVE the packageCounts update (i.e. before the
-//   BattleDrawSpritePackage call): 89.96 at 1688 / 422 - the best body, and the one
-//   parked. It removes the `sw t0,72(sp)` spill; note retail computes the same value
-//   in the call's delay slot (`sll s1,t0,0x1`), which is what the honest order below
-//   produces, so the two orderings differ only in which instruction reorg selects.
-// - `first = count * 2;` AFTER the call (the honest order, retail's `sll` in the jal
-//   slot): 89.43 at 1688 / 422, 257 differing lines against the parked body's 317, so
-//   if the register hand-out is ever fixed by something else this is the order to
-//   come back to.
-// - `j = count * 2;` before the `if (level != 0)` with both arms as `for (; ... and no
-//   `first`: 85.84 at 1640 / 410 - gcc folds the duplicated pre-test and the arms lose
-//   the six instructions that the redundant `if (first < ...)` guard emits.
-// - the same with `count * 2` spelled inline at both the guard and the for-init (and
-//   no `first` at all): 88.43 at 1688 / 422.
-//
-// STILL STANDING FROM THE LAST ROUND (do not re-measure): re-fetching
-// D_800C2F4C at every use (a cached BattleTileRecord *pRecords is 78.35 at 1720);
-// cmd s32, shade u32, action u32; the record offset r*1 with addiu +8 versus
-// retail's r*2 (same eight bytes); the explicit pointer cursors over listIndex/codes
-// (78.82 at 1540 / 385).
+// PARKED 92.54% at retail's exact 1692 bytes / 423 instructions (was 89.96 at 1688 / 422).
+// The 192 differing lines left are register names, not shapes: the entry i-loop's index and
+// cursor come out a1/a2 mirrored with its two `addu` index-first where retail's are
+// base-first, `first` gets its own s0 so the j-loop needs a `move s1,s0` retail has no
+// instruction for, and the callee-saved hand-out is rotated against retail's
+// s5 = prim-start address, s3 = &listIndex, s4 = record biv, s0 = r*8, s1 = j.
+// WHAT CLOSED THE 8-BYTE FRAME THIS ROUND (both edits together are the parked body):
+// - the else arm's three ->r0/g0/b0 = 0x80 stores go through a `u8 grey` local assigned
+//   `grey = 0x80;` in that arm. As literals cc1 hoisted the constant to the entry block,
+//   where it lived across the BattleDrawSpritePackage call and spilled to 0x48(sp), making
+//   the frame 0x78 against retail's 0x70; the local materialises it in the arm's preheader
+//   (ori a3,zero,0x80), which is where retail has it. 89.96 -> 92.01.
+// - pPrimStart (&g_BattlePrimStartIndex) is used at the arm's TWO CALL ARGUMENTS ONLY; the
+//   colour stores below them read g_BattlePrimStartIndex directly. Retail hoists the
+//   address once in the preheader (lui s5 / addiu s5) and uses it for exactly the two lw of
+//   the call arguments, then re-forms lui/lw per store. Spelling all six sites through the
+//   pointer is 92.01 at 1676 / 419, the split is 92.54 at retail's 1692 / 423, so the old
+//   note's "j-loop instruction-identical" held only for the first two uses.
+// MEASURED WORSE THIS ROUND (do not redo): `first = count * 2;` after the packageCounts
+// update (the honest order, retail's sll in the jal slot): 91.13 at 1696 / 424; `j = first;`
+// plus `for (; j < ...; j += 2)` in both arms: 92.17 at 1668 / 417.
+// STILL STANDING (do not re-measure): re-fetching D_800C2F4C at every use (a cached
+// BattleTileRecord *pRecords is 78.35 at 1720); cmd s32, shade u32, action u32; the record
+// offset r*1 with addiu +8 versus retail's r*4 plus sll (same eight bytes); the explicit
+// pointer cursors over listIndex/codes (78.82 at 1540 / 385).
 /*
 s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     u16 listIndex[2];
@@ -405,6 +386,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     s32 i;
     s32 r;
     s32 j;
+    u8 grey;
 
     if (arg2 != 0) {
         BattleFadeTilePrimRow();
@@ -454,32 +436,33 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
                                                   g_BattleGraphicsWork + (j + *pPrimStart) * sizeof(POLY_FT4)), 1);
                         SetShadeTex((POLY_FT4 *)(listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                                  g_BattleGraphicsWork + (j + *pPrimStart) * sizeof(POLY_FT4)), 0);
-                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->r0 = level;
-                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->g0 = level;
-                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->b0 = level;
-                        ((POLY_FT4 *)((j + *pPrimStart) * sizeof(POLY_FT4) +
+                        ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
                                        g_BattleGraphicsWork)))->tpage |= 0x20;
                     }
                 }
             } else {
+                grey = 0x80;
                 if (first < g_BattleDisplayState->packageCounts[listIndex[i]] * 2) {
                     for (j = first; j < g_BattleDisplayState->packageCounts[listIndex[i]] * 2; j += 2) {
                         ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
-                                       g_BattleGraphicsWork)))->r0 = 0x80;
+                                       g_BattleGraphicsWork)))->r0 = grey;
                         ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
-                                       g_BattleGraphicsWork)))->g0 = 0x80;
+                                       g_BattleGraphicsWork)))->g0 = grey;
                         ((POLY_FT4 *)((j + g_BattlePrimStartIndex) * sizeof(POLY_FT4) +
                                       (listIndex[i] * BATTLE_TILE_PRIM_LIST_STRIDE + BATTLE_TILE_PRIM_LIST_BASE +
-                                       g_BattleGraphicsWork)))->b0 = 0x80;
+                                       g_BattleGraphicsWork)))->b0 = grey;
                     }
                 }
             }
@@ -488,6 +471,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     return g_BattlePrimStartIndex;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
+
 
 
 
