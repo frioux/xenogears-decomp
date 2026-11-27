@@ -875,55 +875,10 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E450);
 
 
 
-// 97.56% (1752 bytes / 438 insns = retail's exact size and count), round 504.
-// The whole residual is now ONE reorder in the case-3 arm: retail is `lw v1,0(t0)` (X) /
-// `li a0,0xff80` / X add / `slt a2` / X store / Y load / Z load / Y add / Z add / Y store /
-// Z store, while the body loads Z before the X add and stores Z before Y (2 slots, same
-// insns). Everything else in the function is retail's instruction for instruction.
-// Four finds this round, each measured (each was 5-15 fuzzy points):
-//   - `*(volatile s16 *)&pActor->state = 2;` (also 0x11, 0x19 in the state-16/24 arms).
-//     91.59 -> 94.82: with plain stores sched2 hoists the state store above the
-//     CameraTargetZ store in the states 1/16/24 arms; a volatile store cannot be crossed.
-//   - the state-16 arm's source order must then be state THEN unk7C (94.82 -> 96.37):
-//     with the state store pinned, unk7C-first costs an instruction (its store leaves the
-//     j delay slot and a nop appears), and the cross-jump the old note avoided does not
-//     happen because the volatile store is a barrier.
-//   - `*(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;`
-//     94.82 -> 97.56: the volatile DESTINATION store pins the scale store below the
-//     CameraRot group (sched2 had hoisted the whole CameraHeight group above it), and the
-//     volatile READ keeps the second scale load at its source slot instead of hoisting it.
-//   - the CameraRot split the earlier rounds bracketed: `g_WorldMapCameraRotScalar`
-//     (asm-label scalar alias) for the += / -= gives retail's per-access `lui $v1; lhu`
-//     and `lui $at; sh` forms, while the ARRAY declaration is kept for the `>= 0x81`
-//     compare and the `= 0x80` clamp store - two distinct objects to cse, so the compare
-//     really reloads (`lh`) instead of forwarding the just-stored value (+sll/sra), and
-//     the la that the array keeps is what stops the += store from sinking.
-// Measured dead this round: a local for the 0xFFFB3C00 constant, both as s32 (folds back,
-// no change) and as the permuter's s16 (97.94% / 1744 bytes - WRONG CODE: the constant
-// truncates to 0x3C00 and the add becomes one addiu, which is where its two bytes went);
-// two s32 locals for the Y/Z sums (identical body); volatile casts on the Y and Z stores
-// (1760 bytes, 97.37 - the address-of a scalar forces a la per use).
-// Permuter 3 min -j2: base 925 best 632, the find above (s16 truncation), rejected.
-// Preset re-screen on this body: 2.6.0 97.23, 2.7.2-cdk 85.54, -O3 compile-failed, so the
-// unit preset is right. History, still valid: -G0 identical, the array form alone buys the
-// ORDER and the scalar form alone the FORMS (cc1_probe proof in round 490).
-
-// Round 518: re-measured 97.56% (1752 bytes / 438 insns = retail's size). Unparked the live body
-// and re-scored it first; the full side-by-side diff has exactly 13 displaced instructions, all
-// in the case-3 arm (retail: lw X / li a0,0xff80 / addu X / slt / sw X / lw Y / lw Z / addu Y /
-// addu Z / sw Y / sw Z; ours: li a0 first, the Z load hoisted above the X add, Z group before Y).
-// New measurements this round, none better, every one 1752 bytes: all six source permutations of
-// the three case-3 += statements (XYZ 97.56 = current, XZY 97.08, YXZ 97.51, YZX 96.78,
-// ZXY 96.45, ZYX 96.67), so statement order only perturbs sched2 and XYZ is the best of them;
-// the three updates in a do/while(0) 97.09 and in a bare block 97.56; a volatile X store
-// (*(volatile s32 *)&g_WorldMapCameraTarget[0] = g_WorldMapCameraTarget[0] + 0xFFFB3C00)
-// 97.49 at 1756 bytes (the if then reloads X, +1 insn); an s32 local for the X sum used by both
-// the += and the if 97.56 (cse folds it); locals for the X and Z sums with the Y/Z stores kept in
-// retail order 97.56. Registers already match retail exactly (t0 = array base held across the arm,
-// v1 = X, a1 = Z, v0 = Y, a0 = Y delta), so what is left is sched2 own region tie-break, not a
-// spelling of this arm (the Z group hoisting is plausibly the second compare in the fall-through
-// block reading the Z sum, while the Y sum only feeds a store).
-/*
+// Retail updates all three components of the camera target as one vector here, and the
+// shared base is what keeps the Y/Z loads below the X store (spelled as separate scalars
+// the scheduler hoists the Z group above it, 97.56%); the volatile stores pin the state
+// and scale writes where sched2 would otherwise hoist them above the CameraRot group.
 s32 func_8007E4E4(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u8 *pScratch = (u8 *)PSX_SCRATCH;
@@ -1035,11 +990,11 @@ s32 func_8007E4E4(int index) {
         break;
     case 3:
         g_WorldMapCameraTarget[0] += 0xFFFB3C00;
-        g_WorldMapCameraTargetY += 0xFF80;
-        g_WorldMapCameraTargetZ += 0xFFF9AA80;
-        if (g_WorldMapCameraTarget[0] <= 0x1497FFF && g_WorldMapCameraTargetZ <= 0x4AF1FFF) {
+        g_WorldMapCameraTarget[1] += 0xFF80;
+        g_WorldMapCameraTarget[2] += 0xFFF9AA80;
+        if (g_WorldMapCameraTarget[0] <= 0x1497FFF && g_WorldMapCameraTarget[2] <= 0x4AF1FFF) {
             *(volatile s32 *)&g_WorldMapCameraTarget[0] = 0x1498000;
-            g_WorldMapCameraTargetZ = 0x4AF2000;
+            g_WorldMapCameraTarget[2] = 0x4AF2000;
             pActor->state = 4;
             pActor->scale = 0x20000;
         } else {
@@ -1128,8 +1083,6 @@ s32 func_8007E4E4(int index) {
     D_8009BD4A += *(u16 *)(0xA2 + pScratch);
     return 1;
 }
-*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc6", func_8007E4E4);
 
 
 
