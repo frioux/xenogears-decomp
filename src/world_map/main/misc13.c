@@ -300,40 +300,44 @@ s32 func_80092DF8(void) {
 }*/
 INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092DF8);
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
-/* best: 99.58% (472 bytes = retail's 472; 118 instructions = retail's 118). The whole
-   body is instruction-identical; retail's tail keeps 0xFFFFFF in $a1 and
-   g_WorldMapRenderContext's address in $a3, we mirror those two (0xFFFFFF in $a3, ctx in
-   $a1). The third value, 0xFF000000, is $a2 and the base / element pointer / index /
-   tag word are retail's registers in both.
-   The twin is WorldMapUpdateAreaNameString above (same unit): its head - the switch over
-   WorldMapMenuSlot state with the two string-reset arms and the func_80034888 call -
-   ports exactly, only the callees' string / id globals differ. The two tag
-   read-modify-writes at the end are this function's own.
-   99.45 -> 99.58: compute the element's address mask into a local
-   (`primAddr = (u32)pPrim & 0xFFFFFF;`) between the tag read and the two stores
-   (permuter, 1314 iterations). That moved the base, the element pointer and the index
-   into retail's registers and left only the a1/a3 mirror.
-   Measured after that, all 472 bytes / 118 instructions: OR operands commuted 97.67, the
-   two masks as #defines 99.58 (no byte change; name them when it matches), the OT word
-   in a `u32 otTag` local 99.58, a `WorldMapPrim* pOt` local for
-   `g_WorldMapRenderContext->pOt[0]` 99.58 (gcc still reloads it through ctx, so retail's
-   two `lw 0x70(a3)` remain), primAddr assigned above `tag = pPrim->tag` instead of below
-   the tag's mask 99.58, gcc-2.7.2-cdk 90.97, -G0 99.58 (so not a preset question).
-   Why the mirror is out of reach: the tail block's hard-register use counts are $a1 4,
-   $a3 4, $a2 3 in BOTH versions and `-dl` shows those three pseudos are block-local
-   (`in block 10`), i.e. local_alloc hand-out in its own hard-register order with $a1 and
-   $a3 tied - the GIV_TIE / a-global-allocno-priority-is class in tools/rounds/levers.md.
-   A second permuter run from this body (759 iterations, base 50 best 50) found nothing.
-   The earlier 99.45 note's measurements (tag local in place 98.52 -> 99.45, temps on
-   both statements 97.11, `pCtx` local 98.52, base inline 95.17) still apply to the
-   spellings above it.
-   Round 430 (re-measured with the parked body as written: 99.58%, 472 bytes, 118 insns,
-   the $a1/$a3 mirror only): a third permuter run from this body found nothing (1666
-   iterations, base 50 best 50), and putting the 0xFFFFFF mask in a `u32 otMask` local
-   used at both sites makes it a callee-saved global allocno - 480 bytes / 120 insns,
-   99.58 -> 0.00. The mask's pseudo-creation order is not the knob either
-   (a-in-place-update-of-a-load-temp already measured primAddr-above-tag at 99.58).
+// best: 99.58% (472 bytes = retail's 472; 118 instructions = retail's 118). The whole
+// body is instruction-identical; retail's tail keeps 0xFFFFFF in $a1 and
+// g_WorldMapRenderContext's address in $a3, we mirror those two (0xFFFFFF in $a3, ctx in
+// $a1). The third value, 0xFF000000, is $a2 and the base / element pointer / index /
+// tag word are retail's registers in both.
+// The twin is WorldMapUpdateAreaNameString above (same unit): its head - the switch over
+// WorldMapMenuSlot state with the two string-reset arms and the func_80034888 call -
+// ports exactly, only the callees' string / id globals differ. The two tag
+// read-modify-writes at the end are this function's own.
+// 99.45 -> 99.58: compute the element's address mask into a local
+// (`primAddr = (u32)pPrim & 0xFFFFFF;`) between the tag read and the two stores
+// (permuter, 1314 iterations). That moved the base, the element pointer and the index
+// into retail's registers and left only the a1/a3 mirror.
+// Measured after that, all 472 bytes / 118 instructions: OR operands commuted 97.67, the
+// two masks as #defines 99.58 (no byte change; name them when it matches), the OT word
+// in a `u32 otTag` local 99.58, a `WorldMapPrim* pOt` local for
+// `g_WorldMapRenderContext->pOt[0]` 99.58 (gcc still reloads it through ctx, so retail's
+// two `lw 0x70(a3)` remain), primAddr assigned above `tag = pPrim->tag` instead of below
+// the tag's mask 99.58, gcc-2.7.2-cdk 90.97, -G0 99.58 (so not a preset question).
+// Earlier measurements on the same residual: tag local in place 98.52 -> 99.45, temps on
+// both statements 97.11, `pCtx` local 98.52, base inline 95.17.
+// Why the mirror is out of reach, read off the allocator (round 546): `cc1 -O2 -G8 -dl`
+// on build/src/world_map/main/misc13.c.i names the three tail pseudos - 132 = the
+// 0xFF000000 constant (one `mov -16777216` insn), 133 = the g_WorldMapRenderContext load
+// (insn 214), 137 = the 0xFFFFFF constant (a `mov 0xFF0000` + `ior 0xFFFF` pair, insns
+// 261/262) - and all three print "used 3 times across 20 insns" with one death, i.e. an
+// EXACT tie on local-alloc's n_deaths/n_refs and live_length, so the hand-out is only
+// the qty order: ours 133,132,137 -> $a1,$a2,$a3, retail's 137,132,133 -> $a1,$a2,$a3.
+// That order is the expand order (which pseudo number exists first), and retail's needs
+// 0xFFFFFF created before the ctx load, while the stream retail emits
+// (`and a0,a0,a2` / `and v0,v0,a1` / `or a0,a0,v0`, a0 = element tag and v0 = OT tag)
+// keeps the ctx load inside the same subexpression as 0xFFFFFF; the only spellings that
+// create the mask first are the ones already measured dead above (commuted `|` 97.67,
+// two named masked temporaries 97.11, a `u32 otMask` local 480 bytes / 120 insns).
+// Block-alloc's per-block summary confirms all three are block-local in block 10, so the
+// quotient is not even consulted - a fourth 4-minute permuter run from this body (-j 2,
+// 1573 iterations, base=50 best=50) agrees.
+/*
 s32 func_80092FD8(s32 index) {
     WorldMapMenuSlot* pSlot;
     WorldMapPrim* pPrims;
@@ -374,6 +378,9 @@ s32 func_80092FD8(s32 index) {
     }
     return 1;
 }*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc13", func_80092FD8);
+
+
 
 void WorldMapFreeMode4AreaNameString(void) {
     SystemStringFree(g_WorldMapMode4AreaNameString);
