@@ -442,7 +442,7 @@ extern s16 D_8009B1B0[];
 extern s16 D_8009B1D4[];
 extern s16 D_8009B1D8[];
 
-extern s32 func_80090E14(WorldMapPlayer *pPlayer);
+extern s32 WorldMapUpdateSlotTurnAndPressEntry(WorldMapPlayer *pPlayer);
 extern s32 func_80090FB4(WorldMapPlayer *pPlayer);
 extern void WorldMapUpdateRandomTimers(void);
 extern s32 g_WorldMapTpageAbr;
@@ -627,7 +627,7 @@ s32 func_8008E76C(s32 idx) {
         }
         break;
     case 3:
-        nTmp = func_80090E14(pPlayer);
+        nTmp = WorldMapUpdateSlotTurnAndPressEntry(pPlayer);
         switch (nTmp) {
         case 1:
             if (((s16 *)g_WorldMapAreaRect)[7] != 2) {
@@ -739,7 +739,7 @@ s32 func_8008E76C(s32 idx) {
         }
         break;
     case 4:
-        if (func_80090E14(pPlayer) == 1) {
+        if (WorldMapUpdateSlotTurnAndPressEntry(pPlayer) == 1) {
             if (((s16 *)g_WorldMapAreaRect)[7] == 2) {
                 goto enterState32;
             }

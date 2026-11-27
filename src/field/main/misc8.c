@@ -3198,7 +3198,7 @@ typedef struct {
 // mirrored in two of them. The empty do/while barriers pin retail's per-statement
 // [volatile reload, addu, lw, lh, lh, subu, sh] order; without them the two plain slot stores sink
 // below the first reload and the body loses its load-delay nops.
-void func_80086590(VECTOR* pPosition) {
+void FieldUpdateNearestActorSounds(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
     s16* pDelta;
     s16* pPos = (s16*)pPosition;
@@ -3302,13 +3302,13 @@ extern s32 g_PlayerActorIndex;
 void FieldUpdateProximitySoundSlots(void) {
     switch (g_FieldSoundProximitySource) {
         case 0:
-            func_80086590(&g_FieldActors[g_PlayerActorIndex].pActorData->position);
+            FieldUpdateNearestActorSounds(&g_FieldActors[g_PlayerActorIndex].pActorData->position);
             return;
         case 1:
-            func_80086590(&g_CameraEye);
+            FieldUpdateNearestActorSounds(&g_CameraEye);
             return;
         case 2:
-            func_80086590(&g_CameraAt);
+            FieldUpdateNearestActorSounds(&g_CameraAt);
             return;
     }
 }

@@ -125,8 +125,8 @@ extern WorldMapTrail g_WorldMapTrail[];
 extern u16 g_WorldMapPlayerAngle;
 extern s16 g_WorldMapTrailCursor;
 
-extern s32 func_80090A84(WorldMapActor *);
-extern s32 func_80090C68(WorldMapActor *);
+extern s32 WorldMapUpdateSlotTurnAndAreaEntry(WorldMapActor *);
+extern s32 WorldMapUpdateSlotTurnAndZoneEntry(WorldMapActor *);
 extern s16 WorldMapGetTileKindValue(s16, s16);
 extern s32 func_80095414(s32 *, s32 *, s32 *, s32, s32);
 extern s32 WorldMapSelectAreaAtPosition(WorldMapPos *, s32);
@@ -341,7 +341,7 @@ int func_8008C844(int index) {
     case 1:
         gear = g_GameState.gearRide[0];
         if (gear == 1) {
-            ret = func_80090C68(pActor);
+            ret = WorldMapUpdateSlotTurnAndZoneEntry(pActor);
             switch (ret) {
             case 1:
                 g_WorldMapLoopActive = 0;

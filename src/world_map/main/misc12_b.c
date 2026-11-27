@@ -135,7 +135,7 @@ typedef struct {
 
 extern void WorldMapUpdateL2R2PressEdge(void);
 
-s32 func_80090A84(WorldMapPlayer *pPlayer) {
+s32 WorldMapUpdateSlotTurnAndAreaEntry(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
         pPlayer->angle = g_WorldMapViewRotationY[0];
@@ -187,7 +187,7 @@ s32 func_80090A84(WorldMapPlayer *pPlayer) {
     return 0;
 }
 
-s32 func_80090C68(WorldMapPlayer *pPlayer) {
+s32 WorldMapUpdateSlotTurnAndZoneEntry(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
         pPlayer->angle = g_WorldMapViewRotationY[0];
@@ -235,7 +235,7 @@ s32 func_80090C68(WorldMapPlayer *pPlayer) {
     return 0;
 }
 
-s32 func_80090E14(WorldMapPlayer *pPlayer) {
+s32 WorldMapUpdateSlotTurnAndPressEntry(WorldMapPlayer *pPlayer) {
     switch (g_WorldMapPad1Held >> 12) {
     case 1:
         pPlayer->angle = g_WorldMapViewRotationY[0];
@@ -584,10 +584,10 @@ extern void WorldMapStartSlot(s32, s32);
 // against disc's 180422, every address table in the overlay off by +4) and culprit.sh
 // reports 147395 differing bytes in 450 symbols. Converting the neighbours cannot fix it:
 // retail's tables are packed 4-byte all the way down the chain (func_8008E76C's 0x104-byte
-// table ends at +0x15C, itself 4 mod 8, so func_80090A84's table can never be a C table
+// table ends at +0x15C, itself 4 mod 8, so WorldMapUpdateSlotTurnAndAreaEntry's table can never be a C table
 // either). Not a preset question: gcc-2.6.0 and gcc-2.7.2-cdk emit the same `align 3`
 // (cc1_probe.sh on a switch snippet). The route that IS open is the unit split sketched in
-// tools/rounds/levers.md under i-jtbl-align-3-hardcoded: move func_80090A84/C68/E14/914D0
+// tools/rounds/levers.md under i-jtbl-align-3-hardcoded: move WorldMapUpdateSlotTurnAndAreaEntry/C68/E14/914D0
 // and everything after them into a new main/misc12_b with [0x1064, .rodata] + [c] ranges,
 // whose .rodata then starts at parity 4 and puts all five tail tables at retail's offsets.
 // That is a config/world_map.yaml + gears.toml + new-file change, so it is not this lane's.
@@ -640,8 +640,8 @@ extern void WorldMapStartSlot(s32, s32);
 // world_map gives build/out/world_map.bin 180426 against disc's 180422, first differing
 // byte at file 0x4. The split that fixes it (i-jtbl-align-3-hardcoded, unchanged):
 // `[0xF08, .rodata, main/misc12]` + `[0x1064, .rodata, main/misc12_b]` and
-// `[0x1E504, c, main/misc12]` + `[0x20F94, c, main/misc12_b]` (func_80090A84's file
-// offset), with func_80090A84/90FB4/90C68/90E14/914D0/91C18/91FF8/925A0 moved into
+// `[0x1E504, c, main/misc12]` + `[0x20F94, c, main/misc12_b]` (WorldMapUpdateSlotTurnAndAreaEntry's file
+// offset), with WorldMapUpdateSlotTurnAndAreaEntry/90FB4/90C68/90E14/914D0/91C18/91FF8/925A0 moved into
 // src/world_map/main/misc12_b.c. misc12.c.o's rodata then tiles to exactly 0x15C - E190's
 // two asm tables 0x18+0x20, E4F4's C table 0x20 at +0x38, E76C's asm 0x104 at +0x58 - so
 // WorldMapModeInitGroupRotations must stay in misc12.c, and the new range starts at parity
