@@ -1650,6 +1650,21 @@ extern u8 D_80092864;
 //   1316 bytes / 329 insns, retail's pair again but eight short, since every tail
 //   address then becomes register-relative and the lui-at forms disappear.
 //
+// THE ELEM10 POINTER LOCAL IS NOW MEASURED (round 530), and it does buy retail's
+//   register map at a byte price. `pCopy = &D_80095698[10]; *pCopy = *pBar;` with the
+//   two field stores ALSO off pCopy gives 85.46% / 1328 bytes / 332 insns: the whole
+//   prologue comes out retail's (`sw s3 / move s3,a0 / sw ra / sw s2 / sw s1 / sw s0`,
+//   pArchive in $s3, &D[8] in $s2, every 0x58/0x5C/0x60 access off $s3), and the two
+//   elem10 field stores recover retail's lui-at plus sh/sw-abs form - but the three
+//   copy loops then come out 5 instructions short, because $s0/$a2/$a3 get re-used
+//   in a different rotation (retail's `addiu a2,s0,-0x50` dest / `move s1,s2` source
+//   pair becomes `move a3,s0` / `move a2,s2`). Keeping the field stores as element
+//   subscripts (`Misc10SetUV0(&D_80095698[10], ...)`) is 86.00% / 1336 / 334 insns,
+//   i.e. the pointer local alone is worth 8 bytes of the 4 the old body is short of.
+//   So the residual is now ONE named thing: the dest/source/base register rotation of
+//   the three tail copies, at retail's exact prologue and saved set. Best is still the
+//   subscript body below at 86.50% / 1344 / 336 (retail 1348 / 337).
+//
 // Earlier rounds (all re-parked, do not repeat): all-array 55.28, all-pointer 64.58,
 //   mixed 71.59, pBar formed late 84.62 (four insns short), a pointer local for the
 //   first copy 85.46 (three short), two permuter runs (base 3559 -> 2619) found only
