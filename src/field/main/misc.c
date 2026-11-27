@@ -1900,6 +1900,39 @@ extern void FieldSnapPartyToPlayer(void);
 // offsets stay locked together. Also re-measured: assigning pFieldActor before
 // pActor gives retail's base-first addu but swaps the actor-data load and both
 // stores ($v0/$v1) - 99.84, so the subexpression form below stands.
+// 99.97%: 776 bytes / 194 insns = retail's exact size and count; the ONLY residual
+// is the frame (12 differing lines, all six spill operands 8 high).
+// THE addu COIN FLIP IS CLOSED (this round). Writing the found arm's actor address
+// IN PLACE as a base+offset subexpression -
+// `g_FieldScriptVMCurFieldActor = (FieldActor*)((u8*)*ppFieldActors + i * sizeof(FieldActor));`
+// followed by `pFieldActor = g_FieldScriptVMCurFieldActor;` and the pActorData load -
+// reproduces retail's `lw v0,0(s5)` / `addu v0,v0,s2` (sum in $v0, BASE-first) with
+// the two stores through $v0 and the actor-data load in $v1. The two ends the
+// round-322/397 notes measured were (a) an assigned pointer local: base-first but the
+// sum lands in $v1 and the load/both stores swap (97.45-97.50), and (b)
+// `(&(*ppFieldActors)[i])->pActorData`: $v0 but index-first (99.92). The base+index
+// spelled as the stored expression gets both. 14 -> 12 differing lines,
+// 99.92 -> 99.97.
+// THE FRAME remains: the `u8 unused[8]` dummy takes the LOWEST var slot (0x10) and
+// pushes the three real spills to 0x18/0x20/0x28 (frame 0x58, retail's size, wrong
+// operands); without it the three spills land on retail's own 0x10/0x18/0x20 and the
+// frame is 0x50 against retail's 0x58 (99.84). So retail has FOUR 8-byte var slots
+// with the TOP one dead, and an expand-time aggregate always takes the lowest var slot
+// (re-measured this round: declaration position of the dummy changes nothing), so the
+// phantom has to be a global-alloc/reload-era slot whose accesses reload dropped - it
+// has to be allocated AFTER the three spills. Mechanism still unidentified; no local in
+// this body spills into it. Checked in build/src: no function in the whole build has
+// `.frame ... extra= N` with N != 0, so the hole is not the backend's extra area.
+// The permuter was re-tried (--minutes 4 -j 2) and still cannot run on this unit:
+// base.c fails to parse with `conversion to non-scalar type requested` at two lines of
+// the preprocessed file, so this function is hand-only.
+// STILL LOAD-BEARING from the earlier rounds: ppFieldActors = (FieldActor**)&g_FieldActors
+// hoisted before the loop; the two write-back sites re-forming
+// `(FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors)`; ONE s32 offset local
+// reused for the second FieldScriptGetBytecodeOffset result; prevMaxInstructionCount
+// assigned BEFORE prevActorIndex (decides which of the two is spilled); a s32 rather
+// than u_short return for FieldScriptGetBytecodeOffset (retail has no andi 0xffff);
+// and the explicit entry guard + do/while (not a for) for the guard region.
 /*
 void func_8008B978(int characterId) {
     FieldActor* pPrevFieldActor;
@@ -1934,9 +1967,9 @@ void func_8008B978(int characterId) {
                 offset = FieldScriptGetBytecodeOffset(i, 0);
                 pScript = (u8*)g_FieldScriptVMCurScriptData + offset;
                 if (pScript[0] == FIELD_SCRIPT_OPCODE_PARTY_MODEL && pScript[1] == characterId) {
-                    pActor = (&(*ppFieldActors)[i])->pActorData;
-                    pFieldActor = &(*ppFieldActors)[i];
-                    g_FieldScriptVMCurFieldActor = pFieldActor;
+                    g_FieldScriptVMCurFieldActor = (FieldActor*)((u8*)*ppFieldActors + i * sizeof(FieldActor));
+                    pFieldActor = g_FieldScriptVMCurFieldActor;
+                    pActor = g_FieldScriptVMCurFieldActor->pActorData;
                     g_FieldScriptVMCurActor = pActor;
                     func_80080A74(i);
                     pWriteActor = ((FieldActor*)(i * sizeof(FieldActor) + (s32)g_FieldActors))->pActorData;
@@ -1974,6 +2007,7 @@ void func_8008B978(int characterId) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc", func_8008B978);
+
 
 extern void FieldPartyLoadMemberSkin(int characterId, int partyIndex);
 
