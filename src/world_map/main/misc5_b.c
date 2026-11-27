@@ -234,83 +234,9 @@ extern void WorldMapEnterNop(void);
 extern void WorldMapUpdateFrameWithParticles(void);
 extern void WorldMapSetupPrimTemplates(void *pBlock, s32 arg, s32 arg2);
 
-// PARKED 99.95% (876 bytes / 219 insns = retail's exact size, every instruction
-// identical): the ONLY residual is the jump table's POSITION, not the C. Measured with
-// check_bin.sh world_map: build/out/world_map.bin is 180422 bytes = disc's exact size
-// and exactly 15 words differ - the table's 14 distinct words (retail's jtbl_8006FC50
-// occupies file 0x160..0x263 with its zero pad at 0x264, ours has the pad at 0x160 and
-// the table at 0x164..0x267) and the single `lw v0,%lo` addend at file 0xC904
-// (0x8006FC54 against retail's 0x8006FC50). Nothing after 0x268 moves.
-// WHY: misc5's object .rodata already holds WorldMapUpdateActorState's 12-word table at
-// +0 (0x30 bytes) and WorldMapUpdateGroup0Actor's 9-word table at +0x68 (0x24 bytes), so the next C
-// table starts at range offset 0x8C = 4 mod 8 and cc1's `.align 3` (lever
-// i-jtbl-align-3-hardcoded) pads it to 0x90. The range's layout is [0x00 UAS 0x30 C]
-// [0x30 ADD4 0x20 asm] [0x50 ADD4 0x18 asm] [0x68 BBEC 0x24 C] [0x8C this table 0x104]
-// [0x190 four zero bytes] [0x194 C7D8 0x18 asm] [0x1AC C7D8 0x1C asm = range end], i.e.
-// retail has exactly ONE pad, AFTER this table, right before the two tables at 0x194 and
-// 0x1AC whose absolute addresses (0x8006FD58 / 0x8006FD70) are 8-aligned. So a table at
-// range offset 0x8C was reachable in the 1998 build and is not reachable from one object
-// today. FIX = orchestrator work, not a C spelling: func_8007C3B8 must be emitted by an
-// object whose .rodata STARTS at 0x160, i.e. a main/misc5_b unit split with rodata
-// 0x160..0x264 (exactly this table) and a plain `rodata` carve for 0x264..0x29C (the pad
-// plus func_8007C7D8's two asm tables, which must NOT travel with the stub: emitted after
-// this table they would land 4 bytes early); misc5_b also takes code from 0xC8C8
-// (func_8007C3B8, WorldMapSnapCameraToPlayer, the func_8007C7D8 stub and everything after), needs
-// `world_map/main/misc5_b.` added to XenoWorldMapDiv's paths in gears.toml (the presets
-// are keyed per file), and its WorldMapPlayer/SVECTOR dependence means the prototypes and
-// types its functions use move with it. Reverting WorldMapUpdateActorState and
-// WorldMapUpdateGroup0Actor to stubs would also unblock this table and is the wrong trade: two
-// matches lost for one.
-// RE-MEASURED round 432 on this lane: un-parked, diff_func.sh prints 99.95% / 876
-// bytes (retail's exact size), then re-parked. The pad is unconditional, not a
-// function of our file order: the report-mode object's .rodata is 0x15C = UAS 0x30
-// + BBEC 0x24 + a 4-byte .align 3 pad + this table 0x104, and BBEC's own 9-word
-// table already shows the same pad in that object (next table 0x54 -> 0x58). So no
-// spelling of this body can move the table; only the misc5_b split below can.
-// THE BODY IS FINISHED, do not re-hunt it. Its last residual was case 0x10's
-// `ori a1,a2,0xA0` + `sh zero,0xA2(a2)` pair, which sched2 sinks below the two
-// g_WorldMapCameraTarget loads. Making the FIRST scratchpad store volatile pins it - and
-// the call argument's address with it - exactly where retail has them: 98.13 -> 99.95 at
-// the same 876 bytes (lever h-volatile-store-pins-the-arg-pair). The three plain store
-// orders, the two shifts in locals, u8/s16/u16 scratch pointer locals and a 4-minute
-// permuter run (2179 iterations, base=120 best=120) all measured 98.13 before that; a
-// u16 *pTilePos = &pScratchPos[0x50] used for all three stores and the argument also
-// measured 98.13.
-// Structural facts that are settled and must be kept: the switch is over 0..0x40 and MUST
-// keep `case 0: break;`, or gcc range-folds it to addiu -1 / sltiu and the table shifts
-// one word; state is s16 and stateTimer u16 ((s16)--stateTimer < 0 gives
-// lhu/addiu -1/sh/sll 16/bgez, exactly as WorldMapUpdateActorState case 1); the three
-// loads of unk50 are retail's, not CSE failures; and the scratchpad base is the
-// u16 *pScratchPos local at the top of the function with 0x50/0x51/0x52 indexes - that is
-// what puts `lui a2,0x1F800000` in the beqz delay slot, forms the argument as
-// `ori a1,a2,0xA0` and keeps the stores at 0xA0/0xA2/0xA4(a2). A scratch local declared
-// inside the case gives a fresh lui $at per store.
-// RE-MEASURED round 445 lane wm5: un-parked, diff_func.sh prints 99.95% / 876 bytes
-// (retail's exact size); the only differing lines are .L label names, branch-target
-// relocs and the table operand plus our lw v0,88(at) against retail's lw v0,0(at).
-// permute.sh --minutes 3 printed RESULT PERMUTER_ZERO base=0 best=0 on its first score,
-// i.e. the permuter scores this body as identical: no C spelling is left to find.
-// check_bin.sh world_map with the body live: build/out/world_map.bin is 180422 bytes =
-// disc's exact size and exactly 15 words differ, all inside the table range - 0x160..0x16C,
-// 0x1A0..0x1BC, 0x260..0x264 (our 4-byte .align 3 pad at 0x160 against retail's leading
-// entry, and retail's trailing zero word at 0x264 against our last entry, i.e. the table
-// sits one word late with every other word identical) - plus the single lw addend at file
-// 0xC904 (0x8006FC54 against retail's 0x8006FC50). No word outside the table moves, so
-// the overlay does not shift and the unit split above remains the only fix.
-// Also measured this round: maspsx does not emit the table pad - its only .align 3 is for
-// .sbss entries, tools/maspsx/maspsx/__init__.py:560 - so the directive is cc1's and no
-// assembler flag of this preset can move it.
-// PARKED AGAIN, body unchanged and un-touched: do not re-hunt it.
-// RE-MEASURED round 540 (audit pick): un-parked, diff_func.sh prints 99.95% / 876
-// bytes (retail's exact size, no instruction differs) and permute.sh prints
-// RESULT PERMUTER_ZERO base=0 best=0 on its first score, matching round 445.
-// check_bin.sh world_map with the body live: 180422 bytes = disc's exact size, 30
-// differing bytes - all inside the table (retail's 65 entries at file 0x160..0x263 then
-// its zero word at 0x264; ours has the zero pad at 0x160 and the entries at 0x164..0x267)
-// plus the single lw addend at 0xC904. Re-measured from the object: misc5's .rodata is
-// 0x1C8 = the yaml range exactly, with cc1's pads at range 0x4C and 0x8C, so only this
-// table is displaced. Nothing in the body changed; the split below is still the only fix.
-/*
+// The slot handler WorldMapAddSlot(WorldMapInitActorParamsFromTable, func_8007C3B8)
+// registers: switches on pPlayer->state (65 cases). Its table has to sit at an 8-aligned
+// rodata offset, which is the only reason this unit is split out of main/misc5.
 s32 func_8007C3B8(s32 idx) {
     WorldMapPlayer *pPlayer = g_WorldMapSlots + idx;
     u16 *pScratchPos = (u16 *)0x1F800000;
@@ -388,8 +314,7 @@ s32 func_8007C3B8(s32 idx) {
         break;
     }
     return 1;
-}*/
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc5_b", func_8007C3B8);
+}
 
 
 // The volatile casts, the pRot pointer local and the empty do-while are all
