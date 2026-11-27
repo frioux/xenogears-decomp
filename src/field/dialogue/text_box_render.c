@@ -220,6 +220,22 @@ void FieldTextBoxSetPortraitQuad(POLY_FT4* pPoly, int x, int y, int width, int h
 // j-the-frame-and-the-slot-offsets both record this function).
 // Also ruled out today: m2c_draft.sh emits the same statement order as this body (so no
 // block is missing), and deleting the now-unused pieceWidth local changes nothing.
+// PARKED 81.03% (re-measured round 536, unchanged from round 462): 3236 bytes / 809 insns against retail 3148 / 787.
+// Round 536 re-measured the park (clean 3236 / 809, no UB and no stale object) and
+// located the 22 surplus instructions: they are all MULTIPLY DISTRIBUTION in the
+// borders sprite block. Retail computes ctx times 0xC8 once (.L8007E668: sll/addu/
+// sll/addu/sll into $t2), index times 0x498 into $a2, sums them into $a1, and then
+// writes all eighteen sprite fields as lui $at,%hi(g_FieldTextBoxes + 0x1F4 + n*0x14)
+// / addu $at,$at,$a1 / sh %lo(...)($at) - the piece offset is an IMMEDIATE. This body
+// instead re-forms 20*(ctx*10+n) per piece (seven-instruction sll/addu chain, e.g. at
+// 0x7a8 for i=2 and 0x7c0 for i=4) and stores at a fixed 0x1F4 with the piece folded
+// into the base register, which is the 14-instruction insertion in the diff plus the
+// cascade of temp registers ($t0 vs retail $a2 for the box stride). Untried spelling
+// that should give retail's shape: one pointer to the piece array,
+// 'SPRT *pSprites = g_FieldTextBoxes[index].borders.sprites1 + ctx * 10;' and then
+// pSprites[n].x0, so gcc folds n*0x14 into the store's immediate.
+// Presets screened today on the live body: gcc-2.7.2-cdk 60.7, gcc-2.6.0 79.79,
+// -G0 compile-failed (mixed declarations) - Default stays the unit's compiler.
 /*
 void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     s32 x;
@@ -390,6 +406,7 @@ void func_8007E1C0(u_long* pOt, int ctx, int index, u_long primAddr) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8007E1C0);
+
 
 
 
