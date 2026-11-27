@@ -241,6 +241,27 @@ typedef struct {
 // Also re-measured this round: dropping the second pointer is 96.59% / 1248 bytes / 312 insns
 // (unchanged by the nudge), and spelling the whole tail through new_var2 so pCondition dies at
 // the head is 96.65% / 1256 (gcc CSEs the two and the hand-out rotates).
+// Round 547 AUDIT: one cc1 -da -dl -dg run on this body (CC flags from build.ninja) names the mflo/mfhi
+// residual: under 2.7.2 the four destinations are RELOAD-created, not an allocno of the product. The
+// statBonuses[7] * rowCosts[0] site's final RTL is
+//   insn 124 (set (reg:QI 3 v1) (mem/v:QI (plus s0 87)))       the volatile statBonuses[7]
+//   insn 127 (set (reg:HI 2 v0) (mem/s:HI (a1)))               rowCosts[0]
+//   insn 129 (set (reg:SI 65 lo) (mult (subreg 2) (subreg 3))) both inputs REG_DEAD, md writes LO
+//   insn 784 (set (reg:HI 8 t0) (reg:HI 65 lo))                reload's free-register pick, not v0
+//   insn 131 sh t0,0x38(a1)
+// i.e. 2.7.2 puts the product in $lo and reload copies it to a fresh GR ($8) for the store, whereas
+// retail's `mflo v0` is that same copy reusing the mult's dying operand - which is also why the
+// single-pointer 2.6.0 body has all four destinations right (there the LO-to-GR move is a mov_lo
+// allocno, here a reload scratch): the class is a compiler-version property, not a spelling. The same
+// dump settles the mult operand residual from the other side: the RTL's mult operands are (v0 rowCosts,
+// v1 statBonuses) while the loads are statBonuses first (insn 124 before 127), so combine exchanged the
+// commutands and source order cannot set them - matching the byte-identical row-first measurement above.
+// Allocator map of this body: 72=$s3 arg0, 83=$s0 pState (25 refs / 206 insns), 92=$s2 pCondition
+// (7 refs / 204 insns, crosses the rand call), 116=$s1 amount, 101=$a2 the second pointer (7 refs / 13
+// insns, block-local) - the `move a2,s2` this body pays for. No permuter run this round: seven stand
+// (base=10 best=10 at 1109-1587 iterations) and lever f-mult-operand-order-follows lists this function
+// as the measured 99.74-class encoding ceiling.
+// PARKED (99.28%: 1256 bytes / 314 insns against retail 1252 / 313, the surplus instruction being move a2,s2). Body COMPILES; round 547 re-measured and re-parked after the allocator dump.
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -365,6 +386,7 @@ void func_8009A2D4(u8 arg0) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
+
 
 
 
