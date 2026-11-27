@@ -587,32 +587,38 @@ extern void *D_800D3608;
 extern void func_80025D4C(s32, void *, void *, void *, s32, s32, s32, s32, s32);
 extern void func_80026F44(s32, s32, void *, void *);
 
-// 81.43% (gcc 2.6.0 -G0 --expand-div), 1196 bytes / 299 insns against retail's 1200 /
-// 300 instructions, 177 differing lines. Round 475 re-measured the park for real: the
-// old 84.16 note came from a body that did not compile (D_800D3608, func_80025D4C and
-// func_80026F44 were declared INSIDE the comment block, so cc1 exited 33 and the number
-// was a stale object's). The three externs now sit just above the stub, so an unpark
-// compiles as-is; that is the only change this round made to the body.
-// Structure matches retail everywhere it was checked this round: the two early-out
-// guards, the D_800D2D2C * D_800C3EA8 memcpy, the 0x88-byte widget copy with retail's
-// lwl/swl pair plus 8-byte tail, the AAD switch (bltz + slti/beq tree), the pData += 4
-// post-increment argument chain, the 0x14/0x10 skips in the else arms, and the closing
-// LoadImage(&g_BattleImageRect, D_800D3608). What is left is loop strength reduction and
-// the saved-register budget, which is why the byte count is 4 short: retail hoists three
-// loop constants into callee-saved registers before the j loops (s1 = 0x173C, s4 = 0x16DC,
-// s5 = 0x280, each advancing by 0x24/0x18/0x18 in the loop tails), keeps
-// g_BattleColorBlendWeight + i*6 in s7 with fp = s7 - 1 for g_BattleColorBlendMode, and
-// spends s2/s3 on i/j, while this body re-forms the constant+index expression per call
-// through $at and so needs one more saved register and a different frame ($68 vs $70).
-// Do not spend a lane on hand shapes here: the residual is the combine_givs/loop.c
-// induction-variable count, not a spelling. If it is attacked, start from the two pointer
-// locals (pKind -> g_BattleColorBlendMode, pRec -> g_BattleColorBlendWeight) and the three
-// advancing offset locals that retail's s1/s4/s5 demand, and gate with check_bin (this
-// overlay unit owns its rodata).
+// Earlier rounds carried this as an 81.43% park whose note blamed the combine_givs
+// induction-variable count; that was wrong, the body had two semantic bugs (see below).
+// The three externs above the stub are needed by the body and make an unpark compile as-is.
+// 96.00% (gcc 2.6.0 -G0 --expand-div), 1196 bytes / 299 insns against retail's 1200 /
+// 300. Round 535 fixed two SEMANTIC bugs in the old 81.43% park and it jumped to 96.00:
+// (1) the old body passed 'pData += 4' as BattleApplyColorTint's third argument, so every
+// call read a word later than retail; retail passes the value and advances AFTER ('move
+// a2,s0' then 'addiu s0,s0,4'), i.e. 'pData++' in the argument list.
+// (2) the old body tested 'g_BattlePartPrimBuffers[0] != NULL', which dereferences the
+// pointer extern as a byte ('lbu' instead of 'lw'); the source tests the pointer itself.
+// pData must be a u32* cursor: 'pData++' is retail's 'addiu s0,s0,4' (a u8* gives +1) and
+// the two else arms are '+1'/'+4' words ('addiu s0,s0,4'/'16'); the (u8 *) casts at the
+// call sites are the price of the word cursor. pMode = pRec - 1 (a fourth local) is what
+// buys retail's 'addiu s8,s7,-1' plus its own self-increment; without it gcc folds
+// 'pRec[-1]' into the load and the body is 3 instructions short.
+// REMAINING 1 instruction / 4 bytes: a load-delay nop in func_80025D4C's argument setup.
+// Retail orders it D_800D2D2C, D_800C3EA8, mult, Red, Green, Blue with a 'nop' after the
+// Green and the Blue 'lb'; this compile hoists the Red 'lb' to the top of the block and
+// fills one of those two delay slots, so the sequence is identical but one nop short.
+// Everything else agrees: frame 0x50, the ten saved registers (ra,s8..s0), s6 = i*6,
+// s7 = pRec, s8 = pMode, s1/s4/s5 = 0x173C/0x16DC/0x280 with retail's increments, the
+// 0x88-byte struct copy, the AAD switch and all 11 call sites.
+// Dead ends measured: index form 'pRec = &g_BattleColorBlendWeight[i * 6]' (gcc combines
+// the pointer GIV with i*6 and re-forms it per block: 81.43), 'pData; pData += 4' as two
+// statements (gcc fuses the last dead increment into 'addiu a2,s0,4': 295 insns / 85.33),
+// 'pData += 4' as the argument (the semantic bug above: 87.33 and wrong code).
 /*
 void func_800A6AE8(void) {
     u8 *pFlag;
-    u8 *pData;
+    u32 *pData;
+    u8 *pRec;
+    u8 *pMode;
     s32 i;
     s32 j;
 
@@ -626,21 +632,20 @@ void func_800A6AE8(void) {
     *pFlag = 0;
     memcpy(D_800D3608, g_BattleImageData, D_800D2D2C * D_800C3EA8 * 2);
     memcpy(g_BattleColorTintWork, g_BattleColorTintBase, 0x88);
-    for (i = 0; i < 4; i++) {
-        u8 *pRec;
-
-        pRec = &g_BattleColorBlendWeight[i * 6];
+    pRec = g_BattleColorBlendWeight;
+    pMode = pRec - 1;
+    for (i = 0; i < 4; pRec += 6, pMode += 6, i++) {
         if (g_BattleColorTintParams[i * 6] == 0) {
             continue;
         }
-        switch (pRec[-1]) {
+        switch (*pMode) {
         case 0:
         case 1:
         case 2:
         case 3:
             func_80025D4C(D_800D2D2C * D_800C3EA8, D_800D3608, D_800D3608, D_800D3608,
                           g_BattleColorTintRed[i * 6], g_BattleColorTintGreen[i * 6], g_BattleColorTintBlue[i * 6],
-                          pRec[-1], pRec[0]);
+                          *pMode, pRec[0]);
             break;
         case 4:
             func_80026F44(D_800D2D2C * D_800C3EA8, pRec[0], D_800D3608, g_BattleImageData);
@@ -649,36 +654,37 @@ void func_800A6AE8(void) {
         pData = g_BattleColorTintWork;
         for (j = 0; j < 4; j++) {
             if (g_BattleSpriteRenderData != NULL) {
-                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 4, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0xC, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0x14, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0x1C, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x16DC + j * 0x18 + 4, i, pData += 4);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 4, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0xC, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0x14, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x173C + j * 0x24 + 0x1C, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattleSpriteRenderData + 0x16DC + j * 0x18 + 4, i, (u8 *)pData++);
             } else {
-                pData += 0x14;
+                pData += 5;
             }
-            if (g_BattlePartPrimBuffers[0] != NULL) {
-                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x280 + j * 0x18 + 4, i, pData += 4);
+            if (g_BattlePartPrimBuffers != NULL) {
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers + 0x280 + j * 0x18 + 4, i, (u8 *)pData++);
+            } else {
+                pData += 1;
+            }
+        }
+        for (j = 0; j < 2; j++) {
+            if (g_BattlePartPrimBuffers != NULL) {
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers + 0x2E0 + j * 0x24 + 4, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers + 0x2E0 + j * 0x24 + 0xC, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers + 0x2E0 + j * 0x24 + 0x14, i, (u8 *)pData++);
+                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers + 0x2E0 + j * 0x24 + 0x1C, i, (u8 *)pData++);
             } else {
                 pData += 4;
             }
         }
-        for (j = 0; j < 2; j++) {
-            if (g_BattlePartPrimBuffers[0] != NULL) {
-                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 4, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 0xC, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 0x14, i, pData += 4);
-                BattleApplyColorTint((mem_addr)g_BattlePartPrimBuffers[0] + 0x2E0 + j * 0x24 + 0x1C, i, pData += 4);
-            } else {
-                pData += 0x10;
-            }
-        }
-        BattleApplyColorTint(g_BattleColorSourceA, i, pData += 4);
-        BattleApplyColorTint(g_BattleColorSourceB, i, pData);
+        BattleApplyColorTint(g_BattleColorSourceA, i, (u8 *)pData++);
+        BattleApplyColorTint(g_BattleColorSourceB, i, (u8 *)pData);
     }
     LoadImage(&g_BattleImageRect, D_800D3608);
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A6AE8);
+
 
 
 
