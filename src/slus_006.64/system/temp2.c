@@ -664,6 +664,7 @@ gp loads; that reorder is what puts pPrim in s1 instead of s3.
 // Round 486 re-measured the parked body unchanged: 89.57% / 464 bytes / 116 insns, same 71 diff lines,
 // so the note is current. Also measured: 's32 xOffset' instead of u16 - byte-identical (the load is still
 // lhu and xOffset still takes s3), so the callee-saved swap is not reachable from the type either.
+// Round 530 re-measured the parked body: 89.78% / 464 bytes / 116 insns, 69 differing lines - the note is current. No new spelling tried: the residual is the documented pPrim/xOffset callee-saved mirror (SI pseudo with ~8 refs outranks the HI 2-ref xOffset, so retail's s1=xOffset/s3=pPrim is against the allocno quotient) plus the second residual that rides on it (ours emits lh, nop, subu, lhu where retail emits lh, lhu, subu, because the lhu of pPrim->x0 is the only load without an in-block consumer). Per levers.md the allocno quotient ranks the two ~15x apart and both live ranges are pinned by retail's own stream, so no body emitting these instructions ranks them retail's way. Preset screen (cdk 89.57, 2.6.0 88.37, 2.7.2 88.24) already done; kept cdk.
 /*
 void func_80025544(WorkListEntry* pTask) {
     SpriteData* pSpriteData;
@@ -736,6 +737,7 @@ void func_80025544(WorkListEntry* pTask) {
     AddPrim(&g_GfxCurOT[nOTOffset], pPrimTPage);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_80025544);
+
 
 
 
@@ -1264,26 +1266,12 @@ void ResourceHelperGetTexCoords(MenuResourceDirectory *dir, u32 index,
     *outTexPageY = (s16) (data->texPageY & 0xFF00) + data->v;
 }
 
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
-
-// Un-park screen: 81.59% under cdk (82.30% was an earlier attempt of this body),
-// 75.89% under gcc-2.6.0, 76.39% under gcc-2.7.2, unchanged by -O3/-G0/aspsx.
-// Parked: best 82.30% (816 bytes against 888). The corner fills, both clamps,
-// the uv stores and the negation blocks already come out instruction for
-// instruction; what does not match is register pressure. The original spills
-// four more loop-carried values than this shape does (scale at 0x38, the x
-// quotient at 0x3C, the record offset at 0x40 and pPrims at 0x44, plus
-// `addu s3,s6,zero`-style eager copies before each conditional negation), so
-// its source holds about four more long-lived variables than this one. What
-// this attempt does reproduce: the 0x70 frame with localX at 0x10, localY at
-// 0x18, u8 copies of the two mirror flags at 0x20/0x28, pDirent at 0x30 and i
-// at 0x34. Adding a masked scaleVal local or (u16) truncations of the
-// quotients did not move it.
-// Signature is fixed by the three callers (shop_menu, member_change_menu,
+// Round 530 re-measured: 81.59% / 816 bytes / 204 insns against retail's 888 / 222, frame 0x60 against retail's 0x70. Named cause, read off retail's stream: retail carries SEVEN quotient pseudos - nY, nWidth and nHeight are each kept as an original plus a working copy (addu s7,fp,zero / addu s3,s6,zero / addu s2,s5,zero, the copy taken eagerly, then the mirror arm negates into the copy: negu s7,fp, negu s3,s6, negu s2,s5) and nX is read back as a u16 from a spilled s32 - so all nine s/fp registers go to deltas and pointers and scaleVal (0x38), the x quotient (0x3C), the record offset (0x40), the pPrim walker (0x44), i (0x34) and context (0x7C) are all stack resident. This shape has three values fewer live, so gcc keeps scaleVal/offset/pPrims in s6/s7/s8, emits no copy at all and the frame comes out 0x60; the 18 missing instructions are exactly those copies plus the spill/reload traffic they force. Before that: the corner fills, both clamps, the uv stores and the negation blocks are instruction-for-instruction. Tried and dead: masked scaleVal local, (u16) truncations of the quotients, gcc 2.6.0 (75.89), gcc 2.7.2 (76.39), -O3, -G0, aspsx.
+// Signature is fixed by the callers (shop_menu, member_change_menu,
 // gear_shop_menu): (dir, index, pPrims, context, x, y, scale, mirrorX,
 // mirrorY), mirrorY=1 for the bottom scroll-bar ornament.
 /*
-// Builds one textured quad per record of the dirent, scaled by `scale` and
+// Builds one textured quad per record of the dirent, scaled by scale and
 // mirrored on either axis when asked to; u/v shrink by one texel when the quad
 // comes out flipped so the last column/row is not sampled.
 s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
@@ -1400,8 +1388,10 @@ s32 func_800263E4(MenuResourceDirectory* dir, u32 index, POLY_FT4* pPrims,
         }
     }
     return pDirent->count;
-}
-*/
+}*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp2", func_800263E4);
+
+
 
 // Best 97.55% (688 bytes = retail's, 172 insns = retail's). Residual is allocator + scheduler only:
 // - head: gcc hoists the lhu of scale to the top of the prologue and puts the localY store (sh t1,24(sp)) in the beqz delay slot where retail has a nop (retail loads scale just before the beqz, after the dirent count lh).
