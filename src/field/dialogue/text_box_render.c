@@ -27,6 +27,14 @@ extern void SystemStringClearLineOffset(void* pString);
 // Field's own pad button state, filled by FieldPollControllers.
 extern u_short g_FieldButtonsPressedOnce;
 
+// The clip rects of the sixteen draw modes below, and the halfword view of the
+// same table the window code seeds with x and w.
+extern RECT D_800AFC80[];
+extern short D_800AFC84[];
+// Two render contexts of sixteen draw modes each.
+extern DR_MODE D_800B1DF4[2][0x10];
+extern int g_FieldTextBoxAllocationStates[4];
+
 // Cursor up/down input for the text box holding the top message; moves the
 // cursor within maxPosition and forwards the line offset to the string.
 void func_8007DCF8(int index, u_long* pOt, int ctx) {
@@ -54,30 +62,39 @@ void func_8007DCF8(int index, u_long* pOt, int ctx) {
     }
 }
 
-// https://decomp.me/scratch/NE0tE
-// 82.32%: the two 16 entry loops look right but gcc picks different induction
-// variables for the rect stores. The original addresses the same 8-byte rect
-// (D_800AFC80 + i * 8) three ways: a strength reduced pointer for x, a
-// recomputed symbol + i * 8 for y/h (also the SetDrawMode rect argument), and
-// D_800AFC84 + i * 8 for w, plus it writes each rect twice.
-// Postscript: declaring D_800AFC84 as `short[]` and writing D_800AFC84[i * 4]
-// (w) / D_800AFC84[i * 4 - 2] (x) does reproduce the original's shared base
-// (`la D_800AFC84-4` / `addiu s3, s2, -4`) and scopes the double store right,
-// but gcc then strength reduces the D_800AFC80 writes instead of the AFC84 ones
-// and re-forms the AFC80 address in the loop body -- 80.22%, worse than the
-// 82.32% below. Also note g_FieldTextBoxAllocationStates/g_FieldTextBoxInUseMask must be declared above this
-// function if it becomes C.
+// PARKED 97.46% (round 534): 588 bytes against retail's 584, 147 insns against
+// 146. Everything except the preheader of the second rect family is
+// instruction-identical: the y/h stores ride a base RECOMPUTED each iteration
+// (sll + lui/addiu + addu) that is also the SetDrawMode clip-rect argument, the
+// eight stores and their order, both GetTPage/SetDrawMode pairs, the latch
+// increments, the 4-box loop and the frame (0x48) all match.
+// The one residual is the AFC84 family's anchor: gcc anchors on the x giv
+// (`la v0, D_800AFC80; addiu s3, v0, 4; move s2, v0` = 4 insns) where retail
+// anchors on the +0 (w) giv (`la s2, D_800AFC84; addiu s3, s2, -4` = 3) and
+// swaps s2/s3, so the only instruction surplus is that `move`. The object names
+// D_800AFC80 for the anchor because gas re-anchors `D_800AFC84 - 4` to the label
+// at that address, so both spellings link to the same bytes.
+// Measured this round, best first: this body 97.46 / 588 / 147; `pRect->x` for
+// the x store (drops the x giv) 92.06 / 576 / 144 (two short - the x giv is
+// real); all four stores through the D_800AFC84 halfword view with no pRect
+// 92.89 / 604 / 151; one `D_800AFC80[]` RECT array for all four 87.63 / 608 /
+// 152; the old two-symbol form 82.05 / 624 / 156.
+// Load-bearing spellings, each measured up: (1) the y/h/x stores must go through
+// a `RECT*` local assigned in the body, not through `D_800AFC80[i].y` - the
+// local is what keeps that base recomputed and shared with the call argument
+// (the indexed form makes gcc fold +2/+6 into two more induction registers);
+// (2) x and w must come from the halfword view of D_800AFC84 (`[i * 4 - 2]` /
+// `[i * 4]`), which is what produces retail's two stepping pointers; (3) the
+// second draw mode is `&D_800B1DF4[1][i]` on the [2][0x10] array, i.e. base +
+// 0xC0, not a second symbol.
+// Not tried (no budget left): anything that makes gcc pick the +0 giv as the
+// anchor instead of the -4 one; if that can be had, the body closes.
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", FieldTextBoxInitialize);
-// 85.16%: D_800B1DF4/D_800B1E00 are 16 DR_MODEs at 0xC each (SetDrawMode takes
-// &D_800B1DF4[i]); GetTPage's abr argument is 0, not 2. Best shape so far: y, x,
-// h, w in the order the original stores them, with x/w reached through a short
-// view of D_800AFC84 (D_800AFC84[i*4-2] = x, [+i*4] = w) -- that reproduces the
-// original's `la D_800AFC84-4` / shared biv, but gcc then strength reduces the
-// D_800AFC80 pointer and re-forms the D_800AFC84 one, the reverse of retail.
 /*
 void FieldTextBoxInitialize(void) {
     int i;
     RECT rect;
+    RECT* pRect;
 
     rect.y = 0;
     rect.x = 0;
@@ -85,16 +102,17 @@ void FieldTextBoxInitialize(void) {
     rect.w = 0xFF;
 
     for (i = 0; i < 16; i++) {
-        D_800AFC80[i].y = 0;
+        pRect = &D_800AFC80[i];
+        pRect->y = 0;
         D_800AFC84[i * 4 - 2] = 0;
-        D_800AFC80[i].h = 0xFF;
+        pRect->h = 0xFF;
         D_800AFC84[i * 4] = 0xFF;
-        D_800AFC80[i].y = 0;
+        pRect->y = 0;
         D_800AFC84[i * 4 - 2] = 0;
-        D_800AFC80[i].h = 0xFF;
+        pRect->h = 0xFF;
         D_800AFC84[i * 4] = 0xFF;
-        SetDrawMode(&D_800B1DF4[i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), &D_800AFC80[i]);
-        SetDrawMode(&D_800B1E00[i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), &D_800AFC80[i]);
+        SetDrawMode(&D_800B1DF4[0][i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), pRect);
+        SetDrawMode(&D_800B1DF4[1][i], NULL, 0, GetTPage(0, 0, 0x380, 0x100), pRect);
     }
 
     for (i = 0; i < 4; i++) {
@@ -551,7 +569,6 @@ void FieldTextBoxSetPortraitUV(int index, int portraitID) {
 }
 
 extern u16 g_FieldTextBoxInUseMask[];
-extern int g_FieldTextBoxAllocationStates[4];
 
 // The string state helpers take a SystemString, which only system.c names; the
 // text box keeps one at _pad[0].
@@ -843,9 +860,6 @@ extern s32 g_FieldTextBoxFrameIndex;
 extern s32 D_800ADE98;
 // Field's own pad button state, filled by FieldPollControllers.
 extern u_short g_FieldP1ButtonsReleased;
-// One draw mode per render context that closes the text box list.
-extern DR_MODE D_800B1DF4[2][0x10];
-
 // 91.62%, 1420 bytes against retail's 1448, 355 insns against 362, frame 0x58 (matches).
 // Round 505: the control flow was the find. The `order == TEXT_BOX_UNINITIALIZED`
 // test is NOT an `else if` of `order == n` in retail: its block sits at .L800804FC,
