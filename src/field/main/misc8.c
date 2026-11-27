@@ -3182,10 +3182,10 @@ void FieldResetActorSoundSlots(void) {
 
 typedef struct {
     s32 distance[4]; // 0x00
-    s32 unk10[4]; // 0x10
-    s32 unk20[4]; // 0x20
+    s32 soundId[4]; // 0x10
+    s32 soundVolume[4]; // 0x20
     s32 inUse[4]; // 0x30
-    s32 unk40[4]; // 0x40
+    s32 assigned[4]; // 0x40
     s32 actorIndex[4]; // 0x50
     s16 delta[3][4]; // 0x60
 } FieldActorProximitySlots; // Size: 0x78
@@ -3210,11 +3210,11 @@ void func_80086590(VECTOR* pPosition) {
 
     for (i = 0; i < 3; i++) {
         slots.distance[i] = 0xFFFF;
-        slots.unk10[i] = -1;
-        slots.unk40[i] = 0;
+        slots.soundId[i] = -1;
+        slots.assigned[i] = 0;
         slots.inUse[i] = 0;
         slots.actorIndex[i] = 0;
-        slots.unk20[i] = 0;
+        slots.soundVolume[i] = 0;
     }
 
     for (i = 0; i < g_FieldActiveActorCount; i++) {
@@ -3239,9 +3239,9 @@ void func_80086590(VECTOR* pPosition) {
                 slots.actorIndex[slot] = i;
                 slots.distance[slot] = distance;
                 do { } while (0);
-                slots.unk10[slot] = g_FieldActors[i].pActorData->soundId;
+                slots.soundId[slot] = g_FieldActors[i].pActorData->soundId;
                 do { } while (0);
-                slots.unk20[slot] = g_FieldActors[i].pActorData->soundVolume;
+                slots.soundVolume[slot] = g_FieldActors[i].pActorData->soundVolume;
                 do { } while (0);
                 *(s16*)(slot * 8 + (u32)&slots.delta[0][0]) = (delta = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1]);
                 midDelta = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
@@ -3255,10 +3255,10 @@ void func_80086590(VECTOR* pPosition) {
     }
 
     for (i = 0; i < 3; i++) {
-        s32 slot = FieldFindActorSoundSlot(slots.unk10[i], slots.actorIndex[i]);
+        s32 slot = FieldFindActorSoundSlot(slots.soundId[i], slots.actorIndex[i]);
         if (slot != -1) {
             slots.inUse[slot] = 1;
-            slots.unk40[i] = 1;
+            slots.assigned[i] = 1;
         }
     }
 
@@ -3275,14 +3275,14 @@ void func_80086590(VECTOR* pPosition) {
     i = 0;
     pDelta = slots.delta[0];
     for (; i < 3; pDelta += 4, i++) {
-        if (slots.unk10[i] == -1) {
+        if (slots.soundId[i] == -1) {
             continue;
         }
-        if (slots.unk40[i] == 1) {
-            FieldUpdateActorSoundSlot(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
+        if (slots.assigned[i] == 1) {
+            FieldUpdateActorSoundSlot(slots.soundId[i], slots.soundVolume[i], pDelta[0], slots.distance[i],
                 slots.actorIndex[i]);
         } else {
-            FieldAssignActorSoundSlot(slots.unk10[i], slots.unk20[i], pDelta[0], slots.distance[i],
+            FieldAssignActorSoundSlot(slots.soundId[i], slots.soundVolume[i], pDelta[0], slots.distance[i],
                 slots.actorIndex[i]);
         }
     }
