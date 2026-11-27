@@ -733,6 +733,30 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
 //   * case 1's pMenu load moved after the D_801E9810 read = 95.51 / 676 / 169, 109 lines (the fuzzy
 //     number prefers the current 95.61).
 //   * previous notes: pMenu-before-inline 77.27, gcc-2.7.2-cdk 74.56, preset screened (2.6.0 -O2 right).
+// Best attempt: 684 bytes / 171 insns = retail's EXACT size and count, but objdiff 94.74%
+// (25 register-only rows out of 171, plus three placement items). Judge this body by the
+// instruction diff, not the fuzzy number: the 95.61% body kept above is 676 bytes / 169
+// insns and MERGES two stores retail keeps separate (retail has six `sw 0x4F7C` sites,
+// that one five), so it can never reach retail's size.
+// THE FIND: case 2 must read `g_Menu->menuUnk2` INLINE at all three of its uses, with no
+// pointer local. With the shared pMenu local gcc gave case 2 and case 0's phase-2 exit the
+// same register (a0), their `sw 0x4F7C(a0)` were identical and jump.c cross-jumped them:
+// retail's separate `j end; sw v0,0x4F7C(a0)` block (2 insns) was lost, and case 2's pMenu
+// left v1. Inline, case 2 loads menuUnk2 into v1 with the sign temp in a0 exactly as retail
+// does, the two stores differ and the block survives. 169/676 -> 171/684, 33 -> 25 reg rows.
+// Residual, four items: (1) the a0-a2 mirror in case 1's two loops - retail keeps the store
+// value induction in a0 and the reloaded pMenu in a2 (phase 2: a1), this build mirrors them;
+// (2) case 0 phase 2 - retail's `lw v1,812(v0)` does not reuse the dead g_Menu register, and
+// its `move a0,v1` sits after both bltz compares with `addiu v0,v0,-4` in the first delay
+// slot, this build takes v0 and moves in the delay slot; (3) case 2's dispatch delay slot
+// holds `addiu a1,a1,-3` here against retail's `lui v0,0x8888` (retail's case-2 block reads
+// lui, ori, addiu, mult; this one addiu, lui, ori, mult); (4) the case-0-phase-2 exit store
+// block is anchored after case 2's positive arm instead of before case 2's head.
+// MEASURED this round: per-case pointer locals (pMenuFirst for case 0, pMenuLast for case 1)
+// are BYTE-IDENTICAL - the pseudos have disjoint live ranges and gcc coalesces them, so
+// func_801CA5F0's case-split lever does nothing here; declaration order of pMenu/i/j in three
+// orders byte-identical; case 0 phase 2 as pointer-first gives 70 rows / 94.47% (fixes pMenu's
+// register but loses retail's `sll v1,a1,2` dispatch slot in case 0 phase 1).
 /*
 void func_801CA1D4(s32 a0, s32 a1) {
     MenuUnk2* pMenu;
@@ -795,16 +819,15 @@ void func_801CA1D4(s32 a0, s32 a1) {
         }
         break;
     case 2:
-        pMenu = g_Menu->menuUnk2;
         i = a1 - 3;
-        if (((u8*)&pMenu->cardStatus[0])[i / MENU_CARD_SLOT_COUNT] != 0) {
+        if (((u8*)&g_Menu->menuUnk2->cardStatus[0])[i / MENU_CARD_SLOT_COUNT] != 0) {
             if (i >= 0) {
-                pMenu->selectedSlot = i;
+                g_Menu->menuUnk2->selectedSlot = i;
             } else {
-                i = pMenu->selectedSlot - 3;
+                i = g_Menu->menuUnk2->selectedSlot - 3;
                 if (i >= 0) {
                     if (i - 1 >= 0) {
-                        pMenu->selectedSlot = i - 1;
+                        g_Menu->menuUnk2->selectedSlot = i - 1;
                     }
                 }
             }
