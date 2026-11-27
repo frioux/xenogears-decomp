@@ -386,6 +386,19 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/rendering", func_8001DAE8);
    - not a preset: gcc 2.6.0 gives the identical vars= 88, and gcc 2.7.2-cdk
      gives vars= 64 (frame 0x80) - closer but still not 56, and the unit cannot
      switch anyway.
+   Round 537: un-parked and re-measured LIVE: 80.81% / 1652 bytes / 413 insns
+   against retail's 1632 / 408, so the number above is reproducible. The body as
+   stored did not actually compile (it read an undeclared `pPackage`); the cast
+   below is the fix: retail loads 0x24(s3) once and block-copies bytes 4..7 with
+   lwl/lwr, so the source has no pPackage local at all. Measured this round on the
+   home-slot question: `SpriteAnimPackage* volatile pAnimPackage` DOES reproduce
+   retail's `sw $a2,0x80(sp)` (frame+8) and the `lw $t1,0x80(sp)` reloads, but it
+   scores 77.87% / 1684 bytes / 421 insns (frame 0x90, not 0x78) because volatile
+   reloads PER USE and retail's clut arm reads clut.x/.y four times off ONE load
+   (0x8/0xA off one $t1), i.e. retail reloads PER BLOCK. Per-block reload of a
+   parameter is TREE_ADDRESSABLE (its address is taken in the original), not
+   volatile, and nothing in the visible body takes it - so the open question is
+   narrowed to: which construct in this source takes &pAnimPackage.
 */
 /*
 void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pAnimPackage) {
@@ -441,8 +454,7 @@ void func_8001DAE8(SpriteData* pSpriteData, u16 animFrame, SpriteAnimPackage* pA
             return;
         }
         pBlock = (u8*)((mem_addr)((u16*)pFrames)[animFrame] + (mem_addr)pFrames);
-        pPackage = pSpriteData->pVramData;
-    tex = pPackage->tex;
+    tex = ((SpriteAnimPackage*)pSpriteData->pVramData)->tex;
         if (((pSpriteData->field_0x40 >> 13) & 0xF) == 0xE) {
             SpriteNextVramSlot(&tex, pBlock[4]);
         }
