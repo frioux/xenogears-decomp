@@ -553,13 +553,13 @@ void BattleResetActorDrawState(u8 arg0) {
 // those three relocations but rotates the $a0/$a1 hand-out before them and measures
 // 95.89; the array form stays.
 // PARKED 96.61% (2420 bytes / 605 insns against retail 2432 / 608). Round 535 re-measured the round-526 body unchanged.
-// WHY THIS ONE CANNOT BE FINISHED (read before spending a lane): its 101-word switch
-// table is jtbl_8006FE7C, i.e. +0x0 of misc11 own .rodata range [0x38C, c] in
-// config/battle.yaml, absolute 0x8006FE7C = 4 mod 8. cc1 emits .align 3 before a jump
-// table, so the section demands 8-alignment and the linker pads it to 0x8006FE80: +4
-// bytes and the overlay grows, whatever the instructions say. That is why the
-// slot-menu tail of this unit was split into main/misc11_b (range re-cut at 0x520 =
-// 0x80070010, 8-aligned) and its seven tables convert. Do not convert this switch.
+// LAYOUT CHECKED AND NOT THE BLOCKER: the table is jtbl_8006FE7C, i.e. +0x0 of
+// misc11's .rodata range [0x38C, c] (absolute 0x8006FE7C, parity 4), and cc1's
+// .align 3 at internal offset +0 emits no pad, so the C table would land on retail's
+// bytes - the parity-4 split case of levers g-parity-4-split-is-the-route-for-a-4-mod-8-tail-table
+// (world_map misc11_c, round 452, check_bin OK). The +4 class in this range was the
+// seven 8-word tables at +0x194+n*0x20, and those now live in main/misc11_b. So this
+// park is body-only: 3 instructions short of retail's 608.
 // Residuals, all re-measured:
 //   (a) tail if (q[0x2E3]) block (23 retail insns vs 16): needs a redundant RELOAD
 //       AND a per-access lui at,%hi + addu at,at,idx address, which no volatile-free
