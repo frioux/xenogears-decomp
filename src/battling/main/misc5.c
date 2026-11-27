@@ -1370,7 +1370,7 @@ void BattleInitSpriteBuffers(void) {
 */
 // PARK 80.47% (round 538 re-measure of the un-parked body: 932 bytes / 233 insns against retail's 940 / 235, so it still cannot link; whole first output read, no compile errors).
 // Round 538 analysis of retail's loop, for whoever picks this up: retail keeps TWO induction registers into the same 0xC table, s7 = slot base (loaded once in the BattleVectorLength delay slot) and s1 = s7 + 2, both advanced by 0xC; x is stored through s7 and every other field through s1 at offsets 0/2/4/6/7/8 (y/z/life/vx/vz/vy). That is a giv pair at base+0 and base+2 - the C form that produces it must take &pSlot->y somewhere, which this body does not, so the +2 giv (2 of retail's 4 loop-tail/head instructions) is not reachable by rewriting the field accesses alone. The indexing form ('pSlot = &((BattleSpriteSlot *)g_BattleSpriteSlots)[i]' inside the loop) is what keeps dy/2 in the loop and is worth ~1.6 points over the pointer walk, which does hit retail's 940 / 235 but scores 78.83.
-// Note that the two 'li 0xfffc / li 0xfff0 vs -4 / -16' rows the older notes list as residual (c) are a DISPLAY difference only: addiu $r0,0xfffc and addiu $r0,-4 are the same word, so that lever is empty.
+// Residual (c) from the older notes is REAL, not a display artifact: retail's .s has 'addiu $v0,$zero,-0x4' / '-0x10' (opcode 0x2402) where this body's 'pSlot->vy = -4' / 'pSlot->y = -0x10' reach maspsx's 'li' as 0xFFFC / 0xFFF0 and expand to 'ori' (0x3402) - same value, different word - so those constants want a signed s16 spelling (the pointer-walk body gained 78.83 -> 79.08 from exactly that on one of the two sites).
 /*
 void func_8007DC74(VECTOR *pA, VECTOR *pB) {
     VECTOR vec;
