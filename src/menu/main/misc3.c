@@ -1991,12 +1991,6 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CBD90);
    re-reading menuUnk2->selectedSlot, and the own/other prefix swap folded out of
    the arm. Not tried: the permuter (structure is still moving), and a search for
    the missing block. */
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CC6D8);
-/*
-extern void MenuPlaySoundEffect(u8 arg0);
-extern void Vsync(s32 count);
-extern u8 D_801C50B8[];
-
 u_char func_801CC6D8(void) {
     char otherPath[0x40];
     MenuCardPrefix otherPrefix;
@@ -2154,7 +2148,7 @@ u_char func_801CC6D8(void) {
                         fd = open(ownPath, 1);
                         if (fd == -1) {
                             fd = 0;
-                            MenuWaitCardOperationFrames(card);
+                            MenuWaitCardOperationFrames(ownCard);
                         }
                         if (fd != 0) {
                             break;
@@ -2170,7 +2164,7 @@ u_char func_801CC6D8(void) {
                         while (1) {
                             if (read(fileFd, headerBlock, 0x200) == -1) {
                                 fd = 0;
-                                MenuWaitCardOperationFrames(card);
+                                MenuWaitCardOperationFrames(ownCard);
                             }
                             if (fd != 0) {
                                 break;
@@ -2205,7 +2199,7 @@ u_char func_801CC6D8(void) {
                                 destFd = open(tempPath, 2);
                                 if (destFd == -1) {
                                     fd = 0;
-                                    MenuWaitCardOperationFrames(card);
+                                    MenuWaitCardOperationFrames(otherCard);
                                 }
                                 if (fd != 0) {
                                     break;
@@ -2222,7 +2216,7 @@ u_char func_801CC6D8(void) {
                             while (1) {
                                 if (write(destFd, headerBlock, 0x200) == -1) {
                                     fd = 0;
-                                    MenuWaitCardOperationFrames(card);
+                                    MenuWaitCardOperationFrames(otherCard);
                                 }
                                 if (fd != 0) {
                                     break;
@@ -2244,7 +2238,7 @@ u_char func_801CC6D8(void) {
                                     while (1) {
                                         if (read(fileFd, block, 0x200) != 0x200) {
                                             fd = 0;
-                                            MenuWaitCardOperationFrames(card);
+                                            MenuWaitCardOperationFrames(ownCard);
                                         }
                                         if (fd != 0) {
                                             break;
@@ -2253,6 +2247,8 @@ u_char func_801CC6D8(void) {
                                         if (retry == 0) {
                                             close(fileFd);
                                             close(destFd);
+                                            strcpy(tempPath, (char*)&otherPrefix);
+                                            strcat(tempPath, D_801C50B8);
                                             erase(tempPath);
                                             goto copyDone;
                                         }
@@ -2263,7 +2259,7 @@ u_char func_801CC6D8(void) {
                                     while (1) {
                                         if (write(destFd, block, 0x200) != 0x200) {
                                             fd = 0;
-                                            MenuWaitCardOperationFrames(card);
+                                            MenuWaitCardOperationFrames(otherCard);
                                         }
                                         if (fd != 0) {
                                             break;
@@ -2272,6 +2268,8 @@ u_char func_801CC6D8(void) {
                                         if (retry == 0) {
                                             close(fileFd);
                                             close(destFd);
+                                            strcpy(tempPath, (char*)&otherPrefix);
+                                            strcat(tempPath, D_801C50B8);
                                             erase(tempPath);
                                             goto copyDone;
                                         }
@@ -2333,4 +2331,4 @@ u_char func_801CC6D8(void) {
     g_Menu->unk334 = 1;
     return result;
 }
-*/
+
