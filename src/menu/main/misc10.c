@@ -324,7 +324,9 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc10", func_801E1544);
    at the top of the mode-1 arm here but after the slot*13 chain in retail, and the
    `lui t1,(0xD1B71759>>16)` / `ori` pair is split around 17 instructions in retail
    (retail computes the bar width between the 6th and 7th FT4 stores) while this
-   body emits the pair adjacent at the multiply. Tried and no better: if/else-if for
+   body emits the pair adjacent at the multiply.
+   Round 534: re-measured from this body, the note is accurate and not stale -
+   80.32%, 1424 bytes, 356 insns against retail's 353, so 3 instructions long. Tried and no better: if/else-if for
    the mode test (76.28%), the two char* store spellings (80.85%/1448 and
    71.72%/1428), and gcc-2.6.0 is the unit's preset already.
 void func_801E1544(u8 slot, u8 mode, u8* pWorkspace, u32 value) {
