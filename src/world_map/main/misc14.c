@@ -241,29 +241,7 @@ s32 WorldMapProbeCellEdgeZFromPosition(SVec* pPos, SVec* pAim, WorldMapProbe* pP
 #define WORLD_MAP_CELL_MASK 0xFFF80000
 #define WORLD_MAP_CELL_SHIFT 19
 
-INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
-/* best: 82.51% (mine 1880 bytes vs retail's 1896, so 4 instructions short).
-   The body is mapped and compiles: the prologue projects the target position in,
-   classifies it into the 8-way edge mask below (the two cells are the SVECTOR
-   pair at 0x1F8000A0: the position's cell index, then the target's), and the
-   switch dispatches to the four straight probes and the four corner arms (a
-   corner arm packs (near.z << 16) | near.x and (far.z << 16) | far.x, runs
-   NormalClip, then tries its two probes in the order the sign picks). What is
-   left is allocation, not structure: every arm and the tail has retail's
-   instructions in retail's order except
-     - retail keeps the mask in $t0 and the state/return in $a2; mine picks $v1
-       for the state, which costs one `move v0,v1` per corner fallback probe;
-     - retail's six prologue stores (0x10, 0x18 and the four cell halves) each
-       build the address with `lui $at`, mine folds the two compare loads
-       through the base (retail lhu 0xA4/0xAC(s1) against my t0-relative);
-     - retail's tail forms the probe position as the SYMBOL D_1F800010
-       (addiu $s0,$s1,%lo(D_1F800010), one insn reusing s1's high half).
-       Spelling it &pProbe->target folds to addiu s0,s1,16 (82.51%);
-       declaring extern SVec4 D_1F800010 gives a fresh lui+addiu and 82.24%.
-       Neither is retail's, so the folded one is kept.
-   The WorldMapProbe clip/cell fields and the WORLD_MAP_EDGE and WORLD_MAP_CELL
-   defines above belong to this body and stay for whoever resumes it.
-*/
+// best: 79.24% (mine 1876 bytes / 469 insns vs retail's 1896). The score is 3.3 points below the note this park carried (82.51) and the body is the CLOSER one: retail's jump table at 0x80070C50 has 11 entries starting at mask 0 (0, 3 and 7 point at the tail .L80095124), so the switch needs an explicit `case 0` - without it cc1 biases the table by -1 (addiu + sltiu <10) and emits 10 words, i.e. 40 bytes against retail's 44, which puts misc14's second table jtbl_80070C80 (owned by the func_80095414 stub) at 0x1188 instead of 0x1190 and shifts the whole overlay. With case 0 the dispatch is retail's: sltiu <11, sll, 11-word table ending at 0x118C (the next table's .align 3 pads it to 0x1190). Case order is by mask value: 1, 2, 4, 5, 6, 8, 9, 10 - the Z_NEG arm (.L80094BD0) belongs AFTER the two Z-positive corners. What is left: (1) edges lands in $a2 and state in $v1; retail has edges in $t0 and state in $a2, so retail's state=0 is in the first compare's delay slot (addu a2,zero,zero) and mine sinks it into the jr's slot. Measured no change: declaration order (state before edges), edges=0 as a declaration initialiser instead of a statement, edges=0 placed before the cell stores. (2) mine is 15 instructions short, and about 11 of them are retail's leftover load-delay nops that this compiler FILLS (maspsx #nop slots), plus the four corner arms' clip computation re-scheduled (same ops, near.z/far.z order swapped). Presets measured on this body: gcc-2.7.2-cdk 77.21, gcc-2.6.0 81.86, -G0 82.51 (identical with the old 10-word table), -O3 does not compile. The WorldMapProbe clip/cell fields and the WORLD_MAP_EDGE / WORLD_MAP_CELL defines above belong to this body.
 /*
 s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     WorldMapProbe* pProbe = (WorldMapProbe*)0x1F800000;
@@ -271,8 +249,8 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     s32 zFrom;
     s32 xTo;
     s32 zTo;
-    s32 edges;
     s32 state;
+    s32 edges = 0;
     s32 nClip;
 
     pProbe->target.x = pPos->x + ((pDir->x * scale) >> 12);
@@ -285,7 +263,6 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     pProbe->cell[0].vz = zFrom;
     pProbe->cell[1].vx = xTo;
     pProbe->cell[1].vz = zTo;
-    edges = 0;
     if (xTo < xFrom) {
         edges = WORLD_MAP_EDGE_X_NEG;
     } else if (xFrom < xTo) {
@@ -298,6 +275,8 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     }
     state = 0;
     switch (edges) {
+    case 0:
+        break;
     case WORLD_MAP_EDGE_X_POS:
         state = WorldMapProbeCellEdgeXFromReference(pPos, pDir, pProbe, kind);
         break;
@@ -306,9 +285,6 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
         break;
     case WORLD_MAP_EDGE_Z_POS:
         state = WorldMapProbeCellEdgeZFromReference(pPos, pDir, pProbe, kind);
-        break;
-    case WORLD_MAP_EDGE_Z_NEG:
-        state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
         break;
     case WORLD_MAP_EDGE_X_POS | WORLD_MAP_EDGE_Z_POS:
         pProbe->v.x = (pPos->x & WORLD_MAP_CELL_MASK) + WORLD_MAP_CELL_SIZE;
@@ -359,6 +335,9 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
         } else {
             state = WorldMapProbeCellEdgeXFromPosition(pPos, pDir, pProbe, kind);
         }
+        break;
+    case WORLD_MAP_EDGE_Z_NEG:
+        state = WorldMapProbeCellEdgeZFromPosition(pPos, pDir, pProbe, kind);
         break;
     case WORLD_MAP_EDGE_X_POS | WORLD_MAP_EDGE_Z_NEG:
         pProbe->v.x = (pPos->x & WORLD_MAP_CELL_MASK) + WORLD_MAP_CELL_SIZE;
@@ -420,8 +399,10 @@ s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind) {
     }
     pProbe->v = pProbe->target;
     return 1;
-}
-*/
+}*/
+INCLUDE_ASM("asm/world_map/nonmatchings/main/misc14", func_80094A5C);
+
+
 extern s32 WorldMapGetTileShapeAxisDirection(SVec* p0, SVec* p1, SVec* p2);
 extern s32 func_80094A5C(SVec* pPos, SVec* pDir, s32 scale, s16 kind);
 
