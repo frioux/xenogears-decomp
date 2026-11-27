@@ -749,6 +749,38 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092298);
 //    So remat is reachable and the residual is one site's reload choice plus the frame.
 //    (Round 438 already measured the pointer-local spelling as byte-identical, so the only
 //    untried axis left is a spelling that raises the then-arm's pressure argument.)
+// 91.86% (996 bytes / 249 insns against retail's 1008 / 252), frame 0x98 against retail's 0x90.
+// ROUND 531, re-measured from the 86.30 park. WON (+5.56): the ONES DIGIT is a single
+// conditional expression in the pData assignment, `pData = arg1[i] != 0xFF ?
+// g_BattleDigitImageBuffers[arg2[i] % 10] : g_BattleTextWorkspace;`. That is what puts
+// retail's `lbu arg1[i] / li 0xFF / beq` BEFORE the `lui 0xcccc` modulus constant and
+// the multu chain (in the old body cc1 hoisted the workspace load above the branch and
+// ran the modulus unconditionally): +5.56, differing lines 148 -> 115, insns 247 -> 249.
+// MEASURED THIS ROUND, both worse, both kept for the next round:
+// A. GLYPH RECT LITERALS IN THE i==7 ARM (x = 0x39E, y = 0x132 - the values retail's
+//    else-arm stores, so retail's source really does spell them): 91.16% / 1000 / 250,
+//    120 differing lines. cc1 still cross-jumps the w/h stores + jal into one tail, so
+//    the literals do not break the merge; the shared-expression form scores higher.
+// B. SINGLE TENS BLIT SITE (both arms select the buffer into a pTens local, one
+//    BattleLoadImageAndSync(&tensRect, pTens) after the if/else): 89.07% / 976 / 244,
+//    87 differing lines - the FEWEST differing lines of any body this round, and it
+//    gives RETRALL'S EXACT PROLOGUE AND FRAME (first 50 diff lines empty, frame 0x90,
+//    no `addiu t0,sp,24` + `sw t0,104(sp)` spill) because with ONE use of &tensRect
+//    loop.c's move_movables leaves it rematerialisable. Its cost is the second tens jal
+//    (retail has two, one per arm) plus 7 more instructions, hence 8 short and a lower
+//    fuzzy score. So the frame residual and the missing jal are the SAME axis: retail
+//    has two `addiu a0,sp,0x18` sites AND no hoist, and 2.6.0 hoists a 2-use invariant
+//    address into a 10th value that has no callee-saved register left.
+// STILL OPEN, named: (1) the hoist/spill above, 3 instructions and the 8-byte frame;
+// (2) the glyph tail cross-jump (retail stores x,y,w,h in BOTH arms then shares only the
+// jal); (3) the allocator rotation - retail s0=pSlot / s1=i / s2=(i/2)*16 / s3=x base,
+// this body s3=pSlot / s2=x base / s0=(i/2)*16, with the pBufs slot address formed
+// `addiu v1,sp,64 / sll v0,s1,2 / addu s3,v1,v0` where retail is `sll v1,s1,2 /
+// addiu v0,sp,64 / addu s0,v0,v1`.
+// Earlier rounds on this function (still valid): the two i==7 tests must be written
+// `if (i != 7) {arg1 path} else {i==7 path}`; pBufs[i] must be stored through a source
+// pointer (`*(pSlot = pBufs + i) = pBuf;`); the tens digit must be one scalar local
+// `tensDigit = arg2[i] / 10` used in the ternary, not `arg2[i] % 10`.
 /*
 void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     RECT glyphRect;
@@ -762,7 +794,6 @@ void func_80092784(u8 arg0, u8 *arg1, u8 *arg2) {
     u_long **pSlot;
     u_long *pData;
     u8 tensDigit;
-    u8 onesDigit;
     s32 i;
 
     BattleAllocPacketPrimitives();
@@ -819,11 +850,7 @@ nextTile:
             onesRect.y = (i / 2) * 16 + 0x102;
             onesRect.w = 6;
             onesRect.h = 0xD;
-            onesDigit = arg2[i] % 10;
-            pData = g_BattleTextWorkspace;
-            if (arg1[i] != 0xFF) {
-                pData = g_BattleDigitImageBuffers[onesDigit];
-            }
+            pData = arg1[i] != 0xFF ? g_BattleDigitImageBuffers[arg2[i] % 10] : g_BattleTextWorkspace;
         } else {
             BattleLoadImageAndSync(&tensRect, g_BattleTextWorkspace);
             onesRect.x = (i % 2) * 16 + 0x3C2;
@@ -842,6 +869,7 @@ nextTile:
     BattleDrawSlotStatusPanel();
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc17", func_80092784);
+
 
 
 /* 89.40% (1256 bytes against retail's 1336, 314 insns vs 334), frame 0x30 = retail's, four
