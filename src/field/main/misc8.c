@@ -2263,7 +2263,16 @@ extern void func_80081C54(int actorIndex);
 extern const char D_8006FC60[]; // "ERROR ID1 ACT=%d\n"
 extern const char D_8006FC74[]; // "ERROR ID0 ACT=%d\n"
 
-/* Best attempt: 85.77%, 2584 bytes against retail's 2700 (646 insns against 676).
+/* PARKED R528 86.05%, 2592 bytes against retail's 2700 (648 insns against 676),
+   measured live this round. R528 added ONE thing to the R497 body: the third
+   loop's posY is read once into an s16 local before the loop (retail has
+   'lh a2,0x26(s1)' in that preheader); the loop body then uses it twice.
+   That is 85.77 -> 86.05 and +1 insn / +8 bytes, kept because it is also the
+   realistic spelling. Measured and rejected this round: the same hoist with an
+   s32 local (85.95 / 646 - cc1 drops the local again), and reading posY as
+   '*(s16*)((u8*)&position + 6)' (identical output to the array form). Retail's
+   single 'lh' cannot be had: any assignment to a local turns it into
+   'lhu' + 'sll 16' + 'sra 16', 2 instructions more, which is residual 5 below.
    R497 SOLVED the local-layout problem every earlier round left open, and the
    frame is now retail's exactly: .frame $sp,256 vars=192 args=24, saves at
    0xD8-0xFC, arg4 read at 0x110(sp). Two changes did it, both measured:
@@ -2296,13 +2305,27 @@ extern const char D_8006FC74[]; // "ERROR ID0 ACT=%d\n"
        D_8006FC74), which both compiles do; but retail then runs the
        g_PlayerActorIndex mask store and 'position.vy += step.y' BEFORE the
        finishWalk label, while ours runs them inside finishWalk.
-   (4) third loop: retail hoists 'lh a2,0x26(s1)' into the preheader and reads
-       setRanges as 0x10(a0); ours re-reads the field per iteration.
+   (4) third loop (CLOSED in R528, see the R528 header): the hoist is now
+       there; what remains is that retail's preheader is one 'lh a2,0x26(s1)'
+       where any assignment to a local costs 'lhu' + 'sll 16' + 'sra 16'
+       (residual 5).
    (5) allocator tie: retail puts actorIndex/y/pActor/pSprite in s6/s7/s1/s5,
        ours in s6/s7/s2/s5; that tie drives most of the remaining offset hunks.
+   R528 note on (1), now measured: the two copies ARE instruction-identical
+   (positions x/y/z from pActor+s1 to pSprite+s5, then the 92*index chain for
+   transformMatrix.t[1]), so cc1 would have to keep two rtx-identical suffixes -
+   it does not, and the first copy is deleted, which is the whole 22-instruction
+   gap. Retail's two copies differ only in POST-RELOAD register choice (restore
+   uses s6 in the sll chain and puts 'addu a0,s6' in the j slot; finishWalk
+   copies a0 early and chains on it), so the difference is not source-visible
+   from the instruction list and no spelling of two identical blocks survives.
+   The one neighbourhood fact that is real: retail's restore copy falls out of
+   the 'if (step.y < 0)' block into its own positions while its finishWalk copy
+   is entered by a jump - but every block order tried here re-merges.
    Preset was screened in R432 (whole unit --all): Default is right (every other
-   C function 100.00, this one 98.13 then); gcc-2.6.0 93.29 and seven matched
-   functions drop, 2.7.2-cdk 93.99, -O3 90.1. No preset lead.
+   C function 100.00); gcc-2.6.0 93.29 and seven matched functions drop,
+   2.7.2-cdk 93.99, -O3 90.1. No preset lead. (The '98.13' figures elsewhere in
+   this unit belong to func_8008110C, not to this function.)
    NOTE for the next agent: the extern for this function must be 's32', not
    'void' - a void extern plus an s32 definition is a conflicting-type error and
    cc1 exits 33 with no score (that is what "not rebuilt" looks like). */
@@ -2323,6 +2346,7 @@ s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pAc
     s32 i;
     s32 j;
     s32 k;
+    s16 posY;
 
     pSprite = g_FieldActors[actorIndex].pSpriteData;
     if (actorIndex == g_PlayerActorIndex) {
@@ -2472,9 +2496,9 @@ s32 func_80084A40(int actorIndex, int y, FieldActor* pFieldActor, ActorData* pAc
         pActor->position.vy = pSprite->field_0x84 << 16;
     }
     pActor->scriptFlags.flags &= ~0x4000000;
+    posY = ((s16*)&pActor->position)[3];
     for (k = 0; k < g_FieldWalkmeshTriCount - 1; k++) {
-        if ((setHeights[k] < ((s16*)&pActor->position)[3]) &&
-            ((((s16*)&pActor->position)[3] - pActor->height) < setRanges[k])) {
+        if ((setHeights[k] < posY) && ((posY - pActor->height) < setRanges[k])) {
             if (setHeights[k] != setRanges[k]) {
                 break;
             }
