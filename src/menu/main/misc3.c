@@ -865,42 +865,65 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA480);
 // Next lever: make the menuUnk2 load non-hoistable in SOURCE ORDER (retail cannot
 // reuse it across the branch because the break block stores through *menuUnk2), or
 // find a spelling gcc 2.6 leaves un-inverted.
+// Best attempt: 95.51% (352 bytes = retail's exact size, 88 = 88 insns, 48 differing lines).
+// 84.72 -> 95.51 this round by PORTING THE func_801CA480 LEVER (its park, 95.71) instead of
+// writing from the disassembly: case 1 as a non-inverted while whose fail arm is 'i--; continue;'
+// with pMenu read INSIDE the loop and the store/break after it, so the store block sits in the
+// loop's linear instruction range and the 'lw 0x32C(g_Menu)' stays non-hoistable; case 0 keeps
+// the plain descending for; case 2 reads menuUnk2 into the shared pMenu local. Also swapped the
+// raw 0xFF for MENU_SLOT_NONE and 15 for MENU_CARD_SLOT_COUNT (no byte change).
+// Residual, and it is one thing: a caller-saved a1/a2 mirror, not a callee-saved pair. Retail's
+// case 0 loads pMenu into the register the dead g_Menu pointer just vacated (a0); case 1 keeps
+// pMenu in a1 and the table biv in a2. This build puts pMenu in a2 (case 0/case 2 through it) so
+// the table biv takes a1 and the 0xFF constant is pushed to t0; 48 of the 48 differing lines are
+// that mirror, and case 2 additionally has the 'addiu a1,a1,-1' stolen into the beq delay slot
+// where retail has 'lui v0,0x8888'. func_801CA480 has the identical residual at 95.71 (its own
+// park note says neither declaration order nor a second pointer moves it), so one spelling that
+// flips the pair closes both.
+// Tried this round: case 2 with an explicit 'j = i / MENU_CARD_SLOT_COUNT' local read before the
+// pMenu load (absorbed, byte-identical at 95.51). Preset already screened by the previous note
+// (2.6.0 -O2 is right: -O3 84.60, -O1 61.64, 2.7.2 -O3 81.59, cdk -O2/-O3 81.59).
 /*
 void func_801CA5F0(s32 a0, s32 a1) {
-    u8* pFlags;
+    MenuUnk2* pMenu;
     s32 i;
     s32 j;
 
     switch (a0) {
     case 0:
         for (i = a1; i - 1 >= 0; i--) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9818[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
-                g_Menu->menuUnk2->selectedSlot = i - 1;
+            if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
+                pMenu->selectedSlot = i - 1;
                 break;
             }
         }
         break;
     case 1:
-        for (i = a1; i - 1 >= 0; i--) {
+        i = a1;
+        while (i - 1 >= 0) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9818[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                g_Menu->menuUnk2->selectedSlot = i - 1;
-                break;
+            if (pMenu->slotRecordIndexes[j] == MENU_SLOT_NONE || pMenu->slotHasGameSave[j] == 0) {
+                i--;
+                continue;
             }
+            pMenu->selectedSlot = i - 1;
+            break;
         }
         break;
     case 2:
+        pMenu = g_Menu->menuUnk2;
         i = a1 - 1;
-        pFlags = (u8*)&g_Menu->menuUnk2->cardStatus[0];
-        j = i / 15;
-        if (pFlags[j] != 0 && i >= 0) {
-            g_Menu->menuUnk2->selectedSlot = i;
+        if (((u8*)&pMenu->cardStatus[0])[i / MENU_CARD_SLOT_COUNT] != 0 && i >= 0) {
+            pMenu->selectedSlot = i;
         }
         break;
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA5F0);
+
 
 s32 MenuHandleCardSlotInput(s32 a0) {
     s32 result;
