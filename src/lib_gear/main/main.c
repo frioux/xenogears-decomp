@@ -4288,6 +4288,7 @@ int LibGearGetModelDistance(Model* pModel) {
 // Round 370: re-measured live at 99.87%/464 bytes (retail size). The three residual
 // insns are the documented reg_eqv tie: retail bne v1,v0 x2 + addiu v0,a1,-1, ours
 // bne a1,v0 x2 + addiu v0,v1,-1. Copy slot, size and multiset are identical.
+// Round 540 (audit pick): un-parked and re-measured live at 99.87%/464 bytes (retail's size, 115 vs 115 insns, 6 differing lines). One hand attempt found nothing new (every untried axis of rounds 62-370 is already measured) and a sixth permuter run (2184 iterations, -j 2, 241 s) returned NONE, base=best=15. Residual unchanged and named: the caller-saved tie between the sourceModelSlot load pseudo and its cse copy - retail compares on v1 (the load dest, all three tests) and subtracts from a1 (the copy, one use), ours compares on a1 twice and one test plus the subtract on v1. Same instruction multiset, same 464 bytes. Not reachable from source: the copy's def sits in the 0xFE bne delay slot on both sides.
 /*
 void func_801E63A8(Model* pModel) {
     Model* pModel2;
@@ -4373,6 +4374,7 @@ void func_801E63A8(Model* pModel) {
     }
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E63A8);
+
 
 
 void LibGearFreeJointAndChildren(Temp4* pList, s32 jointIndex, ModelJoint* pSkeleton, ModelJoint* pTargetSkeleton) {
