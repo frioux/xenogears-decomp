@@ -552,6 +552,27 @@ void BattleResetActorDrawState(u8 arg0) {
 // (`D_800C3238`, `D_800C323C`, `D_800C324E` instead of `D_800C3234[4]/[13]`) matches
 // those three relocations but rotates the $a0/$a1 hand-out before them and measures
 // 95.89; the array form stays.
+// PARKED 96.61% (2420 bytes / 605 insns against retail 2432 / 608). Round 535 re-measured the round-526 body unchanged.
+// WHY THIS ONE CANNOT BE FINISHED (read before spending a lane): its 101-word switch
+// table is jtbl_8006FE7C, i.e. +0x0 of misc11 own .rodata range [0x38C, c] in
+// config/battle.yaml, absolute 0x8006FE7C = 4 mod 8. cc1 emits .align 3 before a jump
+// table, so the section demands 8-alignment and the linker pads it to 0x8006FE80: +4
+// bytes and the overlay grows, whatever the instructions say. That is why the
+// slot-menu tail of this unit was split into main/misc11_b (range re-cut at 0x520 =
+// 0x80070010, 8-aligned) and its seven tables convert. Do not convert this switch.
+// Residuals, all re-measured:
+//   (a) tail if (q[0x2E3]) block (23 retail insns vs 16): needs a redundant RELOAD
+//       AND a per-access lui at,%hi + addu at,at,idx address, which no volatile-free
+//       spelling gives (levers: a-retail-recompile-instruction-count-hole, round 488).
+//   (b) the tail loop re-forms nothing here: retail does lui at + addu at,at,v0 per
+//       iteration, this body hoists the base into $s3 - retail has no free
+//       callee-saved register there, an upstream allocator hand-out.
+//   (c) the two targetSlotId addus stay index-first; closed as a spelling question
+//       (levers b-the-double-negation...-shared-index, round 526 + companion).
+//   (d) retail loads targetSlotId twice (lbu a0 for the call, lbu v1 for the
+//       compare); the s32 v local is the closest reachable shape (round 526).
+// Preset leg closed: gcc-2.6.0 scores 96.34 here but drops BattleFindMinValueOtherSlot
+// to 99.69 and BattleSetActorFlag34 to 97.00; cdk 85.02 and breaks four. Stays Default.
 /*
 void func_80080160(u8 arg0) {
     u8 gauge;
@@ -759,6 +780,7 @@ void func_80080160(u8 arg0) {
     D_800C4928 = 0;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc11", func_80080160);
+
 
 
 s32 BattleFindMinValueOtherSlot(u8 arg0) {
