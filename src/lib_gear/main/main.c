@@ -2858,6 +2858,17 @@ s16 LibGearInterpolateFallClamped(s16 a, s16 b, s16 c) {
 // differently, and the flat-fill colour sits in $s1 where retail has $a0. All earlier
 // findings (mode dispatch, mask polarities, colour construction, half as int, the (s16) casts in
 // the copy loops) are still solved and are in the body below.
+// Round 535 (park lane): re-measured the parked body unchanged at 87.62% / 2120 bytes / 530 insns
+// against retail's 2136 (0x858) / 534 - the note below is current.
+// Measured this round on this body, both worse: 'if ((u16)width == 0) { w = 0x100; }' /
+// 'if ((u16)height == 0)' is BYTE-IDENTICAL to the parked 'if (w == 0)' (87.62 / 2120 / 530, same
+// 348 differing lines) because gcc CSEs the narrow test onto the w/h register copies.
+// 'if (width == 0) { w = 0x100; }' / 'if (height == 0)' DOES buy retail's width/height spill
+// (frame 0x108 = retail's, 'sw 0x78/0x80' homes, the 'lw 0x78 / sll 16 / bnez' narrow test) but
+// at 542 insns / 2168 bytes / 86.83%, 292 differing lines - gcc promotes w/h to the wide word
+// ('lw t6,0x78 / move s3,t6'), so the narrow copies are lost and +8 instructions appear. That
+// pair is the shape to attack next: the spill and the narrow copy are reachable separately, never
+// together, from the two tests.
 /*
 Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* pRows, u16 x0, u16 y0,
                      u16 colour0, u16 x1, u16 y1, u16 colour1, u16 x, u16 y, u32 argWidth, u32 argHeight,
@@ -3045,6 +3056,7 @@ Temp8* func_801E0A00(Temp8* pTexture, Temp8* pSource, u16 mode, u32 flags, s16* 
     return pTexture;
 }*/
 INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801E0A00);
+
 
 
 
