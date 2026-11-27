@@ -728,37 +728,44 @@ AnimTask* AnimTaskCreate(s32 arg0, s32 type, void* pAnimPackage, s32 size, void*
 }
 
 
-// Best attempt: 85.47% (1100 bytes / 275 instructions; retail is 1108 / 277) - EXACTLY the
-// save/restore pair of an eighth callee-saved register short, and that register is retail's dead
-// `lw $s3,0x24($s0)`.
-// LOAD-BEARING SOURCE FACTS (each measured): the field_0x7C pair must be written with the NEGATED
-// test (`if (!(pSpriteData->flags_0xA8 & 1))` copy, else NULL) - the plain form is 84.31 and lays
-// the arms out the other way; inside the flagBit block field_0x3A is stored BEFORE field_0x40; and
-// the field_0x40/0x3C stores stay in the interleaved order below. The self-store
-// `pTarget->pVramData = pVramData;` is deleted by cse as redundant while the load survives (that is
-// the only way to get the load into the body at all).
-// THE RESIDUAL, re-measured in round 494: retail's load is provably DEAD (one read of $s3 in the
-// whole function, no store to +0x24 anywhere in it), yet it sits in a callee-saved register. Lever
-// a-dead-load-emitted-but says a dead load only reaches a callee-saved register when its value has
-// a USE, and prescribes "find the call that consumed it" - there is no such call here (the only
-// two, func_80023538 and func_80024730, take pTarget / pAnimEntry / pAnimTask).
-// Measured dead this round, all against the 85.47 / 1100 baseline: assigning the load to the third
-// parameter as a scratch (`pAnimPackage = pTarget->pVramData;`, the a-dead-parameter-carries lever)
-// 85.35 / 1096 / 274, and gcc turns the pair into `sw $2,36($16)` - a STORE, not retail's load -
-// so the parameter's callee-saved register is not reused; moving the pair to the tail before
-// func_80023538 84.40; loading through `pAnimTask->spriteData.pVramData` before pTarget's birth
-// 84.61 / 1104 / 276; -G0 84.35; gcc-2.6.0 compile-fails; and ALL NINE declaration permutations
-// of the eight locals score exactly 85.47, so the hand-out is not allocno-number driven.
-// The masks one earlier note blamed are NOT the cause: this body materialises both field_0x40 masks
-// (0xFFFE1FFF, 0xFFFBFFFF) at the head of the post-call block exactly as retail does.
-// Verdict: GIV_TIE. Unparking needs these three externs put back at file scope.
-/*
 extern u8 g_FlagTimerWorkListAdds;
 extern void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry);
 extern void func_80024730(AnimTask* pAnimTask);
 
-// Fills a fresh AnimTask's sprite from an existing one. The work-list counter is
-// saved and restored around the body because AnimTaskCreate adds work-list entries.
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
+// Best attempt: 85.47% (1100 bytes / 275 instructions; retail is 1108 / 277). The residual is
+// retail's EIGHTH callee-saved register and the two instructions its save/restore pair costs, plus
+// the register renaming that follows from it. Retail hands out pSpriteData=s2, pAnimEntry=s7,
+// pAnimPackage=s3, numDirections=s1, type=s5, pAnimTask=s4, pTarget=s0, savedWorkListAdds=s6. This
+// body hands out seven, because pAnimPackage (last use 0x1441C) and pTarget (born 0x14448) do not
+// interfere and gcc gives both s0. Retail's s3 is `lw $s3,0x24($s0)` - a provably DEAD read of
+// pTarget->pVramData (the only read of s3 in the function, and nothing stores +0x24 anywhere), so
+// the pair exists exactly because that dead load ended up in a call-crossing pseudo's register.
+// LOAD-BEARING SOURCE FACTS (each measured): the field_0x7C pair must be written with the NEGATED
+// test (`if (!(pSpriteData->flags_0xA8 & 1))` copy, else NULL) - the plain form is 84.31 and lays
+// the arms out the other way; inside the flagBit block field_0x3A is stored BEFORE field_0x40; and
+// the field_0x40/0x3C stores stay in the interleaved order below. The self-store
+// `pTarget->pVramData = pVramData;` is deleted by cse as redundant while the load survives - that is
+// the only way to get the load into the body at all.
+// MEASURED DEAD, all against the 85.47 / 1100 baseline unless noted: routing the parameter through
+// the local (`pVramData = pAnimPackage;` at the top, pVramData passed to AnimTaskCreate) 85.47 /
+// 1100 - gcc coalesces the copy and the allocno merge is unchanged; `pAnimPackage =
+// pTarget->pVramData;` alone 85.35 / 1096 / 274 (delete_trivially_dead_insns removes the load
+// outright); the parameter as scratch WITH the self-store back 85.35 / 1096 / 274 and gcc keeps the
+// STORE and drops the load; load kept and the store moved after func_80024730 85.96 / 1104 / 276 -
+// the best score any shape has reached, but WRONG CODE (gcc drops the load and emits `sw
+// $s2,0x24($s0)`, storing numDirections' register), so it is not a body to ship; loading through
+// pAnimTask->spriteData.pVramData before pTarget exists 84.61 / 1104 / 276; the pair at the tail
+// before func_80023538 84.40; -G0 84.35; gcc-2.6.0 compile-fails; and all nine declaration
+// permutations of the eight locals 85.47, so the hand-out is not allocno-number driven.
+// The masks an earlier note blamed are NOT the cause: this body materialises both field_0x40 masks
+// (0xFFFE1FFF, 0xFFFBFFFF) at the head of the post-call block exactly as retail does.
+// Verdict: GIV_TIE, not a spelling problem - lever a-dead-load-emitted-but's prescription ("find the
+// call that consumed it") has no candidate here, and a source use of the loaded value reintroduces
+// an instruction retail does not have. The three externs the body needs are already live above it.
+/*
+// Fills a fresh AnimTask's sprite from an existing one; the work-list counter is saved and
+// restored around the body because AnimTaskCreate adds work-list entries.
 SpriteData* func_80023B84(SpriteData* pSpriteData, u16* pAnimEntry, void* pAnimPackage) {
     AnimTask* pAnimTask;
     SpriteData* pTarget;
@@ -844,9 +851,7 @@ SpriteData* func_80023B84(SpriteData* pSpriteData, u16* pAnimEntry, void* pAnimP
     func_80024730(pAnimTask);
     g_FlagTimerWorkListAdds = savedWorkListAdds;
     return pTarget;
-}
-*/
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023B84);
+}*/
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023FD8);
 /* Best attempt: 85.83% (704 bytes / 176 insns; the original is 700 / 175). The body is
