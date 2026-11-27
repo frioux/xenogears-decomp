@@ -712,6 +712,18 @@ typedef struct {
 //   4. The else branch's first loop preheader: retail emits `blez count` BEFORE `lui/addiu s2` (the
 //      &g_FieldActors materialisation sits in the loop head, after the entry test); this body has the
 //      `ppFieldActors = ...` assignment before the `for`, so the materialisation precedes the test.
+//   5. RESIDUALS 1 AND 3 ARE ONE RESIDUAL, measured round 545: the body is exactly retail's size
+//      (443 insns / 1772 bytes), yet the gear-swap arm is 9 insns OVER retail and the CLUT arms are 9
+//      UNDER it. Both count `lui/lw g_FieldActors` re-issues, so closing either one alone desynchronises
+//      the other and the size; they have to be closed together, and the axis is when cc1 may reuse a
+//      volatile pointer read across the statements of one block (it re-issues it after every aliasing
+//      store and every call, retail included - the party loop re-forms three times, 0x2C28/0x2C74/0x2CA0).
+//      Also checked round 545: the CLUT arm's base is NOT live across the SpriteAllocClutRect call in
+//      either version (this body's $a2 is also the call's third argument, `move a2,zero` in the jal
+//      slot), so that arm's difference is only which free temp the hand-out picks ($v0 in retail, $a2
+//      here) - and retail's own load order inside the arms is not uniform (case 1 reads 4(base) before
+//      76(base), case 2's later statements read 76 first), so no single statement order in the C can
+//      reproduce all of them.
 // Tried and reverted: cdk preset 83.51, gcc-2.6.0 will not compile the unit, a separate pCurActor
 // variable for the arms (the loop's load count drops to 167 insns), six declaration orders, a local `j`.
 /*
@@ -837,6 +849,7 @@ void func_800A28D4(void) {
     }
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A28D4);
+
 
 
 
