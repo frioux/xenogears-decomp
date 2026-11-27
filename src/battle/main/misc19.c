@@ -109,7 +109,16 @@ u16 FieldScriptClearAnimationOverrideIfFlag16(u8 arg0) {
 // a1,v0,a1), s16-via-s32-temp (98.39). Every plain HImode spelling lands on the identical 99.68
 // pair. Presets are not the way out: this body 99.68 / 95.97 (2.6.0 / cdk), the s32 body 99.03 /
 // 95.97, and the unit is mixed under 2.6.0 (see the BattleResetRowIndexAndMaybeRefreshStats note). Fifth and sixth permuter
-// runs: PERMUTER_NONE base=10 best=10 (1587 and 1429 iterations).
+// runs: PERMUTER_NONE base=10 best=10 (1587 and 1429 iterations). Seventh run (round 546): PERMUTER_NONE
+// base=10 best=10 (1109 iterations). Round 546 also measured: `value = p[0x14]; value += q[0x5B];` (same-mode
+// QI copies, so combine_regs coalesces them) = 95.97 / 120 bytes, no move at all; `s32 sum` with the sum in ONE
+// expression (rather than two statements) = 95.97 too, so the s32 tie needs the split statements; and the typed
+// spelling (`BattleRow* pRow = (BattleRow*)((u8*)g_BattleCurWorkBlock + 0x1058 + arg0 * 0x5F0)` plus
+// `pEntry->ether`) = 69.03 / 124 bytes: declaring the two pointers in one statement pair hoists the
+// g_BattleCurWorkBlock load and re-hashes the whole entry block, so the raw `s32 off` spelling below is
+// load-bearing. The two fields are (include/battle/actor.h): BattleRow.chanceBonus at the row's +0x14 (the
+// per-actor row table at +0x1058, 0x5F0 per actor, 0x28 per row) and BattleTableEntry.ether at +0x5B, summed
+// and clamped at 100 -> the acting row's chance percent.
 /*
 u8 func_8009A258(u8 arg0, u8 arg1) {
     s32 off = arg0 * 0x5F0 + 0x1058;
