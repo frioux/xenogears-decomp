@@ -3221,7 +3221,6 @@ typedef struct {
 // block where retail has it in the loop preheader after `blez`; initialising the local in its
 // declaration scores 97.60, and moving the assignment inside the loop drops 4 bytes (884, cannot
 // link). No twin for this stub.
-/*
 void func_80086590(VECTOR* pPosition) {
     FieldActorProximitySlots slots;
     s16* pDelta;
@@ -3230,6 +3229,8 @@ void func_80086590(VECTOR* pPosition) {
     s16* pActorPos;
     s32 distance;
     s32 delta;
+    s32 midDelta;
+    s32 lastDelta;
     s32 soundStateNone;
     int i;
 
@@ -3242,10 +3243,12 @@ void func_80086590(VECTOR* pPosition) {
         slots.unk20[i] = 0;
     }
 
-    soundStateNone = 0xFF;
     for (i = 0; i < g_FieldActiveActorCount; i++) {
         s32 slot;
-        ActorData* pActor = g_FieldActors[i].pActorData;
+        ActorData* pActor;
+
+        soundStateNone = 0xFF;
+        pActor = g_FieldActors[i].pActorData;
 
         if (pActor->soundState != soundStateNone) {
             pActorPos = (s16*)&pActor->position;
@@ -3267,11 +3270,13 @@ void func_80086590(VECTOR* pPosition) {
                 slots.unk20[slot] = g_FieldActors[i].pActorData->soundVolume;
                 do { } while (0);
                 *(s16*)(slot * 8 + (u32)&slots.delta[0][0]) = (delta = pPos[1] - ((s16*)&g_FieldActors[i].pActorData->position)[1]);
-                *(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 2) = (delta = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3]);
-                *(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 4) = (delta = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5]);
+                midDelta = pPos[3] - ((s16*)&g_FieldActors[i].pActorData->position)[3];
+                *(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 2) = (delta = midDelta);
+                lastDelta = pPos[5] - ((s16*)&g_FieldActors[i].pActorData->position)[5];
+                *(s16*)(slot * 8 + (u32)&slots.delta[0][0] + 4) = (delta = lastDelta);
             }
         } else {
-            pActor->soundState = soundStateNone;
+            pActor->soundState = 0xFF;
         }
     }
 
@@ -3308,8 +3313,6 @@ void func_80086590(VECTOR* pPosition) {
         }
     }
 }
-*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_80086590);
 
 
 
