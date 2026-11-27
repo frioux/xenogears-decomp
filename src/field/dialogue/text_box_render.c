@@ -910,6 +910,21 @@ extern DR_MODE D_800B1DF4[2][0x10];
 // register choice (a2 vs t0 for the prim address, t0/t1 for -1 and count) and the
 // position of `move a2,s2` in the draw block. Permuter found nothing from this body
 // (3 min, 1267 iters) or from the 92.06 body (4 min, 1557 iters).
+// Round 531 re-measured this body (95.91 / 1452 / 363, unchanged) and tried two more
+// spellings of the prim address in both draw blocks, both worse but both informative:
+//  (a) a `u_long* pDrawMode` local used for the addPrim argument AND for
+//      `(u_long)pDrawMode & 0xFFFFFF`: 92.55 / 1424 / 356. One register then serves the
+//      address and the masked value, so six instructions vanish and every register in
+//      the draw block renames -- the two forms are separate pseudos in retail.
+//  (b) `primAddr = (u_long)&g_FieldTextBoxes[i].drawModes[ctx] & 0xFFFFFF;` on the line
+//      before addPrim, the call passing primAddr: 92.72 / 1448 / 362, i.e. RETAIL'S
+//      EXACT BYTE COUNT. The residual below disappears there (the 0xFF000000 mask is
+//      materialised once and the base re-form reuses its register), so the whole
+//      remaining gap is one hoist: the invariant half of the address, ctx*12, moves out
+//      of the draw block to the top of the loop body (sll a3,s6,1 in the bnez delay slot
+//      at .L800801E0), where retail recomputes it inside each draw block. Next idea for
+//      a round with budget: get the masked value computed before the p store WITHOUT
+//      letting gcc hoist ctx*12 out of the draw block.
 // Dead ends measured this round, do not retry: pBuffer through the box with the
 // direct cast in both loops 89.45 / 1452 / 363; that plus pString in the order loop
 // 92.06 / 1468 / 367; pString in the order loop with pBuffer through pString
@@ -1017,6 +1032,7 @@ void func_8008004C(u_long* pOt, int ctx) {
     addPrim(pOt, (u_long*)&D_800B1DF4[g_FieldCurRenderContextIndex][0]);
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/dialogue/text_box_render", func_8008004C);
+
 
 
 
