@@ -699,17 +699,42 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801C9EF4);
 // Residual: the 4 missing instructions are, in the main, the two in-loop g_Menu->menuUnk2 reloads - case 1 is the only case with a two-byte && test and retail reloads lw 0x32C(g_Menu) at the top of BOTH of its loops (with g_Menu itself hoisted into t0/t1), while this compile hoists menuUnk2 out of the loop in every case. Cases 0 and 2, which have a single test, hoist in retail too, so the difference is the two-load body, i.e. gcc 2.6 loop.c move_movables declining the hoist on its savings/register-pressure threshold - the same residual as its three siblings (func_801CA480 85.27, func_801CA5F0 84.72, func_801C9EF4 86.49), so one spelling that flips it fixes four functions.
 // 
 // Tried this round: case 1 as for (i = a1 - 3; i >= 0; i -= 3) with j = D_801E9810[i + 3] and selectedSlot = i, phase 1 and phase 2 both (retail's own a0 = i - 3 parameterization) = 84.65% / 656 bytes / 164 insns, worse and still hoists. Previously measured: pMenu local 77.27 vs inline 83.27, gcc-2.7.2-cdk 74.56.
+// Best attempt: 95.61% (676 bytes vs retail's 684, 169 vs 171 insns; 109 differing lines).
+// 85.81 -> 95.61 this round by porting the func_801CA480 park's lever (see func_801CA5F0 above):
+//   * a shared 'MenuUnk2* pMenu' local with 'pMenu = g_Menu->menuUnk2;' read INSIDE every loop, so the
+//     menuUnk2 load stays non-hoistable where retail reloads 'lw 0x32C(g_Menu)' at the top of a loop;
+//   * case 1 spelled as a non-inverted while whose fail arm is 'i -= 3; continue;' and 'i -= 3;' as the
+//     loop step, with the store/break AFTER the continue block, which puts the store block inside the
+//     loop's linear instruction range. Case 1's phase 1, case 1's phase 2 (both two-condition sites) and
+//     case 0/1 phase 1 came out with retail's exact instruction count and order.
+//   * case 0's phase 2 reads the slot inline ('i = g_Menu->menuUnk2->selectedSlot - 3;') and only then
+//     names pMenu inside the 'if', which reproduces retail's 'lw v1,812(v0)' + 'move a0,v1' pair.
+// Residual, all of it one class: retail has the store-value induction in a0 and pMenu in a2 in case 1's
+// two-condition loops; this build mirrors them (a0 = pMenu, a2 = store value). Case 0, which has a
+// one-condition test, gets retail's assignment exactly, so it is the extra branch that decides the pair.
+// The same mirror is func_801CA5F0's whole residual (95.51) and func_801CA480's (95.71). Two smaller
+// residuals ride along: retail has 'sll v1,a1,2' in the 'bltz a2' delay slot of case 0 phase 1 where this
+// build leaves a nop and schedules the sll after the la, and case 2's dispatch delay slot holds
+// 'lui v0,0x8888' in retail against 'addiu a1,a1,-3' here.
+// Tried this round (all under 2.6.0 -O2, retail's own parameterization read off the .s):
+//   * case 1 phase 1 as 'for (i = a1 - 3; i >= 0; ...)' with 'D_801E9810[i + 3]' and store 'i' =
+//     92.84% / 664 bytes / 166 insns (worse; gcc drops the separate induction altogether).
+//   * case 1's pMenu load moved after the D_801E9810 read = 95.51 / 676 / 169, 109 lines (the fuzzy
+//     number prefers the current 95.61).
+//   * previous notes: pMenu-before-inline 77.27, gcc-2.7.2-cdk 74.56, preset screened (2.6.0 -O2 right).
 /*
 void func_801CA1D4(s32 a0, s32 a1) {
+    MenuUnk2* pMenu;
     s32 i;
     s32 j;
 
     switch (a0) {
     case 0:
         for (i = a1; i - 3 >= 0; i -= 3) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9810[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
-                g_Menu->menuUnk2->selectedSlot = i - 3;
+            if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
+                pMenu->selectedSlot = i - 3;
                 break;
             }
         }
@@ -718,47 +743,57 @@ void func_801CA1D4(s32 a0, s32 a1) {
         }
         i = g_Menu->menuUnk2->selectedSlot - 3;
         if (i >= 0) {
+            pMenu = g_Menu->menuUnk2;
             for (; i - 1 >= 0; i--) {
                 j = D_801E9818[i];
-                if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF) {
-                    g_Menu->menuUnk2->selectedSlot = i - 1;
+                if (pMenu->slotRecordIndexes[j] != MENU_SLOT_NONE) {
+                    pMenu->selectedSlot = i - 1;
                     break;
                 }
             }
         }
         break;
     case 1:
-        for (i = a1; i - 3 >= 0; i -= 3) {
+        i = a1;
+        while (i - 3 >= 0) {
+            pMenu = g_Menu->menuUnk2;
             j = D_801E9810[i];
-            if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                g_Menu->menuUnk2->selectedSlot = i - 3;
-                break;
+            if (pMenu->slotRecordIndexes[j] == MENU_SLOT_NONE || pMenu->slotHasGameSave[j] == 0) {
+                i -= 3;
+                continue;
             }
+            pMenu->selectedSlot = i - 3;
+            break;
         }
         if (i - 3 >= 0) {
             break;
         }
-        i = g_Menu->menuUnk2->selectedSlot - 3;
+        pMenu = g_Menu->menuUnk2;
+        i = pMenu->selectedSlot - 3;
         if (i >= 0) {
-            for (; i - 1 >= 0; i--) {
+            while (i - 1 >= 0) {
+                pMenu = g_Menu->menuUnk2;
                 j = D_801E9818[i];
-                if (g_Menu->menuUnk2->slotRecordIndexes[j] != 0xFF && g_Menu->menuUnk2->slotHasGameSave[j] != 0) {
-                    g_Menu->menuUnk2->selectedSlot = i - 1;
-                    break;
+                if (pMenu->slotRecordIndexes[j] == MENU_SLOT_NONE || pMenu->slotHasGameSave[j] == 0) {
+                    i--;
+                    continue;
                 }
+                pMenu->selectedSlot = i - 1;
+                break;
             }
         }
         break;
     case 2:
+        pMenu = g_Menu->menuUnk2;
         i = a1 - 3;
-        if (((u8*)&g_Menu->menuUnk2->cardStatus[0])[i / 15] != 0) {
+        if (((u8*)&pMenu->cardStatus[0])[i / MENU_CARD_SLOT_COUNT] != 0) {
             if (i >= 0) {
-                g_Menu->menuUnk2->selectedSlot = i;
+                pMenu->selectedSlot = i;
             } else {
-                i = g_Menu->menuUnk2->selectedSlot - 3;
+                i = pMenu->selectedSlot - 3;
                 if (i >= 0) {
                     if (i - 1 >= 0) {
-                        g_Menu->menuUnk2->selectedSlot = i - 1;
+                        pMenu->selectedSlot = i - 1;
                     }
                 }
             }
@@ -767,6 +802,7 @@ void func_801CA1D4(s32 a0, s32 a1) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc3", func_801CA1D4);
+
 
 // Best attempt: 95.71% (368 bytes = retail's exact size, 92 = 92 insns; 48 differing
 // lines). 86.47 -> 95.71 this round.
