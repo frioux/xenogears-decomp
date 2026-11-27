@@ -1263,6 +1263,7 @@ INCLUDE_ASM("asm/field/nonmatchings/scripts/virtual_machine", func_800A3C8C);
 // store (2040), a pSave local for the head only, cursor store moved after the memcpy
 // (2024), gcc-2.6.0 (98.88), gcc-2.7.2-cdk (compile fails). Seven earlier permuter runs
 // (3-12 min) empty, six of them from the 99.26 body.
+// ROUND 540 re-measure of this exact body: 99.94% / 2044 bytes / 511 insns both sides, 8 differing lines (the two residual tails below), unchanged since round 421. An eighth permuter run (--minutes 4 -j 2, 1482 iterations) on it is base=30 best=30, so the residual is not a register shuffle the permuter can find either. Two new measurements on the tail block: (1) the dead `nSaveSize = g_WorldMapSaveCursor - g_WorldMapSaveBlock;` assignment IS load-bearing and must stay - with it deleted sched2 sinks the cursor and block-base loads INTO the taken branch (bnez delay slot becomes nop) and the body is 513 insns / 2052 bytes / 98.17%, two instructions long; (2) the `nSystemMode` local is not needed - `if (g_FieldSystemMode == 0)` inline is byte-identical at 2044 / 511, so the parked body below drops that local. Residual 1 is the movstrsi alignment test at the tail: every other copy in this function prints (src, dst) as or v0,a2,a3 in BOTH objects, and only retail's tail copy prints the reverse (dst, src) with the same two registers in the same roles, so the operand order lives inside the builtin block-move expansion and no source spelling reaches it.
 /*
 void func_800A3F4C(void) {
     ActorData* pActorData;
@@ -1271,7 +1272,6 @@ void func_800A3F4C(void) {
     SVECTOR* pRot;
     s32 nStatus;
     s32 nSaveSize;
-    s32 nSystemMode;
     int i;
 
     g_WorldMapSaveCursor = g_WorldMapSaveBlock;
@@ -1327,9 +1327,8 @@ void func_800A3F4C(void) {
         g_SavedGearRide[i] = g_pGameState->gearRide[i];
     }
 
-    nSystemMode = g_FieldSystemMode;
     nSaveSize = g_WorldMapSaveCursor - g_WorldMapSaveBlock;
-    if (nSystemMode == 0) {
+    if (g_FieldSystemMode == 0) {
         func_800379C8(D_8006FD9C, g_WorldMapSaveCursor - g_WorldMapSaveBlock, g_WorldMapSaveCursor - g_WorldMapSaveBlock);
     }
 }
