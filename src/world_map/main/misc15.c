@@ -289,6 +289,13 @@ void func_80096C0C(s32 mode, u8 *pResult) {
     }
 }
 
+// 12.4 fixed point world map position (the three words at g_WorldMapCameraTarget).
+typedef struct {
+    /* 0x0 */ s32 x;
+    /* 0x4 */ s32 y;
+    /* 0x8 */ s32 z;
+} WorldMapPos; // Size: 0xC
+
 extern SVECTOR D_1F8000A0;
 
 #define WORLD_MAP_ROT_VECTOR ((SVECTOR *)0x1F8000A0)
@@ -299,14 +306,14 @@ extern SVECTOR D_1F8000A0;
 // WORLD_MAP_ROT_VECTOR like its neighbours makes cse keep the whole address in $s3 and
 // form it in the prologue instead of retail's `lui $at,0x1F80` + late `ori $s3` (96.91%),
 // so it stays the one symbol store. Everything else is instruction-identical.
-void func_80096F18(Misc15Frame *pOut, u8 *pSrc, s32 height, u16 *pAngles) {
+void func_80096F18(Misc15Frame *pOut, WorldMapPos *pTarget, s32 height, u16 *pAngles) {
     MATRIX *pMtx;
     s16 *pScratch;
 
     pScratch = (s16 *)0x1F8000A0;
     pMtx = (MATRIX *)0x1F8000F0;
     pOut->targetX = 0;
-    pOut->targetY = *(s32 *)(pSrc + 4) >> 12;
+    pOut->targetY = pTarget->y >> 12;
     pOut->targetZ = 0;
     D_1F8000A0.vx = pAngles[0];
     WORLD_MAP_ROT_VECTOR->vy = pAngles[1];
