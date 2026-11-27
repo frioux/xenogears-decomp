@@ -294,82 +294,35 @@ s16 BattleCountdownOffsetByAngle(s16 angle, s16 divisor, s16 base) {
 extern void *HeapAlloc(u_int allocSize, u_int allocFlags);
 extern void HeapChangeCurrentUser(u_int userTag, char **pContentTypes);
 
-INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
-/* best 81.30% (2084 bytes; retail is 0x858 = 2136, so the body is 13 instructions
-   SHORT and can never link as it stands - the deficit is gcc spill/reload
-   instructions, not missing source). Structure is right end to end: the early
-   isLoaded test, the field stores in retail's order, the mode&1 / mode&4 flag mask,
-   the width/height 0x100 defaults, the switch tree (bltz / slti 2 / slti 6 / slti 4,
-   i.e. FOUR case nodes 0,1,4,5 with 0/1 sharing a body and 4/5 sharing one), the
-   three HeapAlloc calls per mode pair into 0xC/0x8/0x4, the two nested nibble
-   switches on (flags & 0xF) and ((flags >> 4) & 0xF), the StoreImage+DrawSync pairs,
-   the flat-colour fill loops, the row-copy loop and the (rectY + y) % 3 dither.
-   What is left is entirely the frame/allocator:
-   - retail's frame is 0x108 (vars 208); ours is 0xE8 (vars 176). Retail has three
-     spill slots ours does not, all in low memory: 0x18 = the pSource word (retail
-     does sw a1,0x18(sp) then lw t6,0x18(sp) for the pArg->pSource store, i.e. a1
-     lost the register contest), 0x20 = a 16-bit mode copy (written sh s4,0x20 from
-     the raw a2 and re-read as lbu for the pArg->mode byte store and as lhu for the
-     switch), and 0x28 = the effects word (sw a3,0x28(sp), re-read as lhu s5,0x28
-     for flags = effects and as lw for the & 0xFD0F). Everything above 0x30 then
-     shifts by the same 0x18: pRows 0x30, the eight u16 area args 0x38..0x70 (each
-     getting its own 8-byte slot), w 0x78, h 0x80, pInterpolate 0x88. Ours reaches
-     the same relative layout but 0x18 lower.
-   - the register set is the same 10 (ra, fp, s0-s7) on both sides, but assigned
-     differently. Retail: s0 pArg, s1 halfW/colour, s2 h, s3 w, s4 raw mode a2,
-     s5 flags, s6 offset, s7 angleStep, fp divisor. Ours also puts the raw effects
-     in a callee-saved register and keeps a second copy of mode, so the register
-     contest lands elsewhere and retail's spills do not appear.
-   Tried and measured: s16/u16 params for mode/effects (80.72, and it keeps the raw
-   word in a register instead of spilling); s32 params for mode/effects (81.30, the
-   best); a u16 modeSel local for the store + switch (included in the 81.30);
-   flags = effects; then the conditional overwrite, which is retail's shape (the
-   unconditional lhu of the effects slot in the prologue) and worth 79.85 -> 80.72;
-   ((r & 0x3F) << 10) + ((g & 0x1F) << 5) | (b & 0x1F) for the fill colour - retail
-   really has an addu for the first pair and an or for the third, not two ors.
-   Not tried: forcing the three spills with dummy locals (an unused u16/u32 local is
-   how the frame is usually reproduced - see AGENTS.md), which is the obvious next
-   move now that the exact three slots and their offsets are known.
-   Facts worth keeping: mode is a SIGNED 16-bit switch value (retail emits bltz
-   before the case tree, so it is not unsigned); modes 0/1 round the width up with
-   halfW = (w + 1) / 2; w = halfW * 2; and modes 4/5 use w unchanged; the fill
-   colour packs (red & 0x3F) << 10 | (y & 0x1F) << 5 | (x & 0x1F), i.e. the two
-   area coordinates double as the green and blue channels; the dither colours are
-   picked by (rectY + y) % 3 over the same three arguments; pStartPixels and
-   pResultPixels are written as 16-bit (the fills use sh), which is why they are
-   declared u16 * here rather than u8 *.
-
-// Sets a texture animation record up from the script arguments that func_800AE2A4 and
-// BattleInitColorTintTable pass: the region rectangle, the pixel buffers the effects bitfield asks for
-// and the two areas the region starts from. Modes 0/1 round the width up to an even number
-// and load the region from VRAM (or lay a flat colour down), modes 4/5 take it from the row
-// image (or dither it out of the three colours the caller passes).
+// best 89.33% (2100 bytes / 525 insns; retail 2136 = 0x858 / 534). REWRITTEN from the lib_gear/main/main func_801E0A00 sibling park (same 19-param function, 534 insns there): 81.30 -> 89.33. The gains were (a) u16 w = width; u16 h = height; as NARROW WORKING COPIES of the two s32 stack args with every narrow use going through (s16)w / (s16)h (mult, loop bounds, HeapAlloc sizes, pixel += (s16)w), which is what puts w in s3 and h in s2 as retail has them, (b) the early isLoaded exit RETURNS NULL (retail has 'addu v0,zero,zero' in the bnez delay slot), (c) switch (modeSel) with case 0/1 and 4/5 grouped and NO default, (d) the flat colour as (((red & 0x3F) << 10) + ((areaY & 0x1F) << 5)) | (areaX & 0x1F) with + then |, (e) pRows[(s16)areaY0 + row].pixels[(s16)areaX0 + col] with the (s16) casts hoisted per row, (f) switch (((s16)rectY + row) % 3). WHAT IS LEFT, unchanged from the lib_gear lane's finding: the frame is 0xE8 here vs retail 0x108 and retail has THREE extra spill slots - 0x20 = the mode word (retail sh s4,0x20(sp), re-read as lbu for the mode byte store and lhu for the switch), 0x78 = the WIDE width and 0x80 = the WIDE height, which gcc spills only while the two '== 0' default tests keep the wide values live; retail then tests them 16-bit (lw 0x78(sp) / sll 16 / bnez). Our body narrows them at entry and tests the narrow copy, so the two homes disappear. Also ours costs an extra callee-saved save (11 vs retail's 10). MEASURED THIS ROUND: 'if ((s16)width == 0) w = 0x100;' + same for height (the wide tested, one home restored) 89.29 / 540 insns / 2160 bytes - the byte count moves TOWARD retail's 534 but the percentage is a hair worse, so the 16-bit test shape is NOT the missing 9 instructions on its own. NEXT: find the source shape that spills the WIDE width/height while keeping them 16-bit-tested - the lib_gear lane's untried lead was explicit narrow locals refreshed after w = half * 2. No *.rodata/data in this stub.
+/*
 BattleMisc22Image *func_800A3640(BattleMisc22Image *pArg, void *pSource, s32 mode, s32 effects,
                                  BattleMisc22ImageRow *pRows, u16 areaX0, u16 areaY0, u16 red0,
                                  u16 areaX1, u16 areaY1, u16 red1, u16 rectX, u16 rectY,
                                  s32 width, s32 height, s16 angleStep, s16 divisor, s16 offset,
                                  s32 (*pInterpolate)(u16 angle, s16 divisor, s16 offset)) {
     RECT rect;
-    s16 w;
-    s16 h;
-    s32 halfW;
-    s32 i;
-    s32 x;
-    s32 y;
-    s32 index;
-    u16 color;
-    u16 flags;
+    u16 w = width;
+    u16 h = height;
+    u16 mask;
+    u16 colour;
     u16 modeSel;
+    int half;
+    int row;
+    int col;
+    int pixel;
+    int pixelB;
+    int i;
 
     if (pArg->isLoaded != 0) {
-        return pArg;
+        return NULL;
     }
 
     HeapChangeCurrentUser(4, 0);
+
     pArg->isLoaded = 1;
     pArg->unk11 = 0;
-    modeSel = mode;
-    pArg->mode = modeSel;
+    pArg->mode = mode;
     pArg->pSource = pSource;
     pArg->angle = 0;
     pArg->prevFrame = 0xFFFF;
@@ -379,16 +332,13 @@ BattleMisc22Image *func_800A3640(BattleMisc22Image *pArg, void *pSource, s32 mod
     pArg->pInterpolate = pInterpolate;
     pArg->pRows = pRows;
 
-    flags = effects;
+    mask = effects;
     if ((mode & 1) == 0) {
-        flags = effects & 0xFD0F;
+        mask &= 0xFD0F;
     }
     if (mode & 4) {
-        flags &= 0xFEFF;
+        mask &= 0xFEFF;
     }
-
-    w = width;
-    h = height;
     if (w == 0) {
         w = 0x100;
     }
@@ -396,26 +346,28 @@ BattleMisc22Image *func_800A3640(BattleMisc22Image *pArg, void *pSource, s32 mod
         h = 0x100;
     }
 
+    modeSel = mode;
+
     switch (modeSel) {
     case 0:
     case 1:
-        halfW = (w + 1) / 2;
-        w = halfW * 2;
+        half = ((s16)w + 1) / 2;
+        w = half * 2;
         pArg->rect28.x = rectX;
         pArg->rect28.y = rectY;
         pArg->rect28.w = w;
         pArg->rect28.h = h;
         pArg->pixelCount = w * h;
-        if (flags & 0x100) {
-            pArg->pResultPixels = HeapAlloc(w * h * 2, 0);
+        if (mask & 0x100) {
+            pArg->pResultPixels = HeapAlloc((s16)w * (s16)h * 2, 0);
         }
-        if (flags & 0x200) {
-            pArg->pStartPixels = HeapAlloc(w * h * 2, 0);
+        if (mask & 0x200) {
+            pArg->pStartPixels = HeapAlloc((s16)w * (s16)h * 2, 0);
         }
-        if (flags & 0x400) {
-            pArg->pPixels = HeapAlloc(w * h * 2, 0);
+        if (mask & 0x400) {
+            pArg->pPixels = HeapAlloc((s16)w * (s16)h * 2, 0);
         }
-        switch (flags & 0xF) {
+        switch (mask & 0xF) {
         case 1:
             rect.x = areaX0;
             rect.y = areaY0;
@@ -425,13 +377,13 @@ BattleMisc22Image *func_800A3640(BattleMisc22Image *pArg, void *pSource, s32 mod
             DrawSync(0);
             break;
         case 2:
-            color = (((red0 & 0x3F) << 10) + ((areaY0 & 0x1F) << 5)) | (areaX0 & 0x1F);
-            for (i = 0; i < w * h; i++) {
-                pArg->pPixels[i] = color;
+            colour = (((red0 & 0x3F) << 10) + ((areaY0 & 0x1F) << 5)) | (areaX0 & 0x1F);
+            for (i = 0; i < (s16)w * (s16)h; i++) {
+                pArg->pPixels[i] = colour;
             }
             break;
         }
-        switch ((flags >> 4) & 0xF) {
+        switch ((mask >> 4) & 0xF) {
         case 1:
             rect.x = areaX1;
             rect.y = areaY1;
@@ -441,9 +393,9 @@ BattleMisc22Image *func_800A3640(BattleMisc22Image *pArg, void *pSource, s32 mod
             DrawSync(0);
             break;
         case 2:
-            color = (((red1 & 0x3F) << 10) + ((areaY1 & 0x1F) << 5)) | (areaX1 & 0x1F);
-            for (i = 0; i < w * h; i++) {
-                pArg->pStartPixels[i] = color;
+            colour = (((red1 & 0x3F) << 10) + ((areaY1 & 0x1F) << 5)) | (areaX1 & 0x1F);
+            for (i = 0; i < (s16)w * (s16)h; i++) {
+                pArg->pStartPixels[i] = colour;
             }
             break;
         }
@@ -455,82 +407,82 @@ BattleMisc22Image *func_800A3640(BattleMisc22Image *pArg, void *pSource, s32 mod
         pArg->rect28.w = w;
         pArg->rect28.h = h;
         pArg->pixelCount = w * h;
-        if (flags & 0x100) {
-            pArg->pResultPixels = HeapAlloc(w * h * 2, 0);
+        if (mask & 0x100) {
+            pArg->pResultPixels = HeapAlloc((s16)w * (s16)h * 2, 0);
         }
-        if (flags & 0x200) {
-            pArg->pStartPixels = HeapAlloc(w * h * 2, 0);
+        if (mask & 0x200) {
+            pArg->pStartPixels = HeapAlloc((s16)w * (s16)h * 2, 0);
         }
-        if (flags & 0x400) {
-            pArg->pPixels = HeapAlloc(w * h * 2, 0);
+        if (mask & 0x400) {
+            pArg->pPixels = HeapAlloc((s16)w * (s16)h * 2, 0);
         }
-        switch (flags & 0xF) {
+        switch (mask & 0xF) {
         case 1:
-            for (y = 0; y < h; y++) {
-                BattleMisc22ImageRow *pRow = &pRows[areaY0 + y];
-
-                for (x = 0; x < w; x++) {
-                    pArg->pPixels[y * w + x] = pRow->pixels[areaX0 + x];
+            for (row = 0; row < (s16)h; row++) {
+                for (col = 0; col < (s16)w; col++) {
+                    pArg->pPixels[row * (s16)w + col] =
+                        pRows[(s16)areaY0 + row].pixels[(s16)areaX0 + col];
                 }
             }
             break;
         case 2:
-            index = 0;
-            for (y = 0; y < h; y++) {
-                for (x = 0; x < w; x++) {
-                    switch ((rectY + y) % 3) {
+            pixel = 0;
+            for (row = 0; row < (s16)h; row++) {
+                for (col = 0; col < (s16)w; col++) {
+                    switch (((s16)rectY + row) % 3) {
                     case 0:
-                        color = areaX0;
+                        colour = areaX0;
                         break;
                     case 1:
-                        color = areaY0;
+                        colour = areaY0;
                         break;
                     case 2:
-                        color = red0;
+                        colour = red0;
                         break;
                     }
-                    pArg->pPixels[index + x] = color;
+                    pArg->pPixels[pixel + col] = colour;
                 }
-                index += w;
+                pixel += (s16)w;
             }
             break;
         }
-        switch ((flags >> 4) & 0xF) {
+        switch ((mask >> 4) & 0xF) {
         case 1:
-            for (y = 0; y < h; y++) {
-                BattleMisc22ImageRow *pRow = &pRows[areaY1 + y];
-
-                for (x = 0; x < w; x++) {
-                    pArg->pStartPixels[y * w + x] = pRow->pixels[areaX1 + x];
+            for (row = 0; row < (s16)h; row++) {
+                for (col = 0; col < (s16)w; col++) {
+                    pArg->pStartPixels[row * (s16)w + col] =
+                        pRows[(s16)areaY1 + row].pixels[(s16)areaX1 + col];
                 }
             }
             break;
         case 2:
-            index = 0;
-            for (y = 0; y < h; y++) {
-                for (x = 0; x < w; x++) {
-                    switch ((rectY + y) % 3) {
+            pixelB = 0;
+            for (row = 0; row < (s16)h; row++) {
+                for (col = 0; col < (s16)w; col++) {
+                    switch (((s16)rectY + row) % 3) {
                     case 0:
-                        color = areaX1;
+                        colour = areaX1;
                         break;
                     case 1:
-                        color = areaY1;
+                        colour = areaY1;
                         break;
                     case 2:
-                        color = red1;
+                        colour = red1;
                         break;
                     }
-                    pArg->pStartPixels[index + x] = color;
+                    pArg->pStartPixels[pixelB + col] = colour;
                 }
-                index += w;
+                pixelB += (s16)w;
             }
             break;
         }
         break;
     }
     return pArg;
-}
-*/
+}*/
+INCLUDE_ASM("asm/battle/nonmatchings/main/misc22", func_800A3640);
+
+
 extern void func_80026F44(s32 count, s32 level, u16 *pDst, u16 *pSrc);
 extern u32 func_80026FE8(s32 count, s32 level, u16 *pDst, u16 *pSrc, u16 *pSrc2);
 
