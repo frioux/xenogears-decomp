@@ -573,6 +573,18 @@ void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
    ("flags = pSpriteData->flags_0xA8; flags &= 1; if (flags == 1)") - still 99.89 / 716 bytes, the AND
    again goes to a fresh v1, so even a compound assignment on a local does not force the in-place tie.
 
+   AUDIT-LANE RE-MEASURE: 99.89% / 716 bytes / 178 insns, the same six-line residual (only the
+   andi/li register pair). A fourth permuter run (4 min, 1488 iterations) came back base=20 best=20.
+   One new mechanism fact, measured here for the first time: the in-place andi and the un-folded
+   `li 1` are MUTUALLY EXCLUSIVE in this compiler. casting the AND's OPERAND instead of its result
+   (`((u32)pSpriteData->flags_0xA8 & 1) == 1`, and the same with a 1U mask) DOES give retail's
+   `andi v0,v0,0x1` in place, but cc1 then folds the same-type compare to `beqz v0` and the function
+   drops to 177 insns / 712 bytes / 98.99%. Keeping the li (needed: 178 insns) requires the AND's
+   operand and the comparison to disagree in type, which is exactly what makes the andi take a fresh
+   v1. So no single expression of this test emits retail's `andi v0,v0,1 / li v1,1 / bne` - park,
+   the tie is closed from the other side. See lever
+   a-unsigned-and-folds-its-own-compare-before-it-can-be-in-place.
+
 */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
 /* Best attempt: 99.10% (312 bytes, 78 insns - retail's exact size). Every instruction matches
