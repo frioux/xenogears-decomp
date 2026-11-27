@@ -1425,47 +1425,50 @@ void FieldGetTrianglePlaneHeight(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR*
     }
 }
 
-INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
-/* Best attempt: 95.27% (696 bytes; the original is 692). The loop body, the
-   three NCLIP rejection tests (sxy3 n0,n1,nRef / n1,n2,nRef / n2,n0,nRef) and
-   the nine halfword copies into v[] are instruction-identical; needs
-   psyq/inline_c.h for the 4.x gte_ldsxy3/gte_nclip/gte_stopz spellings, whose
-   mtc2 $12/$14/$13 order, double nop and swc2 $24 match retail exactly.
-   Remaining deltas, all in the prologue and impossible to reach by guessing
-   source shape: (1) gcc copies pVerts a3->t0 for the three header uses, one
-   extra instruction; (2) the original frame is 0xA0 with locals at 0x48
-   (v[3]), 0x60 (ref) and 0x68/0x6C/0x70 (the three stopz temporaries), i.e. 48
-   bytes of locals allocated before v[3] that no source line uses, and it saves
-   $s2/$s3/$s4 without ever using them - the retail object came from a source
-   with three more call-crossing locals, or is a patched object (splat marks
-   this stub "Handwritten function", and so does the jtbl-owning func_8007CD80).
-   Passing x/z as s16 instead of int adds an sll/sra pair; u16 vertex components
-   turn the eight lh into lhu; pTri[i] indexing (instead of pTri++) is required
-   or gcc rebases the reads onto pTri+4.
 typedef struct {
-    s16 v0;
-    s16 v1;
-    s16 v2;
-    undefined8 pad6[0x8];
-} FieldWalkmeshTriIdx; // Size: 0xE
+    /* 0x0 */ s16 v0;
+    /* 0x2 */ s16 v1;
+    /* 0x4 */ s16 v2;
+    /* 0x6 */ s16 n0; // Neighbour across the v0-v1 edge
+    /* 0x8 */ s16 n1; // ... across v1-v2
+    /* 0xA */ s16 n2; // ... across v2-v0
+    /* 0xC */ u_char material;
+    /* 0xD */ s8 stepHeight;
+} FieldWalkmeshTriangleRecord; // Size: 0xE
 
 typedef struct {
-    s16 vx;
-    s16 vy;
-    s16 vz;
-    u16 pad6;
-} FieldWalkmeshVert; // Size: 0x8
+    /* 0x0 */ s16 vx;
+    /* 0x2 */ s16 vy;
+    /* 0x4 */ s16 vz;
+    /* 0x6 */ u_short pad6;
+} FieldWalkmeshVertexRecord; // Size: 0x8
 
-extern FieldWalkmeshTriIdx* g_FieldWalkmeshTriangles[];
-extern FieldWalkmeshVert* g_FieldWalkmeshVertices[];
+extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
+extern FieldWalkmeshVertexRecord* g_FieldWalkmeshVertices[];
 extern s32 D_800AFB44[];
 
-// Index of the walkmesh triangle that contains pRef's x/z, 0 when none does
+INCLUDE_ASM("asm/field/nonmatchings/main/misc4", func_8007B1C4);
+// Best attempt: 96.31% (696 bytes, the original is 692; 171 vs 170 insns). Everything from
+//   the loop head down is instruction-identical: the three n0/n1/n2 halfword pairs, the three
+//   gte_ldsxy3/gte_nclip/gte_stopz triplets (mtc2 $12/$14/$13, the double nop, swc2 $24), the
+//   three bltz rejections, all nine halfword copies into v[3], the FieldGetTrianglePlaneHeight
+//   call and its delay slot, both exits. The residual is the FRAME, which no source shape
+//   reaches: retail allocates 0xA0 with v[3] at 0x48, ref at 0x60 and the three OPZ temps at
+//   0x68/0x6C/0x70, while the same body compiles to 0x60 with v[3] at 0x18. The 0x40 retail
+//   keeps extra is never touched by any instruction in the .s (all sp-relative accesses are
+//   listed above), so it cannot be locals the code uses; the second delta is prologue
+//   scheduling (gcc emits the three table loads vertices/counts/triangles, retail
+//   triangles/counts/vertices, and gcc hoists nRef out of the blez delay slot).
+//   Tried, in order: the three table assignments reordered to retail's load order (96.28);
+//   gcc 2.6.0 (96.31, same frame); gcc 2.7.2-cdk (88.28). A 0x40-of-dead-frame body cannot be
+//   spelled from C, so this is a park, not a permuter job.
+//   The typedefs and the three externs this body needs now sit above the stub, not below.
+/*
 int func_8007B1C4(int x, int z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
     SVECTOR v[3];
     SVECTOR ref;
-    FieldWalkmeshTriIdx* pTri;
-    FieldWalkmeshVert* pVerts;
+    FieldWalkmeshTriangleRecord* pTri;
+    FieldWalkmeshVertexRecord* pVerts;
     u_short* pComp;
     int nCount;
     int nRef;
@@ -1534,9 +1537,7 @@ int func_8007B1C4(int x, int z, int nWalkmesh, SVECTOR* pOut, VECTOR* pNormal) {
     pNormal->vy = 0;
     pNormal->vz = 0;
     return 0;
-}
-*/
-
+}*/
 // 1 when the triangle pA/pB/pC winds consistently seen from pRef, -1 when it folds back
 int FieldGetTriangleWindingSign(SVECTOR* pA, SVECTOR* pB, SVECTOR* pC, SVECTOR* pRef) {
     VECTOR v;
@@ -1798,27 +1799,7 @@ storeback:
     return 0;
 }
 
-typedef struct {
-    /* 0x0 */ s16 v0;
-    /* 0x2 */ s16 v1;
-    /* 0x4 */ s16 v2;
-    /* 0x6 */ s16 n0; // Neighbour across the v0-v1 edge
-    /* 0x8 */ s16 n1; // ... across v1-v2
-    /* 0xA */ s16 n2; // ... across v2-v0
-    /* 0xC */ u_char material;
-    /* 0xD */ s8 stepHeight;
-} FieldWalkmeshTriangleRecord; // Size: 0xE
-
-typedef struct {
-    /* 0x0 */ s16 vx;
-    /* 0x2 */ s16 vy;
-    /* 0x4 */ s16 vz;
-    /* 0x6 */ u_short pad6;
-} FieldWalkmeshVertexRecord; // Size: 0x8
-
 extern u_int* g_FieldWalkmeshMaterialFlags;
-extern FieldWalkmeshTriangleRecord* g_FieldWalkmeshTriangles[];
-extern FieldWalkmeshVertexRecord* g_FieldWalkmeshVertices[];
 extern u_char g_FieldPartyMoveInProgress;
 
 // Best attempt: 92.80% (1916 bytes, retail's exact size, 479 insns each). Everything from
