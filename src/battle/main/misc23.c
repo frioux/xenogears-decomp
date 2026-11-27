@@ -1787,7 +1787,18 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc23", func_800A9FF0);
    (0x800AA1BC: lw v0,0(s0); lbu v0,0x10E(v0); beqz v0), so the two pSprites
    sites are not a general allocator rule but a function-wide preference that
    handed those two qtys $a1; and no local can hold that value because retail
-   saves exactly $s0-$s5 (a pseudo live across the two calls would add one). */
+   saves exactly $s0-$s5 (a pseudo live across the two calls would add one).
+   Round 540 (re-measured, not stale): 99.90 again, 204/204 insns, 816 bytes. A
+   second permuter run (1619 iterations, base=20 best=20) found nothing, so both
+   runs now agree with the 20 measured spellings. New negatives: spelling
+   ppSlot as "BattleActor * volatile *ppSlot" to force the *ppSlot reloads is
+   94.55 / 856 bytes / 214 insns, and it splits the pModelFile chain too, so it
+   is wrong on every site rather than just these two. The twin's ORIGINAL asm
+   does carry "lw a1,4(v0) / beqz a1" at both sites under this same cc1
+   (asm/lib_gear/matchings/main/main/LibGearFreeModel.s, 0x801E8104/0x801E816C),
+   so the pattern is reachable in that function's pseudo numbering, not in this
+   one's.
+*/
 /*
 void func_800A9FF0(s32 arg0) {
     BattleActor **ppActors;
