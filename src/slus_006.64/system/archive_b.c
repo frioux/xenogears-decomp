@@ -41,9 +41,10 @@
    from C: the loop label can only land where maspsx replays it.
    Leave as INCLUDE_ASM.
  */
-/*
 typedef s32 (*ArchiveCompareFn)(u8* pA, u8* pB);
 
+// PARKED 99.94 (round 541, un-parked and re-measured LIVE, whole diff read): 316 bytes / 79 insns = retail's exact size and an identical instruction stream; the only difference is the inner loop's back edge, bnez v0,+0x74 (retail) vs +0x78 (ours). The parked body did NOT compile as stored: its ArchiveCompareFn typedef had been swallowed into the park block, so every earlier percentage for it was a stale object; the typedef is now live C above the stub, so un-parking this body compiles as stored. Cause is the recorded lever c-a-loop-label-lands-after (maspsx _handle_mflo_mfhi replays the collected loop label AFTER the hazard nop, retail's assembler put it before), already screened here: -O3/-G0 99.94, cdk 95.59, 2.6.0 93.54, permuter 503 + 841 iterations both base=1 best=1. No further hand shapes: the label has only three reachable positions and two of them change the byte count.
+/*
 void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) {
     u8* pTemp;
     s32 k;
@@ -67,6 +68,7 @@ void func_80037878(u8* pData, s32 nCount, s32 nSize, ArchiveCompareFn pCompare) 
     HeapFree(pTemp);
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive_b", func_80037878);
+
 
 extern volatile u32 D_80050618[3];
 
