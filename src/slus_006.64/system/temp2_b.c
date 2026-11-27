@@ -45,6 +45,19 @@ extern void* g_GfxCurWorkBufferEnd;
 //     expression is 81.26% / 548 bytes / 137 insns, i.e. the extra local is what keeps h in
 //     $s7 and off the stack; x0 = (s16)pData->x with no u16 rawX local is byte-identical to
 //     the rawX form, so that temp was never the win.
+// ROUND 536 measured the other half of that trade and named the wall. A `u16 rawX` temp for
+// texPageX (u kept only for the u field) IS retail's texPageX block exactly - lhu straight
+// into $s1, andi s1,s1,0xffc0 in place, sra v1,v0 - but it measures the same 81.26% / 548
+// bytes / 137 insns, because it hands u $s7 and spills h to 32(sp). The two shapes are
+// exclusive: the in-place andi needs a HI-mode temp that dies at the mask, and only the word
+// u reused as that temp gives u the earlier live start that makes it the ninth value the
+// allocator spills. Retail has all nine (fp=pPrim, s0=texPageY, s1=texPageX, s2=y0, s3=x0,
+// s4=v, s5=texPageId, s6=w, s7=h) with u in the stack word, i.e. BOTH properties, so its RTL
+// had a pseudo set no spelling of this body produces; the x0/v mirror and the v-group-before-
+// x-group store order are consequences of the same single choice. Also measured this round:
+// a `(u16)u` cast on the reused word local is byte-identical to no cast (the temp is
+// eliminated), and moving `v = pData->v;` below x0's assignment in the load block is
+// byte-identical (the emitted load order is not source order).
 // Tried and dead: preset screens on the 91.88 body (gcc-2.7.2 83.07, gcc-2.6.0 will not
 // compile) and pre-carve (cdk -G0 67.17, 2.6.0 67.64, 2.7.2 67.82); a pData induction
 // pointer (69.50); pDirent+offset with sizeof in the for-increment; s16 locals for w/h/x0/u/v
