@@ -871,44 +871,49 @@ void BattleDrawActor(BattleActor* pActor, MATRIX* pLightMatrix, MATRIX* pViewMat
    words). Convert it as C with real switch statements and judge with
    check_bin.sh battle, not diff_func. */
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
-// Parked body: 82.84% / 5092 bytes / 1273 instructions against retail's 4888 / 1249.
-// The whole body is present, both owned jump tables render, and the prologue, the
-// loop tail and the ApplyMatrix site now carry retail's instructions apart from
-// register names. This is the SAME function as lib_gear/main/main's func_801DDBF8
-// (twin_for.py ratio 1.000, 1222 insns; that unit parks it at 79.62%), so what is
-// learned here ports there and back. Measurements on the way here: the twin's body
-// 79.62% / 4892 bytes (one instruction over), per-channel pObject->value.step.pCursor
-// stores 80.68%, `*(s8*)...pCursor++` in the RELATIVE arms 82.52%, both together
-// 82.92%, and the single-walker form below 83.57% / 5096 bytes (the highest objdiff
-// score measured; same body, `u16 numChildren`).
-// Findings from this pass, each measured alone:
-//  - `for (i = 0; i < numChildren; i++, pJoint++)` with no second walker pointer
-//    (82.92% -> 83.57%). gcc makes retail's shape from it: the register copy biased
-//    +4 (retail `addiu s1,a1,4`, hence its 0x6C/0x48/0x58(s1) field offsets) plus the
-//    +0x7C step on the spilled home as well. A `pJoint = pMesh;` body walks the same
-//    but allocates worse.
-//  - `u32 numChildren`, because retail stores it with `sw` and tests it at the entry
-//    with a bare `beqz count`; u16 gives `sh` plus an `sltu`/`beqz` pair. This body
-//    keeps the u32 form (1273 insns) although objdiff scores it 0.7 lower than the
-//    u16 one (1274 insns): two known instruction differences are worth more than the
-//    fuzzy number, which is not monotone for a register delta.
-//  - declaring `u32 i;` BEFORE `u32 numChildren;` puts the slots at retail's offsets:
-//    i at 0x48 (`sw zero,72(sp)` at the entry) and count at 0x50.
-//  - pJoint's home shares the pSkeleton parameter slot in both compiles (mine 0x40,
-//    retail 0x30); the offset differs only because this body spills a2/a3 before a1
-//    where retail spills a0..a3 in argument order.
-//  - the translation ADD arm's ApplyMatrix site is retail's: $sp+0x10 for vec, the
-//    VECTOR out at $sp+0x18, pJoint+0x2C for globalTransform, and the `sh` of vec.vz
-//    in the jal slot (mine emits addu where retail emits addiu).
-// Residual: `.frame vars` is 112 against retail's 128 - 0x10 of extra spilled
-// temporaries in retail, dead stack in both bodies (retail's 0x54..0x8F is unused
-// too) - and with it the whole s0..s7 assignment: retail keeps `result` in s5 and `i`
-// in memory, this body keeps `result` in s7 and `i` in memory. 24 instructions over,
-// spread over the arms: retail hoists `lw a0,0x8(s0)` above each channel's NO_X test
-// where this body reloads the cursor inside the arm. Declaration order of
-// result/frame/dx/dy/dz/dist/angle/maxStep was tried and changes nothing; u16 vs u32
-// numChildren and the single walker are the only knobs that moved the score at all.
-// Permuter not run: the residual is 24 instructions of arm shape, not a register tie.
+// Parked body: 95.66% / 4876 bytes / 1218 insns against retail's 4888 / 1222
+// (12 bytes and 3 instructions SHORT). This is the body lib_gear/main/main parks
+// for func_801DDBF8 (twin_for.py ratio 1.000 - the same function, 1238 insns each
+// in the two .s files), ported here and re-measured: it scores the same 95.66% in
+// this unit, up from the 83.57% body that was parked here. Two substitutions only:
+// Temp4* pList -> BattleBlockPool* pPool, LibGearFreeJointObject(pList,
+// (Temp3*)pObject) -> BattleFreeBlock(pPool, (BattleBlock*)pObject). The whole
+// two-switch state machine, both owned jump tables and the ApplyMatrix site are
+// instruction-identical; everything left is register allocation.
+// Residual, and all of it is one cause: retail spills objectType (a2) into a home
+// slot at 0x38(sp) and reloads it as t3/t4 at nine sites, and it spills scale (a3)
+// at 0x40(sp); this body keeps objectType in $s8 and reaches the scale slot only
+// where it needs it. That is why the frame is 0xA0 here against retail's 0xB8
+// (24 bytes of dead stack on retail's side too) and why the prologue's four
+// parameter stores come out a0,a3,a1 here against retail's a0..a3.
+// Cause, per the twin's R521 measurement (it merged the twin's two residuals into
+// one): retail holds pObject in $s0 AND makes ten `addu s6,s0` copies at arm
+// entries - the cross-jump-merged channel tail wanting its input in a fixed
+// register, because in the MOVE_BASE arm retail runs maxStep in $s0. Two
+// callee-saved registers holding one pointer is what leaves objectType without a
+// register. This body's pObject stays in $s0 through the arm, so it needs no copy
+// and has $s8 free. Ten copies at ten entries is not a source pseudo, so the three
+// short instructions cannot be bought by adding one.
+// Measured here (4876 bytes unless noted): declaration order of the MOVE_BASE
+// locals (maxStep before dist) - 95.66%, identical. Measured on the twin in R500
+// and R521, not re-run here: three separate per-channel pointer locals
+// (pRotObject/pTransObject/pScaleObject) 95.46%, and the four SET/ADD arms' double
+// cursor advance, the RELATIVE arms' field-advance-before-read and the u8 `low`
+// local are already in this body (they are what took the twin 82.84 -> 95.66).
+// Known remaining diff in the RELATIVE arms of the rotation channel only: retail
+// reads the literal's high byte with `lb` + `sll 8`, this body with `lbu` +
+// `sll 24`/`sra 16` (the translation channel's 32-bit LVEC3 target matches).
+// Permuter (one 4-minute run, -j2, 219 iterations): PERMUTER_BETTER 7846 -> 7077.
+// Ported and measured, then rejected. The candidate's one substantive edit was a
+// second copy of pObject inside the scale channel's STEP arm (`pScale = pObject;`
+// before `curFrame = 0`, and the arm's tail then using pScale). It is real in
+// retail - the SCALE STEP arm does make its copy THERE (`addu s6,s0` at 0x31E30,
+// in the arm, not at the channel entry) - but porting it scores 96.04% with 4912
+// bytes / 1227 insns against retail's 4888 / 1222 and 781 differing lines, i.e.
+// four instructions OVER and 55 more lines than this body: gcc then also reshuffles
+// registers this body already has right. objdiff's fuzzy number is not monotone,
+// so this body stays. The candidate's other edit (`isLiteral = delta != -0x80`)
+// changes nothing on its own (identical score and line count).
 // The LIBGEAR_* constants and the JointObject view below duplicate
 // lib_gear/main/main.c's file-local spellings; they belong in include/libgear/main.h.
 // Temp3::opcode & this mask is the command the queued-object update dispatches on,
@@ -976,14 +981,18 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
     u8* pCursor;
     u8 opcode;
     s8 delta;
+    u8 low;
     SVECTOR vec;
     VECTOR out;
     s16 dx;
     s16 dy;
     s16 dz;
     s32 dist;
-    s16 angle;
-    s16 maxStep;
+    s32 angle;
+    s32 maxStep;
+    s32 moveX;
+    s32 moveY;
+    s32 moveZ;
 
     result = 0;
     numChildren = pSkeleton->numChildren;
@@ -998,16 +1007,20 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
 
             switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
             case LIBGEAR_JOINT_OBJECT_SET:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->rotation.vx = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vx = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->rotation.vy = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vy = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->rotation.vz = *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vz = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1020,8 +1033,10 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vx = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vx = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
@@ -1031,8 +1046,10 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vy = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vy = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
@@ -1042,23 +1059,29 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->rotation.vz = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->rotation.vz = low | (delta << 8);
                     }
                 }
                 break;
 
             case LIBGEAR_JOINT_OBJECT_ADD:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->rotation.vx += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vx += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->rotation.vy += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vy += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->rotation.vz += *(u16*)pObject->value.step.pCursor;
+                    pJoint->rotation.vz += *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1101,23 +1124,23 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
 
             case LIBGEAR_JOINT_OPCODE_MOVE_BASE:
             case LIBGEAR_JOINT_OPCODE_MOVE_BASE + 1:
-                dx = pObject->value.lerp.targetX - pJoint->translation.x;
-                dy = pObject->value.lerp.targetY - pJoint->translation.y;
-                dz = pObject->value.lerp.targetZ - pJoint->translation.z;
-                dist = SquareRoot0((dx * dx) + (dy * dy) + (dz * dz)) + 1;
-                maxStep = pObject->value.lerp.startY +
-                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
-                        pObject->value.lerp.startX;
-                angle = (ratan2(-dx, -dz) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
+                moveX = pObject->value.lerp.targetX - pJoint->translation.x;
+                moveY = pObject->value.lerp.targetY - pJoint->translation.y;
+                moveZ = pObject->value.lerp.targetZ - pJoint->translation.z;
+                dist = SquareRoot0((moveX * moveX) + (moveY * moveY) + (moveZ * moveZ)) + 1;
+                angle = (ratan2(-moveX, -moveZ) - pJoint->rotation.vy) & LIBGEAR_ANGLE_MASK;
                 if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
                     angle -= LIBGEAR_ANGLE_FULL_TURN;
                 }
+                maxStep = pObject->value.lerp.startY +
+                    ((dist + pObject->curFrame) * pObject->value.lerp.startZ) /
+                        pObject->value.lerp.startX;
                 if ((angle < 0 ? -angle : angle) >= maxStep) {
                     angle = (angle < 0) ? -maxStep : maxStep;
                 }
                 pJoint->rotation.vy += angle;
                 if ((opcode & LIBGEAR_JOINT_OPCODE_MASK) == LIBGEAR_JOINT_OPCODE_MOVE_BASE) {
-                    angle = (ratan2(dy, SquareRoot0((dx * dx) + (dz * dz))) -
+                    angle = (ratan2(moveY, SquareRoot0((moveX * moveX) + (moveZ * moveZ))) -
                                 pJoint->rotation.vx) &
                         LIBGEAR_ANGLE_MASK;
                     if (angle >= LIBGEAR_ANGLE_HALF_TURN) {
@@ -1178,16 +1201,20 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
 
             switch (opcode & LIBGEAR_JOINT_OPCODE_MASK) {
             case LIBGEAR_JOINT_OBJECT_SET:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    pJoint->translation.x = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.x = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    pJoint->translation.y = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.y = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    pJoint->translation.z = *(s16*)pObject->value.step.pCursor;
+                    pJoint->translation.z = *(s16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 }
                 break;
@@ -1200,8 +1227,10 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.x = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.x = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
@@ -1211,8 +1240,10 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.y = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.y = low | (delta << 8);
                     }
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
@@ -1222,27 +1253,33 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                     } else {
                         pCursor = pObject->value.step.pCursor;
                         pObject->value.step.pCursor++;
-                        pJoint->translation.z = pCursor[0] | (pCursor[1] << 8);
+                        low = pCursor[0];
                         pObject->value.step.pCursor++;
+                        delta = *(s8*)(pCursor + 1);
+                        pJoint->translation.z = low | (delta << 8);
                     }
                 }
                 break;
 
             case LIBGEAR_JOINT_OBJECT_ADD:
+                pCursor = pObject->value.step.pCursor;
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_X)) {
-                    vec.vx = *(u16*)pObject->value.step.pCursor;
+                    vec.vx = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vx = 0;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Y)) {
-                    vec.vy = *(u16*)pObject->value.step.pCursor;
+                    vec.vy = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vy = 0;
                 }
                 if (!(opcode & LIBGEAR_JOINT_OBJECT_NO_Z)) {
-                    vec.vz = *(u16*)pObject->value.step.pCursor;
+                    vec.vz = *(u16*)pCursor;
+                    pCursor += 2;
                     pObject->value.step.pCursor += 2;
                 } else {
                     vec.vz = 0;
@@ -1326,7 +1363,6 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
                 result |= LIBGEAR_JOINT_UPDATE_ADVANCED_ANY;
             }
 
-            pJoint->doRotate = TRUE;
             pJoint->doTransform = TRUE;
         }
 
@@ -1414,6 +1450,7 @@ s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType,
     return result;
 }
 */
+
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A1B50);
 /*
    `andi` is the only non-multiset insn). The remaining delta is register
