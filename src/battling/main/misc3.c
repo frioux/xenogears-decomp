@@ -874,11 +874,14 @@ extern u8 ControllerStickToAnalogY(s32 buttonState);
    Keep these two spellings, they closed the previous 97.34 park: `limit =
    __builtin_abs(x)` inside the x < 0 arms (a ternary folds to a bare negu and
    loses retail's move+negu pair) and `p->distance = distance;` hoisted out of
-   its if (retail stores distance unconditionally, in the beqz delay slot). */
-/* The controller the actor reads: player 2's actor takes controller 1. A digital
-   pad's sticks come straight from the axis globals, an analog one's from the
-   button state. The four input ramps charge one direction at a time and decay
-   the rest, and (right - left, up - down) becomes the movement vector. */
+   its if (retail stores distance unconditionally, in the beqz delay slot).
+   Round 549 re-measured 99.50 (1972 bytes, 491 insns, the same single 12-line hunk)
+   and a THIRD permuter run (1034 iterations, base 110 best 110) agrees with the two
+   earlier ones, so (1) is the whole gap. The controller the actor reads: player 2's
+   actor takes controller 1; a digital pad's sticks come straight from the axis
+   globals, an analog one's from the button state. The four input ramps charge one
+   direction at a time and decay the rest, and (right - left, up - down) becomes the
+   movement vector. */
 /*
 s32 func_80076884(BattleActor* p) {
     u16 buttons;
