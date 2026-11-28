@@ -574,7 +574,7 @@ void func_80072D74(void) {
         (*pSnapFrames)--;
     }
 
-    pShake = (s16*)&g_Scene.shakeActive;
+    pShake = &g_Scene.shakeActive;
     atStepSq = g_CamInterpolation.atStepDistance * g_CamInterpolation.atStepDistance;
     eyeStepSq = g_CamInterpolation.eyeStepDistance * g_CamInterpolation.eyeStepDistance;
 
@@ -588,7 +588,7 @@ void func_80072D74(void) {
     g_FieldCameraShakeOffset = 0;
     g_FieldCameraShakeOffsetY = 0;
     g_FieldCameraShakeOffsetZ = 0;
-    if (pShake[0] != 0) {
+    if (*pShake != 0) {
         s32 shakeZ;
 
         if (g_Scene.shakeFrames != 0) {
