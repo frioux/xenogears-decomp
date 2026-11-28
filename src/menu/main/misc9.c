@@ -2558,7 +2558,28 @@ INCLUDE_ASM("asm/menu/nonmatchings/main/misc9", func_801E05D0);
    arg1 asks for the open animation, and group (toggled by LEFT/RIGHT on
    character id 4 and by a successful equip) selects the weapon vs accessory page
    whose four row y's are g_MenuEquipmentSlotRowY[group][slot]. Slot 0 is the weapon, 1..3 the
-   accessories; for gears (arg2 != 0) with group != 0 slots 1 and 2 are skipped. */
+   accessories; for gears (arg2 != 0) with group != 0 slots 1 and 2 are skipped.
+   ROUND 551: un-parked and re-measured - 98.88% / 2468 / 617 is current under
+   gcc-2.6.0 (this function IS lever c-moved-constant-merges-then-sinks; the
+   class is c-two-loads-hoist-the). TWO NEW spellings measured dead on the
+   CONFIRM arm, both at 617 insns / 2468 bytes: a `do { } while (0);` between
+   `closeList = 1;` and the shouldRender store DOES stop the cse merge (both
+   `li 1`s survive - the store keeps `li t0`) but the loop note then floats the
+   `cursorVisible = 0` store BELOW the cursor-prim call, so the emission becomes
+   `jal / sb t0,0x140 / lw g_Menu / li s0 / sb $0,0x50 / lw 0x33C` = 98.56%
+   (128 differing lines); the same barrier with the natural store-then-closeList
+   order is byte-identical to the body below (98.88%, 126 lines - the barrier is
+   folded away). So the arm's early `li s0` is not reachable from a barrier
+   either, and the residual is exactly the sourced/sinked `li` in the
+   `lw g_Menu` load hole.
+   SHIP CONDITION, re-checked this round against config/menu.yaml: this stub is
+   convertible (tools/scripts/convertible.py prints OK, 630 insns) but its
+   jtbl_801C515C has to land at +0x60 of the unit's [0xFC,0x18C) = 0x90-byte
+   rodata range, and a C table is 0x2C with no trailing zero word, so the unit's
+   .rodata comes out 4 short: it needs a `[0x188, rodata]` carve before
+   main/misc10's [0x18C, .rodata] (the misc10 case at [0x248, rodata] is the
+   same fix) AND the 2472-byte body. Do not hunt the last instruction without
+   that carve. */
 /*
 void func_801E05D0(u_char arg0, u_char arg1, u_char arg2) {
     u8 active;
