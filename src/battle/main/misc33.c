@@ -92,6 +92,13 @@ typedef struct {
 } BattleActorRow; // Size: 0x48
 
 extern BattleActorRow D_800C3FB8[];
+// The same row addressed from g_BattleStateWork's base (0x108 + 0x46). Reaching the
+// mask as a member lvalue of the cast row pointer is what leaves 0x14E in the load's
+// displacement; adding 0x14E to the address folds it into the symbol's %lo.
+typedef struct {
+    /* 0x000 */ u8 unk0[0x14E];
+    /* 0x14E */ u16 slotMask;
+} BattleCommandQueueRow; // Size: 0x150
 // One 0x1C-byte row of the sensor table the battle state work block starts with; a
 // sprite's row index is its animation direction (flags_0xA8>>30) and part key (flags&3).
 typedef struct {
@@ -790,29 +797,58 @@ PARKED 85.91 percent at retail's exact 264 bytes / 66 instructions, the best of 
    D_800C3FB8 + 0x46; D_800C3FB8 is not in config/symbol_addrs.battle.txt, so keep the
    base spelling and keep the offset inside the expression.
 */
+// PARKED 93.38 percent fuzzy (96.39 with the two stores below the pState ones) at retail's
+//    exact 264 bytes / 66 instructions. Round 550 closed the constant fold that cost this
+//    park its first 11 points, with the pair of levers named below; two residuals are left
+//    and both are sched1/allocator, not source: (1) retail loads g_BattleState into a1 and
+//    the reloaded g_BattleActorList into a0, this body the other way round (a0/v0), and
+//    (2) retail's reload `lw a0,%lo(g_BattleActorList)` sits AFTER the two 0x74 stores
+//    while sched1 hoists this body's volatile load above them (statement order does not
+//    move it: writing the two stores first measured the same hoist, 93.38).
+//    CLOSED, round 550 (was 85.91): the mask read used to fold 0x14E into the symbol's %lo
+//    (`addiu v1,v1,334` + `lhu 0(v0)`); retail keeps it in the load displacement
+//    (`addiu v1,v1,%lo` + `lhu 334(v0)`). The spelling that reproduces it is the PAIR of
+//    levers k-a-member-lvalue-keeps-the-offset-out-of-the-lo16 and
+//    struct-a-base-local-keeps-a-large-offset-unfolded: a base local `pBase = g_BattleStateWork;`
+//    plus the mask reached as a MEMBER lvalue of the cast row pointer,
+//    `((BattleCommandQueueRow *)(pBase + g_BattleCommandRowIndex * 0x48))->slotMask`
+//    (BattleCommandQueueRow pins the mask at 0x14E, i.e. the row's 0x46 seen from the work
+//    base). The base local is what also reproduces retail's lui order: %hi(g_BattleStateWork)
+//    first, %hi(g_BattleCommandRowIndex) second. 85.91 -> 96.39 on that change alone; the
+//    member lvalue without the base local is still 96.09 and the base local without it folds.
+//    MEASURED, all 264 bytes / 66 insns: a u8 *pRow = g_BattleStateWork + i * 0x48 then
+//    *(u16 *)(pRow + 0x14E) also unfolds but flips the multiply into v1 and the base into v0
+//    -> 73.30; dropping the volatile cast lets cc1 CSE the reload away (63 insns, 79.08);
+//    the park's own store order scores 96.39 fuzzy against this 93.38 because objdiff is not
+//    monotone - by instruction diff this body has 4 differing lines against that one's 5.
+//    A 4-minute permuter run from the 96.39 body found nothing (base=250 best=250, 2137
+//    iterations); two earlier runs from the 85.91 body likewise (base 970/1020).
 /*
 void func_800BF3E8(BattleActorSprite *p) {
-    BattleActorSprite *pLast;
     BattleMisc33State *pState;
+    BattleActorSprite *pLast;
+    u8 *pBase;
     s16 count;
     u32 dir;
 
-    g_BattleActorSlotMask = *(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E);
-    count = BattleCollectMaskedSlotActors(*(u16 *)(g_BattleStateWork + g_BattleCommandRowIndex * 0x48 + 0x14E), (void **)&g_BattleActorList, (s32)p);
+    pBase = g_BattleStateWork;
+    g_BattleActorSlotMask = ((BattleCommandQueueRow *)(pBase + g_BattleCommandRowIndex * 0x48))->slotMask;
+    count = BattleCollectMaskedSlotActors(((BattleCommandQueueRow *)(pBase + g_BattleCommandRowIndex * 0x48))->slotMask, (void **)&g_BattleActorList, (s32)p);
     g_BattleActorListCount = count;
     if (count == 0) {
         g_BattleActorList = p;
     }
     pLast = g_BattleActorList;
     pState = g_BattleState;
-    p->pTargetSprite = g_BattleActorList;
+    p->pTargetSprite = pLast;
+    pLast->pTargetSprite = p;
     pState->pTargetSprite = *(BattleActorSprite *volatile *)&g_BattleActorList;
     dir = pLast->flags_0xA8 >> 30;
     pState->partKey = ((pLast->flags.word & 3) << 2) | dir;
-    ((BattleActorSprite *)g_BattleActorList)->pTargetSprite = p;
     func_800223B0(p, BattleAngleToPoint(p, p->pTargetSprite));
     if (pLast->flags.sbytes[3] != 0x15) {
         func_800223B0(pLast, BattleAngleToPoint(p->pTargetSprite, p));
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc33", func_800BF3E8);
+
