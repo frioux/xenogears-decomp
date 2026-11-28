@@ -663,7 +663,6 @@ extern FieldPlayerActorPartySlotView g_FieldPlayerActorPartySlot;
 //    g_FieldPartyMoveInProgress against an inline 'ori t1,zero,0x1' where ours spends
 //    a callee-saved s8 on the constant). Preset screens unchanged from R432 (Default
 //    is the unit's preset; 2.6.0 drops seven matched neighbours). */
-/*
 void func_800815F0(void) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
@@ -673,6 +672,9 @@ void func_800815F0(void) {
     int partyId;
     int i;
     int j;
+    s32 positionX;
+    s32 positionY;
+    s32 positionZ;
 
     if (g_FieldPlayerActorPartySlot.value != 0) {
         for (i = 0; i < g_FieldActiveActorCount; i++) {
@@ -790,19 +792,21 @@ void func_800815F0(void) {
             pFieldActor->transformMatrix.t[0] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionX;
             pFieldActor->transformMatrix.t[1] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionY;
             pFieldActor->transformMatrix.t[2] = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].positionZ;
-            pSpriteData->position.x = pFieldActor->transformMatrix.t[0] << 16;
-            pActorData->position.vx = pFieldActor->transformMatrix.t[0] << 16;
-            pSpriteData->position.y = pFieldActor->transformMatrix.t[1] << 16;
-            pActorData->position.vy = pFieldActor->transformMatrix.t[1] << 16;
-            pSpriteData->position.z = pFieldActor->transformMatrix.t[2] << 16;
-            pActorData->position.vz = pFieldActor->transformMatrix.t[2] << 16;
+            positionX = pFieldActor->transformMatrix.t[0] << 16;
+            pSpriteData->position.x = positionX;
+            pActorData->position.vx = positionX;
+            positionY = pFieldActor->transformMatrix.t[1] << 16;
+            pSpriteData->position.y = positionY;
+            pActorData->position.vy = positionY;
+            positionZ = pFieldActor->transformMatrix.t[2] << 16;
+            pSpriteData->position.z = positionZ;
+            pActorData->position.vz = positionZ;
             pSpriteData->field_0x84 = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].spriteField84;
             pActorData->rotation.vx = pActorData->rotation.vy = D_800B14F0[g_FieldSpriteUpdateIndex[partyId]].rotation;
             g_FieldSpriteUpdateIndex[partyId] = (g_FieldSpriteUpdateIndex[partyId] - 1) & 0x1F;
         }
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
+}
 
 
 
