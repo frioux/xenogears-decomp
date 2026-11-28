@@ -129,7 +129,7 @@ extern s32 SystemRenderStringEntry(u8 *, void *, s32, s32);
 extern void BattleLoadImageAndSync(RECT *, u_long *);
 extern void BattleClearSlotCurveState(void);
 extern void BattleDecrementSlotConditionTimers(u8);
-extern void BattleScriptResetActorState(u16);
+extern void BattleScriptResetActorState(u8, u16);
 extern void BattleApplySlotMaskToEffects(u16);
 extern void BattleRunActiveSlotScripts(void);
 extern void BattleResetActorCountdown(void);
@@ -701,32 +701,35 @@ typedef struct {
     BattleScrollRowQuad rows[8]; // 0x63D0, one per action row index
 } BattleDrawWorkBlock; // Size: 0x6418
 
-// 83.90% under 2.6.0 (1728 bytes / 432 insns against retail 1756 / 439, round 542).
-// THE STORED PARK DID NOT COMPILE, so every older number for it was a stale object:
-// its preamble (extern g_BattleWaitSkipFlag_bytes, BattleScrollRowQuad,
-// BattleDrawWorkBlock) sat INSIDE the comment block and park.py unpark deletes the
-// whole block, so the body came out live but undeclared. Those declarations are now
-// live ABOVE the stub - keep them there on the next un-park.
-// NEW FIND (round 542): give the else arm its own loop variable (`s32 j`) for the
-// D_800C3D1A clear - retail puts `li v0,0x1C` in the bnez delay slot of the
-// `actorIndex >= 3` test and counts that loop in v0; sharing `i` with the tail loops
-// makes cc1 keep it in s1 and lose the hoist. 83.82 -> 83.90.
-// REMAINING, in the order they cost:
-// A. The prim quad block (~20 insns, most of the differing lines). Retail reloads
-//    g_BattlePrimStartIndex per store (so the volatile read is right) but associates
-//    the +0x10 to the SCREEN ORIGIN: `lhu v0,0(at); addiu v0,v0,0x10; addu v1,v1,v0`.
-//    cc1 2.6.0 reassociates our `origins[...] + 0x10 + idx * 0x60` into
-//    `origin + (idx * 0x60 + 0x10)`. Retail also loads g_BattleCommandQueue into t0
-//    before g_BattleGraphicsWork into a3, keeps pageIndex*3 in a2 across all eight
-//    stores and computes the row pointer per store, where cc1 hoists one of them.
-// B. The two tail loops (D_800C3D1A[i * 4], D_800C3EBA[i * 0x1C]): retail keeps the
-//    SCALED OFFSET biv (s0 += 4, s2 += 0x1C) and re-forms the absolute base with
-//    lui/$at every iteration; cc1 strength-reduces the base into a pointer
-//    accumulator (AGENTS 3.4 unsolved class).
-// C. actorIndex lands in v1 where retail keeps it in a0 (a0 is dead in both bodies -
-//    arg0 was copied to s2 in the first delay slot), which costs the a1 mask argument
-//    of BattleScriptResetActorState and cascades through the 723(v0) reload chain.
-// Also tried and worse (rounds 536/542): plain g_BattleWaitSkipFlag = 0 with a
+// 86.61% under 2.6.0 (1732 bytes / 433 insns against retail 1756 / 439, round 549).
+// Everything except the prim quad block is retail's, instruction for instruction.
+//
+// CLOSED in round 549: BattleScriptResetActorState is called with the actor index in
+// a0 and the mask in a1 (the callee never reads a1), so the original passed TWO
+// arguments - the extern now takes (u8, u16) and the body passes
+// (actorIndex, g_BattleSlotEntries[...].unk04 & 0x2000). That put actorIndex in a0 as
+// retail has it and closed the whole 723(v0) reload chain; the only diff left there is
+// the reloc spelling D_800CCD68 vs g_BattleSlotEntries+4 (same bytes).
+// CLOSED most of the tail loops: a byte-offset accumulator
+// (`for (i = 0, offset = 0; ...; i++, offset += 4)` with `D_800C3D1A[offset]`, and
+// `offset += 0x1C` for D_800C3EBA) reproduces retail's scaled-offset biv plus its
+// per-iteration base re-form. 83.99 -> 86.61, one instruction recovered.
+//
+// REMAINING, all of it the prim quad block (the 288 differing lines):
+// A. Retail forms the row pointer ('sll a0,v0,1 / addu / sll a0,a0,3 / addu a0,a0,a3',
+//    0x18 stride, base LAST) BEFORE the origin value in each of the eight stores; the
+//    body forms it after the value and with base-first 'addu a1,a3,a1'. Retail also
+//    keeps pageIndex*3 in a2 across the block and pays a load-delay nop after each
+//    g_BattlePrimStartIndex read; the body lets the origin chain fill that slot.
+// B. Retail adds the +0x10 to the SCREEN ORIGIN and then the idx*0x60 ('addiu v0,v0,16'
+//    then 'addu v1,v1,v0'); cc1 2.6.0 folds it onto the idx*0x60 side.
+// C. Retail emits a fresh 'li a1,0x8' per y store and reuses it once; the body hoists
+//    one 'li t1,0x8' across the block. Same for 0x20.
+// The park's preamble (extern g_BattleWaitSkipFlag_bytes, BattleScrollRowQuad,
+// BattleDrawWorkBlock) is live ABOVE this note - keep it there on the next un-park,
+// because a preamble stored inside the block is deleted by `park.py unpark` (that is
+// how round 542 scored a stale object).
+// Also tried and worse (rounds 536/542/549): plain g_BattleWaitSkipFlag = 0 with a
 // separate D_800D2CA4 clear (81.05), volatile DECLARATION of g_BattlePrimStartIndex
 // (79.70, breaks a neighbour), -O1 (77.11), -O3 (compile fails), gcc 2.7.2 (80.54),
 // cdk (73.77), -G0 (compile fails) - the preset XenoBattle260 is right.
@@ -735,6 +738,7 @@ void func_80071B94(u8 arg0) {
     BattleDrawWorkBlock *pDraw;
     u8 *pClear;
     u8 *pFlags;
+    s32 offset;
     s32 i;
     s32 j;
 
@@ -759,7 +763,8 @@ void func_80071B94(u8 arg0) {
     BattleDecrementSlotConditionTimers(g_BattleCommandQueue->actorIndex);
     if (g_BattleCommandQueue->actorIndex >= 3) {
         if (arg0 == 0) {
-            BattleScriptResetActorState(g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x2000);
+            BattleScriptResetActorState(g_BattleCommandQueue->actorIndex,
+                g_BattleSlotEntries[g_BattleCommandQueue->actorIndex].unk04 & 0x2000);
             if ((D_800C3EB7[g_BattleCommandQueue->actorIndex][0] & 0x80) == 0 &&
                 (D_800CCD1C[g_BattleCommandQueue->actorIndex].flags & 0x400) == 0) {
                 g_BattleDisplayState->textSlotStringDrawn = 1;
@@ -820,9 +825,9 @@ void func_80071B94(u8 arg0) {
         BattleWaitWhileStateIs8();
         BattleClearAllSlotFlagB4();
         BattleSetOverlayArg(0);
-        for (i = 0; i < 8; i++) {
+        for (i = 0, offset = 0; i < 8; i++, offset += 4) {
             if (BattleMaskHasSlotBit(g_BattleActionSlotMask, (u8)(i + 3)) != 0) {
-                D_800C3D1A[i * 4] = 1;
+                D_800C3D1A[offset] = 1;
             }
         }
         BattleRunActiveSlotScripts();
@@ -830,9 +835,9 @@ void func_80071B94(u8 arg0) {
     BattleApplyCharRedrawFlags();
     BattleApplyCommandCellFlags();
     g_BattleGraphicsWork[0x6415] = 0;
-    for (i = 0; i < 0xB; i++) {
+    for (i = 0, offset = 0; i < 0xB; i++, offset += 0x1C) {
         ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C] = BattleBuildTargetCandidateListByRow(i);
-        D_800C3EBA[i * 0x1C] =
+        D_800C3EBA[offset] =
             BattleActorPosXGreaterThan(i, ((u8 *)g_BattleCommandQueue)[i * 0x40 + 0x3C]);
     }
     BattleLoadActorSlotAnimation(BattleFindMinValueOtherSlot(g_BattleCommandQueue->actorIndex));
@@ -848,7 +853,6 @@ void func_80071B94(u8 arg0) {
     g_BattleCountdownsEnabled = 1;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc1", func_80071B94);
-
 
 
 
