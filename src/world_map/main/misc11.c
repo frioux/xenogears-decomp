@@ -557,7 +557,7 @@ int WorldMapModeInitCharacterSprite1(int index) {
     }
     return result;
 }
-int func_8008B54C(int index) {
+int WorldMapInitCharacterSlotSprite(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u16 angle;
 
@@ -803,7 +803,7 @@ int WorldMapModeInitCharacterSprite2(int index) {
 // (pSprite, x, y, z, state, moveSpeed, trailDelay, angle) - it now builds, and
 // re-measured live it is still 93.37, so the number is real (the old park text used
 // unk4C/unk28/... and did not compile). Byte-identical apart from the same three
-// prologue insns as func_8008B54C: retail shifts the index into v1 between the 0x120
+// prologue insns as WorldMapInitCharacterSlotSprite: retail shifts the index into v1 between the 0x120
 // and 0x1E0 argument setup and keeps 0x40 in v0 until the sw in front of the jal; gcc
 // stores 0x40 right after li 0x40 and shifts into v0 afterwards. The tail is
 // byte-identical; -O2 sched2 post-reload makes this a whole-function context effect.
@@ -811,7 +811,7 @@ int WorldMapModeInitCharacterSprite2(int index) {
 // puts the index shift in v0 and that pins sw v0,0x14(sp) before it, where retail's shift is in
 // v1 and its store sits last. Re-measured live with a top-declared u16 angle (not the nested
 // block below): 93.37%, 62 insns, retail's 248 bytes. Park it.
-int func_8008BDD0(int index) {
+int WorldMapInitCharacter2SlotSprite(int index) {
     WorldMapActor *pActor = &g_WorldMapSlots[index];
     u16 angle;
 
