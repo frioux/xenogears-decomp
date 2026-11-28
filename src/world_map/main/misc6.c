@@ -33,6 +33,10 @@
 // Owned by include/main/game.h (identical value); this unit does not include it.
 #define WORLD_MAP_ANGLE_MASK 0xFFF
 
+// the pitch (the first word of the camera rotation) a scrolling camera actor stops
+// raising its view rotation at (WorldMapScrollCameraActor, in every arm that ramps it)
+#define WORLD_MAP_CAMERA_ROT_MAX 0x80
+
 // a slot's type is its actor index minus the group actors ahead of it in the
 // slot table (WorldMapInitSlotActor, and the group the slot drives)
 #define WORLD_MAP_SLOT_ACTOR_INDEX_BASE 4
@@ -49,6 +53,11 @@
 // the color a fading slot draws its prims with walks down by this much each frame
 // until it reaches 0 and the slot deactivates (WorldMapUpdateGroup9And10Actor)
 #define WORLD_MAP_SLOT_FADE_COLOR_STEP 3
+
+// the fade the mode initialisers play before the map is drawn: this many frames of
+// WorldMapDrawFadeFrames, lifting the shade by WORLD_MAP_INIT_FADE_COLOR_STEP each frame
+#define WORLD_MAP_INIT_FADE_FRAMES 64
+#define WORLD_MAP_INIT_FADE_COLOR_STEP 4
 
 // the map display buffer copied into VRAM when a mode initialises, and the
 // VRAM position it is copied to
@@ -478,7 +487,7 @@ void func_8007D918(void) {
     rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
-    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(WORLD_MAP_INIT_FADE_FRAMES, 0, WORLD_MAP_INIT_FADE_COLOR_STEP, 2);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();
@@ -978,8 +987,8 @@ s32 WorldMapScrollCameraActor(int index) {
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
         *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
-        if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
+        if (g_WorldMapCameraRot[0] > WORLD_MAP_CAMERA_ROT_MAX) {
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = WORLD_MAP_CAMERA_ROT_MAX;
         }
         break;
     case 2:
@@ -1038,8 +1047,8 @@ s32 WorldMapScrollCameraActor(int index) {
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
         *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
-        if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
+        if (g_WorldMapCameraRot[0] > WORLD_MAP_CAMERA_ROT_MAX) {
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = WORLD_MAP_CAMERA_ROT_MAX;
         }
         break;
     case 17:
@@ -1065,8 +1074,8 @@ s32 WorldMapScrollCameraActor(int index) {
         g_WorldMapCameraRotScalar += pActor->scale >> 12;
         *(volatile s32 *)&pActor->scale = *(volatile s32 *)&pActor->scale + 0x300;
         g_WorldMapCameraHeight += 0x8000;
-        if (g_WorldMapCameraRot[0] >= 0x81) {
-            *(volatile s16 *)&g_WorldMapCameraRotScalar = 0x80;
+        if (g_WorldMapCameraRot[0] > WORLD_MAP_CAMERA_ROT_MAX) {
+            *(volatile s16 *)&g_WorldMapCameraRotScalar = WORLD_MAP_CAMERA_ROT_MAX;
         }
         break;
     case 25:
@@ -1792,7 +1801,7 @@ void WorldMapInitializeModeWithActors(void) {
     rect.h = WORLD_MAP_SCREEN_HEIGHT;
     MoveImage(&rect, WORLD_MAP_SCREEN_VRAM_X, WORLD_MAP_SCREEN_VRAM_Y);
     DrawSync(0);
-    WorldMapDrawFadeFrames(0x40, 0, 4, 2);
+    WorldMapDrawFadeFrames(WORLD_MAP_INIT_FADE_FRAMES, 0, WORLD_MAP_INIT_FADE_COLOR_STEP, 2);
     while (ArchiveDataSync() >= 3) {
     }
     WorldMapDecompressMapData();
