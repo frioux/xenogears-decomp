@@ -3965,7 +3965,15 @@ void LibGearPlayAnimationScript(Model* pModel, Temp7* pEntry, s32 arg2) {
 // field, `* 0x10000`, `(x << 8) << 8`, a `u32` id local, a `u16*` alias, and a
 // `goto` label placed inside arm 2's then-body that arm 0 jumps to - and every
 // one compiles to the same 20 insns with the survivor at arm 1's copy, so cse
-// and combine fold them all ahead of the merge.
+// and combine fold them all ahead of the merge. Round 550 added two shapes
+// adapted from its matched battle twin (BattleGetSoundBankId, battle/misc24, whose
+// 4th `type == 3` arm returns a full expression and is what keeps ITS shared tail
+// from swallowing arm 1): arm 0 as `return g_BattleSoundBankMain->angle << 16;`
+// with one pTexture local for arms 1/2 and an `else return 2;` 61.93 (gcc merges
+// arm 1 into the tail and keeps arm 2's block), and the same with arm 1 as a
+// full-expression return and arm 0 assigned 61.93, byte-identical output. So the
+// 4th arm is load-bearing in the twin and its absence here is the wall, not a
+// spelling - levers.md d-crossjump-survivor-is-the-last records this stub BLOCKED.
 /*
 s32 func_801E5CD8(Model* pModel, s32 type) {
     Temp8* pTexture;
