@@ -8,6 +8,10 @@
 #define FIELD_SCRIPT_FLAG_PLAYER_ACTOR 0x4000
 #define FIELD_SCRIPT_FLAG_ROTATION_LOCKED 0x8000
 
+// Set while the player is being walked to another map; cleared again when the walk did not
+// get the player there (FieldPlayerSetMapTransitionFlag, FieldScriptVMHandlerMapTransition)
+#define FIELD_SCRIPT_FLAG_MAP_TRANSITION 0x80
+
 #include "psyq/libgte.h"
 #include "system/model.h"
 

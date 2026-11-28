@@ -1262,8 +1262,8 @@ void FieldScriptVMHandlerSetActorModelFromPartySlot(void) {
 
 
 
-void FieldPlayerSetScriptFlag80(void) {
-    g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= 0x80;
+void FieldPlayerSetMapTransitionFlag(void) {
+    g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags |= FIELD_SCRIPT_FLAG_MAP_TRANSITION;
 }
 
 // g_FieldActors is volatile, so retail re-reads the base once per component pair:

@@ -49,10 +49,6 @@
 #define FIELD_INVENTORY_KIND_GEAR_WEAPON 3
 #define FIELD_INVENTORY_KIND_GEAR_PARTS 4
 
-// The player's scriptFlags bit a map-transition walk sets (FieldPlayerSetScriptFlag80); the
-// handlers clear it again when the walk does not get the player there
-#define FIELD_SCRIPT_FLAG_MAP_TRANSITION 0x80
-
 extern s32 g_FieldCurActorIndex;
 extern s32 g_PlayerActorIndex;
 
@@ -623,7 +619,7 @@ INCLUDE_ASM("asm/field/nonmatchings/main/misc11", func_80092894);
 
 
 
-void FieldPlayerSetScriptFlag80(void);
+void FieldPlayerSetMapTransitionFlag(void);
 
 void FieldScriptVMHandlerMapTransitionWithArgs(void) {
     int arg1;
@@ -640,7 +636,7 @@ void FieldScriptVMHandlerMapTransitionWithArgs(void) {
     if (g_FieldSavedPlayerScriptFlags[0] == 0) {
         g_FieldSavedPlayerScriptFlags[0] = g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags;
     }
-    FieldPlayerSetScriptFlag80();
+    FieldPlayerSetMapTransitionFlag();
     if (func_80092894(0, 1, arg1, arg3)) {
         return;
     }
@@ -654,7 +650,7 @@ void FieldScriptVMHandlerMapTransition(void) {
     if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
     } else {
-        FieldPlayerSetScriptFlag80();
+        FieldPlayerSetMapTransitionFlag();
         func_80092894(0, 0, 0, 0);
     }
 }
@@ -663,7 +659,7 @@ void FieldScriptVMHandlerMapTransitionOffset(void) {
     if (g_FieldMapChangeGate == 0 || g_FieldEntryStateGate == 0 || g_FieldArchiveStreamActive != 0 || g_GameWdsBankLoadState == -1 || g_FieldSpecialAnimLoadPending != 0) {
         g_FieldScriptVMStopFlag = 1;
     } else {
-        FieldPlayerSetScriptFlag80();
+        FieldPlayerSetMapTransitionFlag();
         func_80092894(0x3E0, 0, 0, 0);
     }
 }
