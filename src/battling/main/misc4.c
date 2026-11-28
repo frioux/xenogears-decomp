@@ -727,6 +727,11 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
    second use to raise its ref count.  Do not spend another permuter run: this body
    already had one (base=175 best=175) and the residual is a reload/reg-order pick.
 */
+// ROUND 548 audit re-measure: 98.96% / 1196 bytes = retail's EXACT size, 299 vs 299 insns, 34 differing lines. Instructions 1..224 identical; only the tail's register NAMES differ.
+//    NEW THIS ROUND (the audit's requested tie proof): the residual is NOT the scheduler. Compiling the unit .i with the unit's own cc1 plus -fno-schedule-insns gives the mask 0xFFFEFFFF in $v1 (0x3) and p->state in $v0, and -fno-delayed-branch leaves both the same - so neither sched1 nor reorg decides it; it is which registers are OCCUPIED when the join block is allocated, exactly as a-split-constant-in-a-join-block-is-a-reload-pick says. Retail: mask $a0, state $a1, flags $v0, stateFlags/-13 $v1; this body: mask $v1, state $a0 (one register lower for both, i.e. retail's $v1 was still busy at the mask's allocation there).
+//    NEW, measured and reverted: (1) a 'u32 clearMask; clearMask = 0xFFFEFFFF;' assigned just ABOVE the switch and used in the tail (the round-541 live-across-a-call constant nudge) is 96.90% / 1192 bytes / 298 insns - one insn SHORT, because the constant no longer rematerialises into both arm delay slots; (2) the round-391 declaration-with-initialiser probe around the state byte ('{ u8 curState = p->state; p->prevState = curState; }') is byte-identical, 98.96 / 1196 / 34 lines.
+//    THIRD permuter run on this body (--minutes 4 -j 2): PERMUTER_NONE base=175 best=175, 1711 iterations - the same base as the 1832-iteration run the park already recorded.
+//    Do not re-brief: both halves of the residual are documented closed (lever a-split-constant-in-a-join-block-is-a-reload-pick; round 424 listed the 'u32 mask' local at exactly 98.96 and the 'u32 flags' copy local as coalescing away).
 /*
 void func_8007920C(Actor* p) {
     ActorScript* pScript = p->pScript;
@@ -825,6 +830,7 @@ void func_8007920C(Actor* p) {
     p->stateFlags = (p->stateFlags & 0xFFFFFFF3) | ((p->stateFlags & 3) << 2);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
+
 
 extern u8 g_BattleInitDone;
 extern s32 g_BattleFacingAngle;
