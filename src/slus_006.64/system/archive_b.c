@@ -105,6 +105,12 @@ extern volatile u32 D_80050618[3];
 // lever a-call-free-single-block-temp-in-t0-is-a-compiler-trait names this closed
 // (all three compilers in tools/ start the local-alloc scan at $2) and 2.8.1 was
 // screened in an earlier round. Do not re-brief.
+// ROUND 550 re-measured (un-parked, live, whole first diff read): 96.00 / 20
+// bytes / 5 insns, unchanged. One new probe closes the REGISTER question for
+// good: with $v0 forced busy (`u32 f(u32 v) { *A = v; return v; }`) the address
+// pseudo moves to $v1, never to $t0 - `move $2,$4 / la $3,A / sw $2,0($3)` - so
+// local-alloc walks {2,3,...} in order and no 5-instruction shape can reach $8.
+// Retail's $t0 is its compiler's hand-out, not a spelling.
 /*
 void func_800379B4(u32 value) {
     *D_80050618 = value;
