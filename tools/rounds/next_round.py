@@ -48,6 +48,9 @@ import twin_for  # noqa: E402
 # and a park only re-emits when its measured percentage rose.
 COOLDOWN = 8
 EVER = 3
+# Round 549 ended with 12 eligible stubs of 506 and every round since 545 was a 3-8 lane one
+# scraping the bottom of the pool. See cooled().
+STALE_IDLE = 40
 BIG = 350
 ABBREV = {"battle": "b", "battling": "bt", "field": "f", "menu": "m", "world_map": "wm", "lib_gear": "lg",
           "slus_006.64": "s", "gear_shop_menu": "gs", "shop_menu": "sh", "member_change_menu": "mc",
@@ -263,9 +266,11 @@ def cooled(s, cls, history, round_no):
     """True when the stub may be emitted again in class `cls`."""
     name = s["func"]
     ever = []
+    newest = None
     for r, unit, funcs, c, pcts in history:
         if name not in funcs or r == round_no:
             continue
+        newest = r if newest is None else max(newest, r)
         if r >= round_no - COOLDOWN:
             return False
         if c == cls:
@@ -274,6 +279,16 @@ def cooled(s, cls, history, round_no):
     if len(ever) >= EVER:
         old = [p for p in ever if p is not None]
         if s["pct"] is None or not old or s["pct"] <= max(old):
+            # Round 550: EVER closes a stub for good, which by round 549 had left 19 eligible
+            # stubs out of 506 - 227 were idle 40+ rounds because they were briefed three
+            # times, long before the levers of rounds 460-548 existed. Stale parks are the
+            # cheapest match source left (rounds 465-482: 7 of 62 noted 99%+ parks re-measured
+            # 0.5-19 points lower, 7 no longer compiled, several matched within a round of
+            # repair), so a struck-out stub comes back after STALE_IDLE idle rounds. The 99%+
+            # band stays shut: rounds 546-548 proved it an allocator/compiler wall.
+            if newest is not None and round_no - newest >= STALE_IDLE \
+                    and (s["pct"] is None or s["pct"] < 99.0):
+                return True
             return False
     return True
 
