@@ -529,6 +529,11 @@ extern s32 g_FieldCameraShakeOffsetY;
 extern s32 g_FieldCameraShakeOffsetZ;
 extern s32 g_FieldCameraSnapFrames;
 extern int rand(void);
+// Retail reads and writes the first word of g_CameraEye with a bare symbolic
+// `lui`/`lw` plus `lui $at`/`sw` pair, which cc1 emits only for a SCALAR symbol; the
+// VECTOR spelling makes cse keep the address in a register and costs the match. Same
+// reason as the g_CamAtMovementCurrent scalars further down.
+extern long g_CameraEyeVx __asm__("g_CameraEye");
 
 // A camera coordinate only takes a step when the step cannot overshoot it.
 // The difference is spelled out instead of held in a local: retail computes the
@@ -544,102 +549,6 @@ extern int rand(void);
         }                                                               \
     }
 
-// PARK (round 166): 98.25%, and the compiled size now EQUALS the original's
-// (1212 bytes = 303 instructions). Two things in the round-163 note were wrong:
-//  - the body was not short of statements, it was short because the third clamp guard
-//    reloads g_FieldCameraShakeOffsetZ where retail tests the product still sitting in $v1. Giving
-//    ONLY that product a local (shakeZ) reproduces retail exactly, and the whole tail
-//    from the +0xA2 amplitude load down is now line-for-line identical;
-//  - the initial zeroing has to go through the GLOBALS (g_FieldCameraShakeOffset = 0;),
-//    while the pointer local pShakeOffset must be assigned just before the three rand
-//    products - that is what makes retail keep &g_FieldCameraShakeOffset in $s0 for the
-//    later load/store through it while the earlier zeroing stays a macro store.
-// What is left is one class of difference in three places: gcc keeps a ZERO-offset
-// symbol address in a register (`lui/addiu $t0,&g_CameraEye` then lw+sw through it; the
-// same for &g_Scene.shakeActive, which it then keeps live into the else-if branch) where
-// retail folds the displacement into the load/store (`lh $v0,152($v0)`, `lui $at / sw
-// $v0,%lo(...)($at)`). It also shifts the mult temporaries one register ($t1/$t2 here
-// against retail's $t0/$t1). Naming the g_CameraEye word and the g_Scene +0x98 block as
-// fields is a struct/field job in the shared header, not a C shape.
-// permuter: base=531 best=426 (PERMUTER_BETTER, chained-assignment debris only).
-// screened: Default 98.25 (best) - not a preset question.
-// round 170 re-measured the park at 98.25% (1212 bytes, retail's size) and tried two
-// more shapes, both of which keep the 98.25% or lose the tail:
-//  - a `s32 result` local for the store (`(cur) = result;`) - byte-identical output;
-//  - the whole +0x98 block spelled with byte indices (`*(s16*)&g_Scene.shakeActive[0x0]`)
-//    as the neighbouring misc.c does - that makes gcc materialise &g_Scene.shakeActive in a
-//    register for the guard too (`lh v0,0(v1)`), so it is worse; the array-cast form
-//    above is the one to keep.
-// round 185: 98.99 (1212 bytes, retail's size). The permuter closed the +0x98 half of
-// the hoist: ONE `s16* pShake = (s16*)g_Scene.shakeActive;` local, assigned between the eye-vx
-// and eye-vz steps and used ONLY by the `pShake[0] != 0` guard, makes retail's guard
-// (`lui $v0 / lh %lo(v0)` straight off the symbol) come out right - the array-cast
-// spelling for the same guard materialises the address and is 98.25. Assigning it
-// anywhere else, or using it for the other +0x98 accesses, loses the tail again.
-// What is left is the same hoist at ONE site: the eye-vx step (g_CameraEye, offset 0)
-// keeps the symbol address in $t0 and reuses it for the store where retail forms the
-// two accesses separately (`lui $a1 / lw %lo($a1)`, then `lui $at / sw %lo($at)`); the
-// extra live address pushes the mult temporaries one register ($t1/$t2 against $t0/$t1).
-// The offsets 4 and 8 of the same vector already match, so only the 0-offset spelling
-// is wrong; nothing tried so far separates the load and store RTL, and a second
-// permuter run found only a semantically invalid move (pShake assigned inside the vx
-// step's if-body, 285).
-// round 186 re-measured 98.99 and settled what the remaining difference is with a
-// diagnostic: pointing ONLY this step's store at g_CameraEye2 (a different symbol)
-// makes the vx load symbolic (lui $a1 / lw %lo($a1)) and makes the eye2 pair
-// materialise a base - so gcc 2.7.2 cse shares every field address that is used twice
-// (load and store), and retail's one symbolic load plus one symbolic store at offset 0
-// is a reload tie, not reachable from a different lvalue spelling. Tried, each verified
-// byte-identical to this body: a pointer local for the store, declared before the step
-// and inside the if-body; a volatile store through the symbol; volatile on both
-// accesses; the s32-array and long casts; a do-while around the store (that one only
-// renumbers the base to $a3 and measures 98.93). Stop here unless the register allocator
-// is understood better than this note.
-// round 396: un-parked and re-measured = 98.99% / 1212 bytes (retail's size, 303 insns),
-// unchanged. All 36 differing lines have ONE cause: the eye-vx step's g_CameraEye address
-// (offset 0) is used twice (load + store) so cse keeps it in $t0, and the register it takes
-// is the one retail uses for atStepSq ($t0), shifting every mult temporary. Retail forms
-// both accesses symbolically (lui $a1 / lw $a1,%lo; lui $at / sw %lo($at)) - see the note
-// above, do not re-try the lvalue spellings. Not a preset question (screened).
-// round 396 NEW BEST 99.06% / 1212 bytes (retail's size, 303 insns). One change landed: the
-// `pShake = (s16*)&g_Scene.shakeActive;` assignment moves UP, before the two step-square
-// multiplies, instead of sitting between the eye-vx and eye-vz steps (98.99 - the round 185
-// note above measured "assigning it anywhere else loses the tail" on an earlier tree; with
-// this body the earlier assignment is worth 0.07). Everything still differing is the ONE
-// cause from round 186: the eye-vx step's g_CameraEye offset-0 address is used twice (load
-// and store) so cse keeps it in a register ($t1 now, $t0 before) and pushes the per-step
-// square from $t1 to $t2; retail forms the two accesses symbolically. Permuter from this
-// body (2 min, 812 iterations) found nothing: RESULT PERMUTER_NONE, best 285 = base 285.
-// round 418: re-measured live = 99.06% / 1212 bytes = retail's exact size (303 insns), unchanged.
-// All 34 differing lines are the eye-vx step. NEW evidence for why no spelling closes it, from
-// cc1_probe of the step in isolation: this cc1 ALWAYS emits one shared `la $r,&g_CameraEye` for an
-// offset-0 symbol address used twice (the load before the if and the store inside it), and then the
-// load and the store both go through that one register, which takes $t1 - so the step square's
-// `mflo` reads $t2 where retail has $t1 (that shift is 30 of the 34 lines). Retail instead has BOTH
-// accesses symbolic (`lui $a1 / lw $a1,%lo(g_CameraEye)($a1)`, then `lui $at / sw $v0,%lo($at)`),
-// i.e. maspsx's fold of TWO single-use la pairs - so its cse never made the address a pseudo.
-// Probed and all still one `la`: the macro as written, the compound assignment
-// (`g_CameraEye.vx += (target - g_CameraEye.vx) / step`), the s32-cast spelling
-// (`*(s32*)&g_CameraEye` both sides), and a volatile store. Offsets +4 and +8 of the same vector
-// already match, so only the 0-offset site is left, and it is not a preset question: cdk scores
-// 69.05 on this body. Permuter from this body: 1130 iterations, RESULT PERMUTER_NONE, best 285 = base 285.
-// round 431: re-measured 99.06% / 1212 bytes = retail's exact size (303 insns). The residual is
-// NAMED now, by cc1_probe (field/main/misc2, both 2.7.2 and 2.6.0), not by another spelling hunt:
-// retail's eye-vx pair is a BARE symbolic load (lui a1,%hi / lw a1,%lo(a1)) AND a bare symbolic
-// store (lui at / sw %lo(at)), and this cc1 emits that pair only for a SCALAR-typed global.
-// Every aggregate spelling - gEye.vx, *(s32*)&gEye, ((s32*)&gEye)[0], a single-use pointer
-// local, a pointer local for the store, the compound assignment, a volatile load or store -
-// makes cse materialise the address (la $t1,sym + lw 0(t1) + sw 0(t1), i.e. one extra
-// instruction the assembler cannot fold), and the freed/taken register is the whole 34-line
-// residual (mult temps shift t1 -> t2). Proved: with the two accesses spelled through a scalar
-// symbol at g_CameraEye's address the instruction stream becomes IDENTICAL (1212 bytes, only the
-// reloc name differs, objdiff 99.93). It cannot ship from this TU because a scalar extern
-// clashes with the file's own 'extern VECTOR g_CameraEye' (cc1 exit 33; a block-scope shadow
-// errors too), and an aliased scalar symbol would be an invented name for the vector's first
-// word - the orchestrator's call, see this round's report.
-// Screened again this round: 2.6.0 98.18, -O3 99.06, -O1 76.14, -O0 9.36, cdk -O2 compile-fail,
-// cdk -O3 69.05 - not a preset question. Third permuter run from this body: NONE, base = best = 285.
-/*
 void func_80072D74(void) {
     s32 atStepSq;
     s32 eyeStepSq;
@@ -665,11 +574,11 @@ void func_80072D74(void) {
         (*pSnapFrames)--;
     }
 
-    pShake = (s16*)&g_Scene.shakeActive;
+    pShake = &g_Scene.shakeActive;
     atStepSq = g_CamInterpolation.atStepDistance * g_CamInterpolation.atStepDistance;
     eyeStepSq = g_CamInterpolation.eyeStepDistance * g_CamInterpolation.eyeStepDistance;
 
-    FIELD_CAMERA_STEP(g_CameraEye.vx, g_CameraEye2.vx, g_CamInterpolation.eyeStepDistance, eyeStepSq);
+    FIELD_CAMERA_STEP(g_CameraEyeVx, g_CameraEye2.vx, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraEye.vz, g_CameraEye2.vz, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraEye.vy, g_CameraEye2.vy, g_CamInterpolation.eyeStepDistance, eyeStepSq);
     FIELD_CAMERA_STEP(g_CameraAt.vx, g_CameraAt2.vx, g_CamInterpolation.atStepDistance, atStepSq);
@@ -679,7 +588,7 @@ void func_80072D74(void) {
     g_FieldCameraShakeOffset = 0;
     g_FieldCameraShakeOffsetY = 0;
     g_FieldCameraShakeOffsetZ = 0;
-    if (pShake[0] != 0) {
+    if (*pShake != 0) {
         s32 shakeZ;
 
         if (g_Scene.shakeFrames != 0) {
@@ -715,8 +624,7 @@ void func_80072D74(void) {
             g_Scene.shakeFrames--;
         }
     }
-}*/
-INCLUDE_ASM("asm/field/nonmatchings/main/misc2", func_80072D74);
+}
 
 
 extern s16 g_FieldCameraMode;
