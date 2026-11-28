@@ -1137,3 +1137,4 @@ FieldScriptVMHandlerSetActorModelFromPartySlot = 0x800A08B8;
 g_FieldCharacterSpriteIndices = 0x800AE294;
 FieldCameraUpdate = 0x80073230;
 FieldUpdateNearestActorSounds = 0x80086590;
+FieldCameraInterpolateAndShake = 0x80072D74;

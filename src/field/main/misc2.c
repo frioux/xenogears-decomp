@@ -549,7 +549,7 @@ extern long g_CameraEyeVx __asm__("g_CameraEye");
         }                                                               \
     }
 
-void func_80072D74(void) {
+void FieldCameraInterpolateAndShake(void) {
     s32 atStepSq;
     s32 eyeStepSq;
     s32* pSnapFrames;
@@ -763,7 +763,7 @@ void FieldCameraUpdate(void) {
         break;
     }
 
-    func_80072D74();
+    FieldCameraInterpolateAndShake();
     g_Scene.sceneAngle.vy &= FIELD_ANGLE_MASK;
 }
 
