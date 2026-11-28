@@ -355,6 +355,28 @@ void MenuAddUnk358Prims(void) {
 }
 // 90.29% (796 vs 792 bytes, 199 vs 191 insns) under XenoMenu260 (gcc 2.6.0, -O2 -G8). The body is retail's except for one loop-level cause: gcc strength reduction turns i*0x20 and i*0x80 into two extra mult givs (callee-saved s4/s5, +0x20/+0x80 at the latch), which pushes the frame to 0x48 with six saves and re-forms the verts base as addiu(pData,K) plus the giv instead of retail's sll, addiu, addu. DECISIVE: compiling this body with cc1_probe.sh --opt '-O2 -fno-strength-reduce' reproduces retail's frame 0x48, saved set s0-s3+ra, 191 insns and BOTH sll sites (sll a0,s0,5 and sll a1,s0,7); the only residue left there is operand side (retail puts the constant on the index, that build on the base) and pData in a2 vs v1. So the residual is a per-file flag question, not a source one: report PRESET_NO_STRENGTH_REDUCE and do not edit gears.toml. C-level handles measured: s32 i with the realistic body 88.90, 804 B, 201 insns; s16 i 89.59, 800 B, 199 (kills the givs because a HImode biv makes the mult operand a subreg, so general_induction_var refuses, but costs sll 16 and sra 16 per iteration); s32 i plus an s16 row = i copy used only in the four products 90.29, 796 B, 199 (parked below). Measured and worse: all four products inline with no accumulator locals 85.24, 828 B, 207; i shl 5 and i shl 7 for the products 88.90 identical; a rowOfs local for i*0x20 88.90.
 // Round 500 measured the FLAG BUILD ITSELF (optimization_flag = -O2 -fno-strength-reduce straight on this unit's cc edge in build.ninja, then diff_func, so objdiff scores it rather than cc1_probe reading it): with the s16 row copy dropped to the plain s32 i body it is 91.68% / 776 B / 194 insns, and the residues that survive are NOT the givs: the prologue save order (i is saved last where retail saves s0 first), g_Menu->unk35C in $a2 in the first block where retail has $v1 (so the constant rides the base: addiu v0,a2,12768 then addu a0,v1,v0, against retail's addiu a0,a0,12768 then addu a0,a0,v1), and retail's sll a1,s0,0x7 hoisted into the AddPrim jal slot where this build emits nop then the sll. So switching the preset buys no match on this function and is NOT worth adding on its account. The parked s16-row body's 199 insns are exactly retail's 191 plus the four sll 16 / sra 16 pairs, i.e. the giv killing is free of any other structural change: kill loop.c's shift givs under -O2 without a per-use subreg extension and this closes.
+/* 90.29% (796 vs 792 bytes, 199 vs 191 insns).  Round 550 re-measured both presets:
+//    2.6.0 (unit flags) 90.29 / 199 insns and 2.7.2-psx 90.29 / 199 insns, so the
+//    residual is not a 2.6-vs-2.7 shape.  The body is retail except for one loop-level
+//    cause: gcc strength reduction turns i*0x20 and i*0x80 into two extra mult givs
+//    (callee-saved, +0x20/+0x80 at the latch), which pushes the frame to 0x48 with six
+//    saves and re-forms the verts base as addiu(pData,K) plus the giv instead of
+//    retail sll, addiu, addu.  DECISIVE: cc1_probe.sh --opt "-O2 -fno-strength-reduce"
+//    reproduces retail frame 0x48, saved set s0-s3+ra, 191 insns and BOTH sll sites
+//    (sll a0,s0,5 and sll a1,s0,7); the only residue left there is operand side and
+//    pData in a2 vs v1.  Round 500 measured the flag build itself (optimization_flag on
+//    this unit cc edge, scored by objdiff rather than read off cc1_probe): 91.68% /
+//    776 B / 194 insns, and the residues that survive are NOT the givs - the prologue
+//    save order, g_Menu->unk35C in a2 where retail has v1, and retail sll a1,s0,0x7
+//    hoisted into the AddPrim jal slot where the flag build emits nop then sll.  So the
+//    residual is a per-file flag question, not a source one: PRESET_NO_STRENGTH_REDUCE,
+//    do not edit gears.toml.  C-level handles measured: s32 i with the realistic body
+//    88.90, 804 B, 201 insns; s16 i 89.59, 800 B, 199 (kills the givs but costs sll 16
+//    and sra 16 per iteration); s32 i plus an s16 row copy used only in the four
+//    products 90.29, 796 B, 199 (parked below).  Measured and worse: all four products
+//    inline with no accumulator locals 85.24, 828 B, 207; a rowOfs local for i*0x20
+//    88.90.
+// */
 /*
 void func_801CE860(void) {
     s32 i;
@@ -414,6 +436,7 @@ void func_801CE860(void) {
     }
 }*/
 INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CE860);
+
 
 
 
@@ -518,51 +541,29 @@ void MenuAddUnk5StringPrims(void) {
         MenuRenderString(g_Menu->pSubmenuPrims->polys0PrimCount, g_Menu->pSubmenuPrims->polys0, g_Menu->pSubmenuPrims->polys0RenderCtx);
     }
 }
-INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
-/* 98.89% (608 vs 612 bytes) under BOTH presets: everything matches except one
-   delay slot.  Retail fills the `character != slotRecordIndexes[i]` branch slot
-   with `li v1,0x1` (valid = 1) and leaves a dead `andi v0,v1,0xff` in the
-   `character != 0xFF` slot; gcc puts `li v0,0xFF` in the first slot and `li
-   v1,0x1` in the second, so the body is one dead u8 truncation short.  That
-   means retail's `valid` was truncated once more than `if (!valid)` needs.
-   Re-measured round 394 (2.6.0, 152 insns): the missing instruction is the QI mask on
-   the constant-1 edge.  Retail masks on BOTH edges into the merge block (in the second
-   bne's delay slot for the constant edge, after `move v1,v0` in the 0xFF arm) and the
-   merge label holds only `beqz v0`; this build folds the (u8)1 and emits one `andi` AT
-   the merge.  Measured this round, all short: (u8) casts at the assignment and the test
-   98.89 (identical); `valid = character != 0xFF || i == order` 95.51 (624 B, re-loads
-   g_Menu per use); `valid = character == 0xFF ? i == order : 1` 95.64 (628 B);
-   permute.sh 3 min base=314 best=314.  A source shape that masks the constant edge must
-   also keep the g_Menu reloads where retail has them, and the || form does not.
-   Notes: g_MenuCardSlotOrder is the overlay dlabel table in asm/menu/data/246A4.data.s so
-   it only needs an extern declaration.  The three colour bytes read the low byte
-   at 0x4D4 through a u8* cast (retail uses lbu) and the AddPrim offsets must be
-   written as &pData[ctx * N + K] (array subscript): that is what makes the addiu
-   land before the addu.  Also tried: else-branch assignment to valid (96%), the
-   || form valid = character != 0xFF || ... (worse), a u32 offset local hoisted
-   above each AddPrim (95.10%), and offset + pData operand order (96.78%).
-   98.89% (608 vs 612 bytes, 153 vs 154 insns) under 2.6.0 at -O2 and -O3 both:
-   retail duplicates the merge block's u8 conversion into BOTH predecessors (andi v0,v1,0xff
-   in the second bne delay slot for the const edge, and again after move v1,v0 at the end of
-   the 0xFF arm) and keeps only beqz at the merge; this build emits ONE andi AT the merge and
-   puts li v1,0x1 in the second slot. Same source, one dead mask short, so never linkable.
-   Tried this round: the arm carrying its own 'if (!valid) continue;' plus the outer one
-   (costing the arm its own andi+beqz, the two compare tails do NOT cross-jump because they
-   differ by the reorg nop: 96.94 / 624 B / 156 insns); explicit if/else with both arms
-   assigning valid (const edge then keeps li v0,1 + andi v0,v0,0xff, i.e. the constant
-   conversion does survive when the blocks are split, but the body reloads g_Menu and gains a
-   j: 95.64 / 628 B). Nothing here adds back exactly one andi. Already tried in earlier rounds:
-   (u8) casts at assignment and test (identical), || form (95.51), ternary (95.64), else-branch
-   assignment (96%), u32 offset local above AddPrim (95.10), offset+pData operand order
-   (96.78), permute.sh 3 min base=314 best=314. -O1 75.79, 2.7.2-cdk compile-fails.
-   Notes kept from before: g_MenuCardSlotOrder needs only an extern; the three colour bytes
-   read g_Menu+0x4D4 through a u8* cast (retail lbu); AddPrim offsets must be &pData[ctx*N+K]
-   so the addiu lands before the addu.
-   Round 432 re-measured this body at 98.89 / 153 insns (608 B) and re-confirmed both if/else
-   arm orders: `if (character != 0xFF) valid = 1; else ...` 96.03 (620 B, 155 insns - it keeps
-   the constant edge's mask but moves it into the arm, drops the `move v1,v0` and mirrors the
-   g_Menu loads to $v0/$v1) and the 0xFF-first order 95.64 (628 B, 157 insns, `j` + reloads).
-   `if (valid == 0)` compiles byte-identically to `if (!valid)`.
+/* 98.89% (608 vs 612 bytes, 153 vs 154 insns) under 2.6.0 at -O2 and -O3 and under 2.7.2 alike.
+//    Everything matches except one instruction: retail converts the u8 flag in BOTH
+//    predecessors (andi v0,v1,0xff in the second bne delay slot for the constant-1
+//    edge, and again after move v1,v0 at the end of the 0xFF arm) and the merge label
+//    holds only beqz v0; this build emits ONE andi AT the merge.  Round 550 probed
+//    that directly with cc1_probe.sh on this unit: the real body, a simplified copy of
+//    it, and variants with valid initialised to 0/1, with s32 valid, with the per-edge
+//    if/else, all put a single andi at the join - gcc cse hoists the two identical QI
+//    conversions to the merge, so no spelling of the flag adds the instruction back.
+//    A s32 valid drops the mask entirely instead (the constant path arrives with v0
+//    still holding 0xff, the known-nonzero reuse).  Also tried in earlier rounds, all
+//    short: (u8) casts at the assignment and at the test 98.89 (identical), the ||
+//    form 95.51, the ternary 95.64, else-branch assignment 96.03, if/else with both
+//    arms assigning 95.64 (adds a j and reloads g_Menu), u32 offset local above each
+//    AddPrim 95.10, offset+pData operand order 96.78, an arm carrying its own
+//    if (!valid) continue 96.94, -O1 75.79, 2.7.2-cdk compile-fails, permute.sh 3 min
+//    base=314 best=314.  Never linkable at 153 insns, so it stays parked.
+//    Notes for whoever retries: g_MenuCardSlotOrder is the overlay dlabel table in
+//    asm/menu/data/246A4.data.s so it only needs an extern; the three colour bytes read
+//    g_Menu+0x4D4 through a u8* cast (retail lbu); the AddPrim offsets must be written
+//    as &pData[ctx * N + K] so the addiu lands before the addu.
+// */
+/*
 void func_801CF37C(void) {
     s32 i;
     u8 character;
@@ -599,8 +600,10 @@ void func_801CF37C(void) {
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 0x18 + 0xB0]);
         AddPrim(&g_Menu->pGfxEnv->ot[4], (void*)&pData[g_Menu->renderContext * 12 + 0x140]);
     }
-}
-*/
+}*/
+INCLUDE_ASM("asm/menu/nonmatchings/main/misc4_260", func_801CF37C);
+
+
 
 
 // Partial view of the per-character-cell prim block g_Menu->pCellPrimBlocks points at
