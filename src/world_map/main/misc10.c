@@ -629,40 +629,14 @@ void WorldMapClearGroupEntryFlag(s32 groupIndex) {
     }
 }
 
-/* 59.86% (444 bytes / 111 insns against retail's 456 / 114). Round 425 replaced the
-   old 62.19% park with this body, rebuilt from m2c_draft plus the assembly. It is the
-   only one of five measured whose STORE-GROUP ANCHOR is retail's: two induction
-   pointers (t4 = pEntry at +0 for spriteIndex, a2 = pEntry+4 for everything else,
-   exactly retail's a2 = &pEntry->trailFlags). That anchor is produced by writing the
-   count store through the SAME pEntry base LAST - do not re-add a separate flags
-   pointer, which anchors the giv at 0x20 (lever g-giv-anchor-follows-source-order).
-   The 3 missing instructions are exactly (i) retail's separate s16 conversion
-   (sll v0,a1,0x10 + sra a1,v0,0x10, tested with blez; this body compares the sll
-   result directly) and (ii) the CALLEE-SAVED LOOP COUNTER: retail keeps i in s0
-   (sp,-0x10 / sw s0,8(sp) / li s0,0xFF / bne s0,v0), ours sinks to t8 with an 8-byte
-   frame. The counter only goes callee-saved when enough values are live across the
-   arm at once, and with plain `pEntry->x = x + velX;` gcc SINKS each of the six
-   pos/vel loads to its store instead of emitting retail's six-load group at the top
-   of the arm; assigning x/y/z/velX/velY/velZ as temps at the arm head does not stop
-   it (measured identical 59.86 / 111). Next lead: a scheduling barrier that keeps
-   those six loads at the arm head, which is what should push the counter into s0 and
-   restore the 2 frame instructions.
-   Load-bearing spellings found earlier and kept here: WorldMapTrailEntry.color must
-   be s32 (retail shifts it with sra) and colorStep is a packed s32 STEP WORD, not a
-   struct of 4 s8s - retail loads it once and shift-extracts g and b while r is a
-   plain lb, so it is spelled
-     r = (color & 0xFF) + (s8)pEntry->colorStep;
-     g = ((color >> 8) & 0xFF) + (s8)(pEntry->colorStep >> 8);
-     b = ((color >> 16) & 0xFF) + (s8)(pEntry->colorStep >> 16);
-   (three lb fields scored 49 and was 436 bytes). The parked neighbours that touch this
-   entry, WorldMapEmitSpriteTrailEntries and func_80089C78, still spell colorStep as a
-   struct (*(u32*)&pEntry->colorStep, pEntry->colorStep.a); they need the s32 form when
-   they are unparked. Rejected this round: temps plus a second `pFlags` induction
-   pointer with the count store in the middle reads 64.77 at 472 bytes / 118 insns
-   (anchor 0x20, saves s0 AND s1, 4 instructions long - the higher fuzzy score is the
-   extra instructions, not progress), and the same with the count store last reads
-   58.55 at retail's exact 456 / 114 with the anchor still at 0x20. Presets: this body
-   has not been screened against 2.6.0 / cdk0.
+// 59.86% (444 bytes / 111 insns against retail's 456 / 114). Best of FIVE bodies measured (round 550 re-measured this one at 59.86 first, then four new ones below), so it stays the park. Structure is right: the flags word is loaded once and split (>>16 into the outer beqz, (s16)flags into the blez), the r/g/b chain is
+//    r = (color & 0xFF) + (s8)step; g = ((color >> 8) & 0xFF) + (s8)(step >> 8); b = ((color >> 16) & 0xFF) + (s8)(step >> 16);
+//    and the scale, clamp and else arms all appear in retail's order. ROUND 550 MEASURED FOUR MORE BODIES (all with a local read twice, no UB):
+//    (1) plain compound assignments in retail's STORE order (count--, scaleX, scaleY, color block, then x/y/z/velX/velY/velZ +=) = 57.76% but 114 insns / 456 bytes = RETAIL'S EXACT SIZE. This is the most valuable fact of the round: the exact-size form is reachable, and it is the better permuter base because the 3-instruction deficit of this body (2 frame + 1 sra) can never score 0.
+//    (2) sums into locals at the arm head (x = pEntry->x + pEntry->velX; ... pEntry->x = x; after the color store) = 57.77 / 444 / 111 - sched2 SINKS the six load+add pairs to the END of the arm's entry block because their results are only used in the block AFTER the clamp branches.
+//    (3) same as (1) with the physics statements FIRST = 47.06 / 456 / 114.
+//    (4) same as (2) with the clamps wrapped in do {} while (0) = byte-identical to (2), so the clamp blocks were already barriers.
+//    THE REMAINING GAP (all of it, 139 differing lines, no structural difference): retail hoists ALL arm loads to the head of the entry block (x,y,z,velX,velY,velZ,color,count,colorStep,accelX,accelZ at insns 1-11, adds at 13-16) and keeps the six pos/vel stores to the block after the clamps, where this body sinks each load to its own add. Retail's two consequences: the six sums stay live across four branch blocks, which is what pushes the loop counter into s0 (addiu sp,-0x10 / sw s0,8(sp) = the 2 missing frame insns), and gcc emits retail's separate s16 conversion (sll v0,a1,0x10 / sra a1,v0,0x10 / blez a1) where this body's (s16)flags > 0 folds to blez on the sll result (the 1 missing instruction). No source order tested reaches the hoist; sched2 sinks a load whose only use is outside the block regardless of where the statement sits. Next lead: a construct that gives the six sums an in-block use in the arm's entry block (or a preset screen - this body has never been screened against 2.6.0 / cdk0).
 /*
 void func_80089580(void) {
     WorldMapTrailEntry* pEntry;
@@ -1153,21 +1127,7 @@ INCLUDE_ASM("asm/world_map/nonmatchings/main/misc10", func_8008A2C8);
 
 
 
-/* 76.69% (140 bytes, retail 140): instruction multiset identical, 35 vs 35 insns,
-   and the tail from the first jal delay slot on is byte-identical. The residual is
-   lever h-stack-arg-store-sink-is-a-war-tie (round 402): retail gives the index
-   shift `sll v1,a0,0x7` at insn 3, before the 0x10 push, so the 6th argument store
-   `sw v0,0x14(sp)` sinks to just before the jal; our cc1 gives the shift $v0, which
-   is a WAR on the `li v0,0x40` feeding that store, so sched2 emits the store at
-   insn 6 and the shift right after it, and the jal slot adds through v0 instead of
-   v1. The same 6 lines as misc11 func_8008B54C / func_8008BDD0, where a 4-minute
-   permuter run found only a call swap (wrong code) and try_flags --sweep topped
-   out, so this is parked instead of re-spelled. Measured identical 76.69:
-   "g_WorldMapSlots + arg0", "&g_WorldMapSlots[arg0]", and the typed twin spelling
-   of the flags clear through a 0x3C flags field instead of the u32 cast.
-   Presets: gcc 2.6.0 76.09, 2.7.2-cdk 76.69 - not a preset question.
-   Round 425 re-measured this exact body: still 76.69% at retail's 140 bytes / 35
-   insns, 6 differing lines, so the diagnosis above stands unchanged.
+// 76.69% (140 bytes = retail, 35 insns = retail), RE-MEASURED ROUND 550 from a fresh unpark: same 6 differing lines, everything from 'move a0,v0' on byte-identical. Residual = lever h-stack-arg-store-sink-is-a-war-tie, not a spelling: retail 'sll v1,a0,0x7' at insn 3 and 'sw v0,20(sp)' at insn 15 (past 'sw ra,28(sp)'); ours 'li v0,0x40 / sw v0,20(sp) / sll v0,a0,0x7' at 5-7 and 'addu s0,s0,v0' in the jal slot. The shift temp in v0 is a WAR on the li v0,0x40 feeding the 6th stack argument, so sched2 must emit that store before the shift; the register hand-out is what has to change and no source order reaches it. Same family already parked: misc11 func_8008B54C and func_8008BDD0 (93.37), this unit's func_8008A5B8 (92.63) and func_8008A2C8 (95.46). Measured dead in earlier rounds: (u8*)g_WorldMapSlots + arg0*0x80, (WorldMapActor*)g_WorldMapSlots + arg0, a separate s32 offset local, &g_WorldMapSlots[arg0], typed pSprite-flags twin spelling (misc11_b WorldMapInitPartyActorSprite2 is the matched same-head twin), gcc 2.6.0 76.09, cdk 76.69, 2.7.2 -O3 76.69, -fschedule-insns probe identical, 4-minute permuter base 535 best 535. m2c_draft this round reproduces the same head. Park, do not re-spell.
 /*
 s32 func_8008A52C(s32 arg0) {
     WorldMapPlayer* pActor = &g_WorldMapSlots[arg0];
