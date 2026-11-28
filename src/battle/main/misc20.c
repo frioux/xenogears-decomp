@@ -847,6 +847,11 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc20", func_8009E788);
 // identical-block merge cannot be turned off for one function, and the unit's other matched
 // functions pin it to 2.6.0. A 4-minute permuter run found only a wrong-code candidate (dead
 // volatile read that drops case 15 into the 0x7 arm). Wall: leave the stub.
+// Re-measured: -fno-thread-jumps IS accepted by 2.6.0 and changes nothing (still 50 insns), so
+// the merge is the unconditional cross_jump pass, not jump threading. A u8 intermediate in the
+// case-0 arm (`u8 part = ...; idx = part;`) folds back to the same RTL and also merges. The twin
+// BattleDecrementGearPartUse (main/misc19_b) has this exact shape and matches, because its two
+// extraWeaponIds[0] reads feed different code - the duplicate is the only residual here.
 /*
 void func_8009E788(void) {
     s32 idx;
