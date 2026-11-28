@@ -1635,6 +1635,17 @@ void GearShopMenuBuildGearPartNameGraphics(u8 itemType) {
 // wins it, the pRect-anchored one loses it. Casting only the divisor, or a 's32* pPlaces =
 // (s32*)((u8*)pRect + 0x28)' local, measures 2540 / 635 with TWO anchors ('addiu a2,sp,0x30' folded
 // plus the pRect one) - the same trade, one instruction cheaper.
+// ROUND 550: re-measured this body unchanged - 98.91% / 2528 bytes / 632 insns against retail's
+// 2532 / 633 (object .text 0x87a8 vs expected 0x87ac), so the whole unit is 4 bytes short when
+// converted and cannot link; it stays a stub.
+// The missing instruction is NOT a source shape. Retail forms the division giv base off the spilled
+// &rect ('lw t1,0x78(sp)' + 'addiu a1,t1,0x10'), ours folds the SAME address straight from sp
+// ('addiu a1,sp,0x30'), and both then 'lw v0,0x28(a1)' = sp+0x58 = places[4] (places at sp+0x48,
+// &rect at sp+0x20, so pRect+0x10 == sp+0x30). Two equivalent bases for one address, and retail even
+// reloads 0x78(sp) twice in that preheader instead of reusing the a0 it loads right there, so no
+// spelling of 'places[j]' can prefer one base over the other: it is the same size-vs-allocation
+// trade lever.py records as j-a-constant-address-pseudo-cannot-be-made-to-spill, and the pRect-cast
+// spelling that does buy the 2532 bytes pays 12 for it (97.50, above).
 /*
 s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     RECT rect;
@@ -1762,6 +1773,7 @@ s32 func_801D2B74(s32 scrollOffset, s32 funds, u8* pItemAffordable) {
     return sellPrice;
 }*/
 INCLUDE_ASM("asm/gear_shop_menu/nonmatchings/main/render", func_801D2B74);
+
 
 
 
