@@ -663,6 +663,11 @@ extern FieldPlayerActorPartySlotView g_FieldPlayerActorPartySlot;
 //    g_FieldPartyMoveInProgress against an inline 'ori t1,zero,0x1' where ours spends
 //    a callee-saved s8 on the constant). Preset screens unchanged from R432 (Default
 //    is the unit's preset; 2.6.0 drops seven matched neighbours). */
+// R549 91.60% (1608 bytes / 402 insns; retail 1636 / 409). NEW since R542b: the position block was +6 insns, not a register tie - retail calls each 't[i] << 16' ONCE into a temp and stores the product twice ('lw v0,t[0] / sll / sw v0,sprite.x / sw v0,actor.vx'), while the field-expression form reloads t[0] after the sprite store because pSpriteData->position may alias pFieldActor->transformMatrix. Three s32 temps (positionX/Y/Z) closed 6 insns and +2.20 points. Parked body is that one.
+//    The 6 step+normal sites are now the ONLY size residual and they are two different shapes: RETAIL HOISTS the normal base (preheader 'lui/addiu s8,D_800B1520' = &D_800B14F0[0].normal, then 'addu v0,v0,s8 / lw 0/4/8(v0)') and FORMS the step base inline once per iteration ('lui t1,%hi(D_800B1510); addiu' after the first index load, then 'addu v0,v0,t1 / lw 0/4/8'), because s8 is the last free callee-saved register. The parked 'FieldActorRenderPacket* pRing' local reproduces the hoisted 2-insn form but with base D_800B14F0 and displacements 0x30/0x34/0x38 for the normals and 0x20/0x24/0x28 for the steps, which never links.
+//    MEASURED this round on that body: (a) 'u8* pRingNormal = (u8*)D_800B14F0 + 0x30;' + '*(s32*)(pRingNormal + idx*sizeof(...))' gives retail's EXACT normal group ('addu v0,v0,s8 / lw 0x0/0x4/0x8(v0)', reloc D_800B14F0+0x30) but costs the pRingSteps; (b) the step group as 'IVEC3* p = &D_800B14F0[idx].step' reads the volatile index ONCE and shares the whole element address (392 insns, 88.27); (c) the step group as three plain 'D_800B14F0[idx].step.x/y/z' re-reads the index per access (retail's) but cc1 emits the $at form per access ('lui at,%hi(D_800B14F0+0x20); addu at,at,v0; lw %lo(at)') instead of hoisting the symbol part into t1 - 405 insns / 1620 bytes / 90.85, so the combined body (a)+(c) measures 90.85 and the pRing body 91.60 stays the best.
+//    Still unexplained vs retail: retail loads ringFlags ('lw a2,%lo(D_800B14F0)(at)') BEFORE the g_FieldPartyMoveInProgress lbu and hoists curWalkmeshTriMaterial (0x14) above the test; the parked body has those two in the other order. Preset screens re-run this round: Default 91.60 is best, cdk drops ~30 already-matched unit functions (FieldFreeActorData 98.65, FieldActorGetWalkmeshTriMaterial 65.77, FieldUpdateActorMovement 94.67...), so no unit switch.
+/*
 void func_800815F0(void) {
     FieldActor* pFieldActor;
     ActorData* pActorData;
@@ -806,7 +811,9 @@ void func_800815F0(void) {
             g_FieldSpriteUpdateIndex[partyId] = (g_FieldSpriteUpdateIndex[partyId] - 1) & 0x1F;
         }
     }
-}
+}*/
+INCLUDE_ASM("asm/field/nonmatchings/main/misc8", func_800815F0);
+
 
 
 
