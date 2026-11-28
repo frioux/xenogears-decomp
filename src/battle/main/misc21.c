@@ -903,13 +903,73 @@ INCLUDE_ASM("asm/battle/nonmatchings/main/misc21", func_800A0838);
 // Known remaining diff in the RELATIVE arms of the rotation channel only: retail
 // reads the literal's high byte with `lb` + `sll 8`, this body with `lbu` +
 // `sll 24`/`sra 16` (the translation channel's 32-bit LVEC3 target matches).
-// Permuter: see the note under the body.
+// Permuter (one 4-minute run, -j2, 219 iterations): PERMUTER_BETTER 7846 -> 7077.
+// Ported and measured, then rejected. The candidate's one substantive edit was a
+// second copy of pObject inside the scale channel's STEP arm (`pScale = pObject;`
+// before `curFrame = 0`, and the arm's tail then using pScale). It is real in
+// retail - the SCALE STEP arm does make its copy THERE (`addu s6,s0` at 0x31E30,
+// in the arm, not at the channel entry) - but porting it scores 96.04% with 4912
+// bytes / 1227 insns against retail's 4888 / 1222 and 781 differing lines, i.e.
+// four instructions OVER and 55 more lines than this body: gcc then also reshuffles
+// registers this body already has right. objdiff's fuzzy number is not monotone,
+// so this body stays. The candidate's other edit (`isLiteral = delta != -0x80`)
+// changes nothing on its own (identical score and line count).
 // The LIBGEAR_* constants and the JointObject view below duplicate
 // lib_gear/main/main.c's file-local spellings; they belong in include/libgear/main.h.
 // Temp3::opcode & this mask is the command the queued-object update dispatches on,
 // and the update's result bits below. The spellings are lib_gear/main/main.c's, where
 // this function also lives; they belong in include/libgear/main.h and are repeated
 // here only because that unit defines them file-locally.
+#define LIBGEAR_JOINT_OPCODE_MASK 0xF
+#define LIBGEAR_JOINT_OBJECT_SET 0
+#define LIBGEAR_JOINT_OBJECT_RELATIVE 1
+#define LIBGEAR_JOINT_OBJECT_ADD 2
+#define LIBGEAR_JOINT_OBJECT_STEP 4
+#define LIBGEAR_JOINT_OBJECT_ACCUMULATE 5
+#define LIBGEAR_JOINT_OBJECT_NO_X 0x10
+#define LIBGEAR_JOINT_OBJECT_NO_Y 0x20
+#define LIBGEAR_JOINT_OBJECT_NO_Z 0x40
+#define LIBGEAR_SCRIPT_LITERAL -0x80
+#define LIBGEAR_JOINT_UPDATE_ADVANCED 0x1
+#define LIBGEAR_JOINT_UPDATE_FINISHED 0x2
+#define LIBGEAR_JOINT_UPDATE_LOOPED 0x4
+#define LIBGEAR_JOINT_UPDATE_ADVANCED_ANY 0x100
+#define LIBGEAR_JOINT_UPDATE_FINISHED_ANY 0x200
+#define LIBGEAR_JOINT_UPDATE_LOOPED_ANY 0x400
+#define LIBGEAR_JOINT_FRAME_ACCUMULATE_MAX 0x7D00
+#define LIBGEAR_ANGLE_MASK 0xFFF
+#define LIBGEAR_ANGLE_HALF_TURN 0x800
+#define LIBGEAR_ANGLE_FULL_TURN 0x1000
+
+// A joint's queued object (Temp3) as the update reads it: bytes 0x4..0xE are a byte
+// script while opcode & 0xF is below LIBGEAR_JOINT_OPCODE_INTERPOLATE and an
+// interpolation from there up, so they share one union.
+typedef struct {
+    /* 0x0 */ u8* pScript;
+    /* 0x4 */ u8* pCursor;
+} JointObjectStep;
+typedef struct {
+    /* 0x0 */ s16 startX;
+    /* 0x2 */ s16 startY;
+    /* 0x4 */ s16 startZ;
+    /* 0x6 */ s16 targetX;
+    /* 0x8 */ s16 targetY;
+    /* 0xA */ s16 targetZ;
+} JointObjectLerp;
+typedef union {
+    JointObjectStep step;
+    JointObjectLerp lerp;
+} JointObjectValue;
+typedef struct {
+    /* 0x0  */ u8 inUse;
+    /* 0x1  */ u8 loops;
+    /* 0x2  */ u8 opcode;
+    /* 0x3  */ u8 type;
+    /* 0x4  */ JointObjectValue value;
+    /* 0x10 */ s16 curFrame;
+    /* 0x12 */ s16 endFrame;
+} JointObject; // Size: 0x14
+
 /*
 s32 func_800A0838(BattleBlockPool* pPool, ModelJoint* pSkeleton, u32 objectType, s32 scale) {
     s32 result;
