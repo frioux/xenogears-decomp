@@ -1431,6 +1431,15 @@ extern u8 D_800C3509[];
 // the addu operands index-first, no change; moving 'pTail = pEntry' before
 // 'nameLen = base + 1' is byte-identical and gives retail's instruction order, so it is
 // kept.
+// Round 548 re-unparked and re-measured (99.14% / 372 bytes / 93 insns, the same 26
+// differing lines) and added two dead axes: writing the first pair's two stores through
+// pEntry instead of pTail ('pEntry->fileIndex1 = nameLen; pEntry->pBuffer1 = ...') is
+// byte-identical, because RTL generation substitutes the cursor's pseudo for those stores
+// before the allocator ever counts refs - so no spelling of which name owns a store moves
+// the two quotients. A fifth permuter run from this body: base=80 best=80, 1125
+// iterations. The pair is quotient-closed (see lever
+// relaunching-a-dead-pointer-local-for-a-later-heapalloc-flips-a-mirrored-pair): pTail 9
+// refs / 25 insns = 4.32 against pEntry 7 / 32 = 1.75, and pEntry would need 16 refs.
 // Round 484 closed the remaining cheap axes on this body. gcc-2.7.2-cdk-psx -G0 scores 85.41 (BattleAllocateArchiveFilePair 85.52, BattleUpdateAndDrawActors 78.14), so the unit's 2.6.0 -G0 preset is right and the mirror is not a compiler-version question. Two 'do { } while (0);' barriers (between 'pTail = pEntry;' and 'nameLen = base + 1;', and after 'pEntry->pBuffer2 = pTable;' before the if) are byte-identical at 99.14 / 26 lines, so the block-structure lever does not reach this pair. A fourth 3-minute permuter run from this body: 1339 iterations, base=80 best=80. NEW residual detail: the mirror is not the only difference - the 'pTable + index' sum is base-first in retail ('addu v0,s0,s1') and index-first in ours ('addu v0,s1,s0') although the source reads 'pTable[index - 1]', and the 0x8 store takes the cursor's register here where retail takes the entry's. Both residuals are register-level, so the body stays parked at 99.14.
 /*
 void func_800A9540(s32 arg0) {
