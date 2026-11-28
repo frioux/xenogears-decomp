@@ -1089,69 +1089,47 @@ error:
 
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
 
-/* Parked (round 403): objdiff 97.47%, 736 bytes - retail's EXACT size, 184 vs 184
- * insns, same instruction multiset, 8 differing lines in 3 rows. func_8002B5D0 is
- * instruction-identical (twin_for 1.000), so this body parks both; its note below
- * is the older 96.81 attempt.
+/* Parked: objdiff 97.47%, 736 bytes (retail's exact size), 184 vs 184 insns,
+ * identical instruction multiset, 8 differing lines in 3 rows, all of them
+ * sched2/reorg's choice. func_8002B5D0 is instruction-identical (twin_for 1.000),
+ * so this one body parks both; the park below that stub carries the round 418/431
+ * permuter history (its best find, 98.28%, needs 185 insns).
  *
- * The three rows (all inside the scan loop head and the found-block):
- *  1. scan loop head: ours `addiu v1,v0,1` then `move s2,v0`, retail `move s2,v0`
- *     then `addiu v1,s2,1` (local_alloc coalesced the add with the load temp).
- *  2. the beq after CdPosToInt: retail fills the slot with `li v0,0x1` (the state
- *     store's value), ours with `li a1,0x200` (the CdGetSector size argument).
- *     This is levers.md c-a-call-argument-constant-beats: reorg takes the FIRST
- *     scheduled insn of the target block and sched2 ranks the jal's arg constant
- *     ahead of the store-only constant, so no source order reaches it.
- *  3. consequence of 2: `sll a0,s2,0xb` lands after the write-pointer `lw`
- *     instead of in the slot after `lhu a2`.
+ * Residual rows, named:
+ *  1. scan-loop head. Retail `move s2,v0` then `addiu v1,s2,1`; this build
+ *     `addiu v1,v0,1` then `move s2,v0`. Retail's add READS the copy, so retail's
+ *     RTL had the add after the copy - only a two-statement queue index produces
+ *     that, and every two-statement form loses the copy entirely (local_alloc loads
+ *     straight into the callee-saved register): 183 insns / 732 bytes, cannot link.
+ *     With the copy present (the `g_ArchiveStreamQueueIndex++` spelling) the add's
+ *     two in-block dependents (the `sw` and the `slt` that feeds the branch) outrank
+ *     the copy, which has none, so sched2 emits the add first.
+ *  2. the `beq` after CdPosToInt. Retail's slot holds `li v0,1` (the state store's
+ *     value); ours `li a1,0x200` (CdGetSector's size argument). levers.md
+ *     c-a-call-argument-constant-beats: reorg fills the slot from the target block's
+ *     first scheduled insn, and the jal's argument constant is on that block's
+ *     critical path while the state constant only feeds a `sh`. No statement order,
+ *     volatile store or argument local moves it.
+ *  3. consequence of 2: `sll a0,s2,0xb` lands after the write-pointer `lw` instead
+ *     of right after `lhu a2` (and this build does not pay the maspsx load-delay
+ *     `nop` that row 3 of the round-403 note described, so the size is still retail's).
  *
- * Measured this round (all 736 bytes unless stated): two-statement queue index
- * (`entryIndex = g_ArchiveStreamQueueIndex; g_ArchiveStreamQueueIndex =
- * entryIndex + 1;`) scores 97.93 but is 732 bytes / 183 insns - the copy
- * disappears, so it cannot link; first id read plain + second volatile 96.48;
- * `pCurrent = NULL` initialiser 92.50 / 740 bytes / 185 insns (the duplicated
- * tail's cross-jump no longer happens). Reading the write pointer through a
- * `volatile u32*` local measures the same 97.47 as the inline `s8* volatile*`
- * cast and is the spelling parked here.
- *
- * permute.sh still cannot run this body: the permuter's parser reports
- * 'conversion to non-scalar type requested' on the write-pointer assignment line
- * for every spelling of it tried (`s8* volatile*` inline, `s8* volatile*` local,
- * `volatile u32*` local), so the body is hand-only until that is fixed. The lever
- * above says row 2 is unreachable anyway; park it, do not re-hunt.
- *
- * ROUND 417 re-measurements on this body, plus the proof that the permuter blocker
- * is UNIT-WIDE and not this spelling: `permute.sh slus_006.64/system/archive
- * ArchiveStreamLoadSection` (an already-matched 100.00% body in the same file) dies
- * with the same `conversion to non-scalar type requested` from the preprocessed
- * text, so no function of this unit can be permuted at all. Re-measured: dest
- * pointer computed first (`pBuf = (u8*)(...);` then state/id, then `CdGetSector(pBuf,
- * ...)`) 96.67 / 740 bytes; `*(volatile u16*)&pCurrent->state = 1` with a PLAIN
- * first id read 96.48 / 736; two-statement queue index re-confirmed 97.93 / 732
- * bytes, one insn short (the `addu s2,v0,zero` copy is what the single statement
- * buys); `(mem_addr)` dropped from the write-pointer sum measures the same 97.47.
- *
- * The permuter DOES run on this body once the pycparser `sizeof` mangle is avoided
- * (levers.md o-permuter-pycparser-mangles-sizeof): spelling
- * `entryIndex * 8 + (mem_addr)g_ArchiveStreamSections` instead of
- * `entryIndex * sizeof(ArchiveStreamFileSectionHeader) + ...` scores the same 97.47
- * and every earlier "the permuter cannot parse this body" note here is wrong about
- * the cause - the write-pointer casts are fine. A 3-minute run (-j 2) found one
- * edit worth taking seriously: a copy of the section pointer taken after
- * `CdGetSector(pLoc, 3)` and used in the found-block and the duplicated tail, which
- * scores 97.66 but 740 bytes / 185 insns, i.e. still not retail's shape. Land the
- * `sizeof` substitution first, then re-run: this is a permuter job, not a hand one.
- *
- * ROUND 431: this function is instruction-identical to func_8002B5D0; the ROUND 431
- * note in that stub's park re-measures the shared body and the body it carries is
- * the closest shape found (double negation on the destination sum: retail's `sll`
- * register, no maspsx load-delay nop, identical multiset, residual a pure reorder).
- * Port that line here before trying anything else on this stub.
+ * Re-measured this round, all against retail 736 bytes / 184 insns unless stated:
+ *   the body below                                            97.47 / 736 / 184  <- parked
+ *   `entryIndex = g_ArchiveStreamQueueIndex; g_ArchiveStreamQueueIndex =
+ *    entryIndex + 1;`                                         97.93 / 732 / 183
+ *   the same with the pCurrent sum between the two statements  97.93 / 732 / 183
+ *   one cleanup tail (`CdReadyCallback(NULL); g_ArchiveCurFileSize = 0;`) instead
+ *    of the duplicated `if (pCurrent) {...} else {...}`        96.38 / 728 / 182
+ *     -> the duplication is load-bearing: it is what makes gcc cross-jump the two
+ *        arms into retail's single `.L8002B4C0` block.
+ * Verdict: rows 1 and 2 are the two scheduler ceilings levers.md already names
+ * (local_alloc tie; call-argument constant beating a store-only constant). Do not
+ * re-hunt them; a different loop SHAPE is the only untried direction on row 1.
  *
  * void func_8002B2F0(u_char status) {
  *     int entryIndex;
  *     ArchiveStreamFileSectionHeader* pCurrent;
- *     volatile u32* pWritePointer;
  *     CdlLOC* pLoc;
  *     u8* pBuf;
  *     int i;
@@ -1176,11 +1154,11 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
  *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
  *                 g_ArchiveStreamQueueIndex = 0;
- *             if (pCurrent->state == 0)
+ *             if (pCurrent->state == ARCHIVE_STREAM_FILE_NOT_LOADED)
  *                 break;
  *         }
  *
- *         if (pCurrent->state != 0)
+ *         if (pCurrent->state != ARCHIVE_STREAM_FILE_NOT_LOADED)
  *             goto errorNoInc;
  *
  *         pLoc = &g_ArchiveSectorLocation;
@@ -1189,8 +1167,7 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *             pCurrent->state = 1;
  *             pCurrent->id = *(volatile u16*)&g_ArchiveStreamNextSectionId;
  *             g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;
- *             pWritePointer = (volatile u32*)&g_ArchiveStreamWritePointer;
- *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)*pWritePointer), CD_SECTOR_SIZE / 4);
+ *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE - (-(mem_addr)*(s8* volatile*)&g_ArchiveStreamWritePointer)), CD_SECTOR_SIZE / 4);
  *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
  *             g_ArchiveCurFileSector += 1;
  *             if (g_ArchiveCurFileSize > 0)
@@ -1236,133 +1213,6 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B2F0);
  *
  */
 
-/* NOTE: the park below func_8002B5D0 is the same body taken to 97.47% (retail's
- * exact 736 bytes) - read that note first, it supersedes the measurements here.
- *
- * Best attempt: objdiff 96.81% (this was 96.40% before). func_8002B5D0 is
- * instruction-identical to this function (verified by diffing both .s files modulo
- * addresses), so one body matches both. Everything outside the found-block after
- * CdPosToInt matches byte for byte.
- *
- * What this attempt got right:
- *  - the search loop reads the globals directly (`for (i = 0; i < g_ArchiveStreamSectionCount; i++)`
- *    with `entryIndex = g_ArchiveStreamQueueIndex++` and g_ArchiveStreamSections in the body) so gcc hoists the
- *    loop-invariant copies (`lw v0,g_ArchiveStreamSectionCount` + `blez v0`, `move a1,v0`);
- *  - the two delay loops need their OWN counters (k/l); reusing the search loop's
- *    `i` puts the outer 9999 counter in a0 instead of v1;
- *  - `g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;` is the spelling that keeps
- *    retail's TWO lhu of the id counter. gcc's cse merges a plain second read with
- *    the `pCurrent->id = g_ArchiveStreamNextSectionId` read (the store through s1 in between is not
- *    treated as aliasing), so the increment read has to be volatile to survive.
- *
- * Remaining delta: same instruction set, same size, three ordering differences,
- * all inside the found block. Retail:
- *   li v0,0x1 <- (reorg steals it into the beq delay slot) ; li a1,0x200 ;
- *   lhu a2,g_ArchiveStreamNextSectionId ; sll a0,s2,0xb ; sh v0,0(s1) ; lhu v0,g_ArchiveStreamNextSectionId ;
- *   lui/lw v1,g_ArchiveStreamWritePointer ; addiu v0,v0,1 ; sh a2,2(s1) ; sh v0,g_ArchiveStreamNextSectionId ;
- *   jal CdGetSector ; addu a0,a0,v1
- * Ours:
- *   li a1,0x200 <- ; li v0,0x1 ; lhu a2,g_ArchiveStreamNextSectionId ; lui/lw a0,g_ArchiveStreamWritePointer ;
- *   sll v1,s2,0xb ; sh v0,0(s1) ; lhu v0,g_ArchiveStreamNextSectionId ; nop ; addiu v0,v0,1 ;
- *   sh a2,2(s1) ; sh v0,g_ArchiveStreamNextSectionId ; jal CdGetSector ; addu a0,v1,a0
- * All three are sched2's choice of insn order, not the C:
- *  1. the state constant is emitted after the call's 0x200 constant, so reorg steals
- *     the wrong one into the beq delay slot;
- *  2. `lw g_ArchiveStreamWritePointer` is scheduled before `sll`, which also hands a0 to the load and
- *     v1 to the shift (retail: sll into a0, load into v1, `addu a0,a0,v1`);
- *  3. with the load no longer sitting between the two id reads, MASPSX has to insert
- *     a load-delay nop after the volatile `lhu v0` (see
- *     `_handle_nop_before_next_instruction`: any `lhu $r,sym` whose very next insn
- *     reads $r gets a nop), which is why the size ends up equal while everything
- *     after the block sits 4 bytes early.
- * Measured and rejected: state-first WITHOUT volatile is 97.46% but has only one
- * lhu and is 728 bytes (one insn short - there is no way to make the second plain
- * read survive cse); both id reads volatile 96.81% (same block as here); volatile
- * read into a u16 local then `g_ArchiveStreamNextSectionId = nId + 1` 96.81%; volatile increment read
- * first and plain read second 96.48%; `nOffset = entryIndex * CD_SECTOR_SIZE;` as
- * its own statement before the call 96.81% (gcc folds the local back). Next idea:
- * make sched2 emit the shift before the load - that is the insn that decides the
- * register allocation and the nop - or find a non-volatile spelling of the second
- * read that cse cannot merge.
- *
- * void func_8002B2F0(u_char status) {
- *     ArchiveStreamFileSectionHeader* pCurrent;
- *     CdlLOC* pLoc;
- *     u8* pBuf;
- *     int entryIndex;
- *     int i;
- *     int k;
- *     int l;
- *
- *     if (status != CdlDataReady)
- *         goto error;
- *
- *     if (g_ArchiveStreamStopFlag > 0) {
- *         CdReadyCallback(NULL);
- *         CdDataCallback(NULL);
- *         g_ArchiveCurFileSize = 0;
- *         ArchiveCdSeekToFile(g_ArchiveCdChannel);
- *         g_ArchivePendingReadCount = 0;
- *         return;
- *     }
- *
- *     if (g_ArchiveCurFileSize > 0) {
- *         for (i = 0; i < g_ArchiveStreamSectionCount; i++) {
- *             entryIndex = g_ArchiveStreamQueueIndex++;
- *             pCurrent = (ArchiveStreamFileSectionHeader*)(entryIndex * sizeof(ArchiveStreamFileSectionHeader) + (mem_addr)g_ArchiveStreamSections);
- *             if (g_ArchiveStreamQueueIndex >= g_ArchiveStreamSectionCount)
- *                 g_ArchiveStreamQueueIndex = 0;
- *             if (pCurrent->state == 0)
- *                 break;
- *         }
- *
- *         if (pCurrent->state != 0)
- *             goto errorNoInc;
- *
- *         pLoc = &g_ArchiveSectorLocation;
- *         CdGetSector(pLoc, 3);
- *         if (CdPosToInt(pLoc) == g_ArchiveCurFileSector) {
- *             pCurrent->state = 1;
- *             pCurrent->id = g_ArchiveStreamNextSectionId;
- *             g_ArchiveStreamNextSectionId = *(volatile u16*)&g_ArchiveStreamNextSectionId + 1;
- *             CdGetSector((u8*)(entryIndex * CD_SECTOR_SIZE + (mem_addr)g_ArchiveStreamWritePointer), CD_SECTOR_SIZE / 4);
- *             g_ArchiveCurFileSize -= CD_SECTOR_SIZE;
- *             g_ArchiveCurFileSector += 1;
- *             if (g_ArchiveCurFileSize > 0)
- *                 return;
- *         } else {
- *             g_ArchiveStreamSectionPositionErrors += 1;
- *             pBuf = g_ArchiveSectorScratch;
- *             CdGetSector(pBuf, CD_SECTOR_SIZE / 4);
- *             goto error;
- *         }
- *     }
- *
- *     CdReadyCallback(NULL);
- *     g_ArchiveCurFileSize = 0;
- *     return;
- *
- * error:
- *     g_ArchiveReadRetryCount += 1;
- * errorNoInc:
- *     g_ArchiveSavedReadyCallback = CdReadyCallback(NULL);
- *     CdIntToPos(g_ArchiveCurFileSector, &g_ArchiveCdCurLocation);
- *     if (g_ArchiveReadRetryCount < 3) {
- *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_READ;
- *     } else {
- *         for (k = 9999; k >= 0; k--) {
- *             for (l = 1999; l >= 0; l--) {
- *             }
- *         }
- *         g_ArchiveReadRetryCount = 0;
- *         g_ArchiveCdDriveError = ARCHIVE_CD_DRIVE_ERR_HALT;
- *         g_ArchiveCdReadRetryExhaustedCount += 1;
- *     }
- *     g_ArchiveCdDriveState = ARCHIVE_CD_DRIVE_ERROR;
- *     CdSyncCallback(&ArchiveCdDriveCommandHandler);
- *     CdControlF(CdlNop, NULL);
- * }
- */
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/archive", func_8002B5D0);
 
 /* Parked: objdiff 97.47%, 736 bytes (retail's exact size), instruction multiset
