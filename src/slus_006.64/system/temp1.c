@@ -992,29 +992,23 @@ void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s1
     g_SpritePendingClut = 0;
 }
 
-/* Best attempt: 99.19% (456 bytes, the original size, 114 insns; TWO residuals, both pure register choice).
-   (a) the 0x3C flag word lands in v1 with the ~3 mask in v0 in the original, v0/v1 here, and the
-       0x40 word follows it (lw v0,64 in the original, lw v1,64 here);
-   (b) the prologue saves s6 (a1) before s0 (a0), this body the other way round (sw s0 16(sp) /
-       move s0,a0 first). So it is not one pair but two, and the note used to claim only (a).
-   Two source facts are load-bearing, keep them:
-   (1) pAnimFileData = pAnimFile as the FIRST statement of the body. A plain local assigned where it
-       is used is copy-propagated away, so the function saves six callee-saved registers instead of
-       seven; with the copy first, gcc keeps pAnimFile in s6 for the tail (the 0x48 store and the
-       SpriteSetAnimFile call) and a second copy in s1 for the 0x8 offset load, exactly as the
-       original does. Worth 89.07 -> 92.17.
-   (2) isBattle = g_IsBattle into a u8 local before the 0x3C read-modify-write. With the test read
-       inline gcc emits that whole flag block as straight-line statement order; the local makes it
-       interleave the way the original does (mask constants first, both loads, then the and/or/store
-       pairs with the branch last). Worth 92.17 -> 99.19; found by the permuter.
-   Tried before: the word in a local before the store (98.45), a u32 pointer local to 0x3C (99.19),
-   a 2-bit bitfield store through the SpriteFlagsWord view (92.17), the two statements swapped
-   (91.73), s32 vs u8 for isBattle (99.19), two 4-minute permuter runs (nothing past the isBattle
-   local).
-   Tried this round, all 456 bytes: the same word through g_SpriteFlags0x3C(...).flags (92.17 - the
-   interleave collapses, so the raw cast must stay), the update split into "&= ~3;" then "|= 1;"
-   (99.19, gcc merges them, identical RTL), and u8* instead of void* for pAnimFile (99.19).
-   Permuter, third run, 3 minutes: base 90 best 90, no lead. GIV_TIE-shaped allocator tie.
+// ROUND 548: 99.63% / 456 bytes / 114 insns / 8 differing lines (was 99.19 / 20 lines). The permuter (4 min, 1223 iters, base 90 best 40) closed residual (a) - the mask constant in v0 and the 0x3C word in v1, retail pair - with ONE edit: name the AND result into a local that is dead but defined again later, i.e.
+//        *(u32*)((u8*)pSpriteData + 0x3C) = (pAnimHeader = (*(u32*)((u8*)pSpriteData + 0x3C)) & ~3) | 1;
+//    The longer live range of the AND-defined pseudo is what pushes the constant out of v1. Semantics are unchanged (pAnimHeader is overwritten at the 0x48 header read before any use), but the spelling is not source a 1998 programmer would write: a realistic sink is still owed.
+//    Residuals now: (b) the prologue emits "sw s0,16(sp) / move s0,a0" before the s6 pair where retail has the s6 pair first (sched1 is ON for this unit: a -fno-schedule-insns/-insns2 compile of this body is an unscheduled prologue, so retail is scheduled and the swap is sched1 order, not an allocation); (c) NEW - the anim header load lands in v1 with "addu a0,v1,s1" where retail has "lw a0,8(s1)" + "addu a0,a0,s1": the sink above extends a pseudo that costs the header value its coalescing into a0. Measured dead this round at 99.63 or worse, all 456 bytes / 114 insns: sink = flags instead of pAnimHeader (98.45, the whole later 0x3C block rotates), the header pointer built in two statements then passed alone (identical stream, 99.63), and the pre-round body at 99.19. Next lever: choose a sink that dies before the header read, so (a) stays closed and (c) returns.
+// Two source facts from the earlier rounds are load-bearing, keep them: (1) pAnimFileData = pAnimFile as the
+// FIRST statement of the body - a local assigned where it is used is copy-propagated away, so the function
+// saves six callee-saved registers instead of seven; with the copy first gcc keeps pAnimFile in s6 for the
+// tail (the 0x48 store and the SpriteSetAnimFile call) and a second copy in s1 for the 0x8 offset load
+// (89.07 -> 92.17). (2) isBattle = g_IsBattle into a u8 local before the 0x3C read-modify-write; read
+// inline, gcc emits the flag block as straight-line statement order instead of retail's interleave with the
+// branch last (92.17 -> 99.19). Dead ends already measured (all 456 bytes / 114 insns): the word in a local
+// before the store 98.45, a u32 pointer local to 0x3C 99.19, the bitfield SpriteFlagsWord view 92.17, the
+// two statements swapped 91.73, s32 isBattle 99.19, u8* for pAnimFile 99.19, "&= ~3" then "|= 1" 99.19.
+// Presets: gcc-2.7.2-psx 94.97, this unit's cdk 99.19 (and 99.63 with the sink), 2.6.0 fails to compile;
+// the unit cannot move to 2.7.2 (matched neighbours AnimScriptTick 94.75, AnimTaskAlloc 79.92,
+// AnimTaskCreate 88.14, func_80023468 86.41). Three earlier permuter runs: base 90 best 90.
+/*
 SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
                           s16 arg5, s16 arg6) {
     SpriteDataI1* pBase;
@@ -1031,7 +1025,7 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     SpriteInitBaseWithInternalStorage(pSpriteData);
     SpriteSetScale(pSpriteData, 0x1000);
     isBattle = g_IsBattle;
-    *(u32*)((u8*)pSpriteData + 0x3C) = (*(u32*)((u8*)pSpriteData + 0x3C) & ~3) | 1;
+    *(u32*)((u8*)pSpriteData + 0x3C) = (pAnimHeader = (*(u32*)((u8*)pSpriteData + 0x3C)) & ~3) | 1;
     pSpriteData->field_0x40 &= 0xFFFE1FFF;
     if (isBattle) {
         pSpriteData->flags_0xA8 &= ~1;
@@ -1064,24 +1058,9 @@ SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s1
     pSpriteData->field_0x60 = (u32)pAnimations + ((*(u16*)pAnimations & 0x3F) + 1) * 2;
     SpritePlayAnimation(pSpriteData, 0);
     return pSpriteData;
-}
-
-   ROUND 408: re-measured from this body - 99.19% / 456 bytes / 114 insns, identical to the note above,
-   with the same TWO residuals: (a) the ~3 constant and the 0x3C word swapped across v0/v1, which drags
-   the 0x40 word with it, and (b) the prologue emission order (retail pairs "sw s6,40(sp)" with
-   "addu s6,a1,zero" before the s0 pair; the register-to-parameter assignment itself is identical in both
-   bodies, so (b) is an EMISSION ORDER, not a callee-saved allocation tie, and no local moves it).
-   Measured this round for (a), all 99.19 / 456 bytes / 114 insns: the mask as a positive constant
-   (& 0xFFFFFFFC), the mask in a u32 local assigned as the first statement of the body (& mask), and the
-   C operand order reversed (0xFFFFFFFC & word). cc1 canonicalises the commute and emits the same
-   mirrored body every time, so the constant cannot be made to take v0 from source - the word's pseudo is
-   created first by expand_binop and both pseudos have refs=1 (allocator priority 0), so the allocno
-   number decides and the constant always loses. Preset also ruled out with numbers: gcc-2.7.2-psx 94.97,
-   gcc-2.7.2-cdk 99.19 (2.6.0 compile-fails on this unit), and the unit cannot move to 2.7.2 (matched
-   neighbours AnimScriptTick 94.75, AnimTaskAlloc 79.92, AnimTaskCreate 88.14, func_80023468 86.41).
-   Verdict: GIV_TIE, same decision as func_80023804 above.
-*/
+}*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_8002435C);
+
 
 void SpriteAllocFromAnimFile(void* pAnimFile, s16 arg1, s16 arg2, s16 arg3, s16 arg4, s16 arg5) {
     SpriteData* pSpriteData;
