@@ -262,6 +262,17 @@ typedef struct {
 // (base=10 best=10 at 1109-1587 iterations) and lever f-mult-operand-order-follows lists this function
 // as the measured 99.74-class encoding ceiling.
 // PARKED (99.28%: 1256 bytes / 314 insns against retail 1252 / 313, the surplus instruction being move a2,s2). Body COMPILES; round 547 re-measured and re-parked after the allocator dump.
+// Round 549 re-measure after unparking (the 541 audit's caveat stands: the body builds):
+// 99.28% / 1256 bytes / 314 insns against retail 1252 / 313, byte-for-byte the body round 547 parked.
+// Residual, unchanged and named: the surplus move a2,s2 that the second pCondition pointer costs, the
+// FOUR mfhi/mflo destinations 2.7.2 hands to a reload scratch ($t0) where retail reuses the mult's dying
+// operand, and the three commutative operand swaps chained off them (the lbu/lhu pair, two addu).
+// Eighth permuter run from this body: PERMUTER_NONE base=245 best=245 (805 iterations).
+// levers f-mult-operand-order-follows and
+// f-a-27x-mflo-destination-is-a-reload-scratch-not-an-allocno both name this function as a 99.74-class
+// encoding ceiling under 2.6.0 and unreachable under 2.7.2, so no further spellings are worth trying.
+// The four D_800CCE4A / D_800CCD1A lines in the original column are the typed-form RELOC case
+// (g_BattleWorkBlock+354 / +50: same linked bytes, see SECOND EXCEPTION).
 /*
 void func_8009A2D4(u8 arg0) {
     BattleTableEntry* pEntry = &g_BattleWorkBlock[arg0];
@@ -386,6 +397,7 @@ void func_8009A2D4(u8 arg0) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc19", func_8009A2D4);
+
 
 
 
