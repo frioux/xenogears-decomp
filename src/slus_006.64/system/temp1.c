@@ -998,6 +998,18 @@ void SpriteInitFromAnimFileWithClut(SpriteData* pSpriteData, void* pAnimFile, s1
 // Presets: gcc-2.7.2-psx 94.97, this unit's cdk 99.19 (and 99.63 with the sink), 2.6.0 fails to compile;
 // the unit cannot move to 2.7.2 (matched neighbours AnimScriptTick 94.75, AnimTaskAlloc 79.92,
 // AnimTaskCreate 88.14, func_80023468 86.41). Three earlier permuter runs: base 90 best 90.
+// ROUND 549: re-measured 99.63% / 456 bytes / 114 insns / 8 differing lines (prologue (b) plus header (c)).
+// NEW: with the header read written INLINE instead of through pAnimHeader, and no sink at all -
+//      SpriteAnimPackageGetFrameCount((u16*)(*(u32*)(pAnimFileData + 8) + (mem_addr)pAnimFileData))
+//      - the body is 99.19 / 114 insns / 20 differing lines: it CLOSES (c) exactly (retail's
+//      lw a0,8(s1) then addu a0,a0,s1) and re-opens (a). So (a) and (c) are mutually exclusive by
+//      construction: the sink needs a variable live across the isBattle block, and the only such use in
+//      this body is the header load, whose pseudo then cannot coalesce into a0.
+// Measured dead this round (all 456 bytes / 114 insns): the embedded sink into a local that DIES at the
+// store (gcc deletes the dead assignment and emits the honest 99.19 stream), and a one-iteration
+// do-while around the 0x3C read-modify-write 90.71 (the barrier also hoists the g_IsBattle load above the
+// 0x3C read, rotating (a)'s whole block). Fifth permuter run, from the 99.19 honest base this time:
+// 3 min / 1041 iterations, base=90 best=90, no find.
 /*
 SpriteData* func_8002435C(SpriteData* pSpriteData, void* pAnimFile, s16 arg2, s16 arg3, s16 arg4,
                           s16 arg5, s16 arg6) {
