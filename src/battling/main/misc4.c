@@ -732,6 +732,9 @@ INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_80078F00);
 //    NEW, measured and reverted: (1) a 'u32 clearMask; clearMask = 0xFFFEFFFF;' assigned just ABOVE the switch and used in the tail (the round-541 live-across-a-call constant nudge) is 96.90% / 1192 bytes / 298 insns - one insn SHORT, because the constant no longer rematerialises into both arm delay slots; (2) the round-391 declaration-with-initialiser probe around the state byte ('{ u8 curState = p->state; p->prevState = curState; }') is byte-identical, 98.96 / 1196 / 34 lines.
 //    THIRD permuter run on this body (--minutes 4 -j 2): PERMUTER_NONE base=175 best=175, 1711 iterations - the same base as the 1832-iteration run the park already recorded.
 //    Do not re-brief: both halves of the residual are documented closed (lever a-split-constant-in-a-join-block-is-a-reload-pick; round 424 listed the 'u32 mask' local at exactly 98.96 and the 'u32 flags' copy local as coalescing away).
+// ROUND 550 re-measure, from the live un-park: 98.96% / 1196 bytes = retail's EXACT size, 299 vs 299 insns, 34 differing lines, in THREE hunks that are two allocation picks: (1) the 'state != 1' arm, where retail has stateFlags $v1 / flags $v0 and this body the mirrored pair (everything else in that arm, including 'li a0,-4', agrees); (2) + (3) the tail, where retail keeps the 0xFFFEFFFF mask in $a0 and p->state in $a1, this body $v1 and $a0 - the store order then follows, because retail can emit 'li v1,-13' before 'sw a0,208' while this body's v1 still holds the result. Note hunk (3)'s flags value IS $v0 in both, so the tail's leftover is one decision (the mask), not three.
+//    NEW this round, all byte-identical 98.96 / 1196 / 34 (gcc coalesced every one): an initialised-declaration 's32 flagTest = p->flags;' above the stateFlags assignment in the arm (lever a-declaration-with-initialiser shape); a 'u32 sf = (p->stateFlags & ~3) | 1; p->stateFlags = sf;' rooted value reused by the second RMW as '(sf & ~3) | 2' (which is retail's own dataflow - its second 'and v0,v1,a0' reads the stored value). Preset screen measured on this body: gcc-2.7.2-cdk 97.30, gcc-2.6.0 does not compile the unit at all - the Default preset is right, so do not re-run try_flags.
+//    The one handle lever a-mask-result-named-into-a-later-redefined-local-moves-the-mask-constant offers - a sink for the AND result that is LIVE past the block - does not exist here: the flags store is the last-but-two statement of the function, so there is no later use to lengthen the pseudo's live range with.
 /*
 void func_8007920C(Actor* p) {
     ActorScript* pScript = p->pScript;
@@ -830,6 +833,7 @@ void func_8007920C(Actor* p) {
     p->stateFlags = (p->stateFlags & 0xFFFFFFF3) | ((p->stateFlags & 3) << 2);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007920C);
+
 
 
 extern u8 g_BattleInitDone;
@@ -1411,6 +1415,19 @@ void BattleActorSetModelIndex9(Actor* p) {
    both halves of the residual are reachable, just not in one body: the do-while is
    what holds the stores in order and it is what hands p->z a0.  A 4-minute permuter
    run from THIS body (2608 iterations) is base=80 best=80, no lead.  Park it.
+   ROUND 550 re-measure on the 96.90 body: 96.90% / 284 bytes = retail's exact size,
+   71 vs 71 instructions, and the diff is exactly residual (a) and (b) above, nothing
+   else. Two new probes, both no better: (1) "g_BattleCameraTarget = *new_var;" moved
+   ABOVE "y -= 0x400;" is byte-identical 96.90 / 284; (2) taking the address of p->z
+   into a second pointer local and loading TargetZ through it ("new_var2 = &p->z;
+   ... = *new_var2;") is WORSE, 92.59% / 288 bytes / 72 insns - gcc sinks the p->z
+   load below the PosY store and leaves a nop where retail's "lw a1,8(s0)" is.
+   Do not re-brief: (a) is the copy-placed-at-the-assignment-point shape (the same
+   one lever b-increment-hoisted-above-a-call-pair describes, but there the fix was a
+   sum whose copy reorg then could not reach; here the copy CANNOT go in its own
+   call's delay slot and the following load is what reorg/sched picks instead, and no
+   source order changes it), and (b) is the a0-vs-v0/a1 local-alloc pick that the
+   do-while grouping and the address-taken p->x are already the best combination for.
 */
 /*
 void func_8007A768(Actor* p) {
@@ -1435,6 +1452,7 @@ void func_8007A768(Actor* p) {
     g_BattleCameraPosZ = g_BattleCameraTargetZ + (((rsin(r) << 2) * g_BattleCameraRigRadius) >> 12);
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc4", func_8007A768);
+
 
 void BattleResetScratchState(void) {
     UnkA884* p;
