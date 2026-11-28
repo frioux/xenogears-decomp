@@ -651,6 +651,14 @@ extern long FieldGetVec2Magnitude(long, long);
 //                                                                   source form; the honest `< count - 1`
 //                                                                   body stays the parked one.
 // Do not re-brief this as a hand job without a new compiler.
+// ROUND 550 re-measured the honest `< count - 1` body: 97.99%, 1896 bytes / 474 insns (retail 1900 / 475),
+// frame 0xB8 exact. The whole residual is ONE delay slot: retail keeps 'sh v0,8(v1)' inside the loop body
+// and fills the loop-bottom slot with 'addu a2,s1,zero'; cc1 sinks the sh into that slot instead and puts the
+// a2 copy at the loop head. Every one of the other 140 diff lines is the s2/s3 frameCount<->arg3 tie that
+// follows from it (swapping their declaration order does not move it). Compilers screened this round with
+// try_flags.sh, all on this same body: 2.6.0 94.43, 2.7.2-cdk 95.33, 2.7.2-cdk -G0 84.6, 2.7.2 -G0 97.99,
+// 2.7.2 -O3 97.99 -> Default -O2 -G8 stays the best, so the park is not a preset question. A store-through-
+// local ('value = func_8007B1C4(...); ...walkmeshTriIds[walkmesh] = value;') scores 97.85, same size.
 /*
 void func_80099214(void) {
     VECTOR normals[4];
@@ -780,6 +788,7 @@ walk:
     g_FieldScriptVMStopFlag = 1;
 }*/
 INCLUDE_ASM("asm/field/nonmatchings/main/misc7", func_80099214);
+
 
 
 
