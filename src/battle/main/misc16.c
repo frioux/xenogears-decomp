@@ -370,6 +370,13 @@ extern u8 *D_800C3000[];
 // BattleTileRecord *pRecords is 78.35 at 1720); cmd s32, shade u32, action u32; the record
 // offset r*1 with addiu +8 versus retail's r*4 plus sll (same eight bytes); the explicit
 // pointer cursors over listIndex/codes (78.82 at 1540 / 385).
+// MEASURED WORSE (round 549, do not redo): dropping the j copy by running the `level != 0`
+// and else arms on `first` itself (`for (; first < ...; first += 2)`, j unused): 89.71 at
+// 1672 / 418 - retail really does hold a separate counter in s1 next to the r*8 biv, so the
+// copy is retail's too. Swapping the two statements of the entry i-copy loop (codes before
+// listIndex): 91.91 at 1692 / 200 differing lines. The permuter cannot explore the register
+// rotation at all: its C parser rejects this body (wrong type argument to unary plus in its
+// own base.c), so the remaining 192 lines are a hand-tie.
 /*
 s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     u16 listIndex[2];
@@ -471,6 +478,7 @@ s32 func_8008D598(u8 arg0, u8 arg1, u8 arg2) {
     return g_BattlePrimStartIndex;
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc16", func_8008D598);
+
 
 
 
