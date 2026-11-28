@@ -49,6 +49,10 @@
 #define FIELD_INVENTORY_KIND_GEAR_WEAPON 3
 #define FIELD_INVENTORY_KIND_GEAR_PARTS 4
 
+// The player's scriptFlags bit a map-transition walk sets (FieldPlayerSetScriptFlag80); the
+// handlers clear it again when the walk does not get the player there
+#define FIELD_SCRIPT_FLAG_MAP_TRANSITION 0x80
+
 extern s32 g_FieldCurActorIndex;
 extern s32 g_PlayerActorIndex;
 
@@ -640,8 +644,8 @@ void FieldScriptVMHandlerMapTransitionWithArgs(void) {
     if (func_80092894(0, 1, arg1, arg3)) {
         return;
     }
-    if (!(g_FieldSavedPlayerScriptFlags[0] & 0x80)) {
-        g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags &= ~0x80;
+    if (!(g_FieldSavedPlayerScriptFlags[0] & FIELD_SCRIPT_FLAG_MAP_TRANSITION)) {
+        g_FieldActors[g_PlayerActorIndex].pActorData->scriptFlags.flags &= ~FIELD_SCRIPT_FLAG_MAP_TRANSITION;
     }
     g_FieldSavedPlayerScriptFlags[0] = 0;
 }
