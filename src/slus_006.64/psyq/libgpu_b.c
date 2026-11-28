@@ -42,7 +42,7 @@ extern u_char g_GpuOpcodeShadow[]; // one byte per GP0 command
 extern void func_8004668C(u_long *p, int x, int y, int w);
 extern void func_80046EFC(void);
 extern int func_80046F30(void);
-extern u_long func_80045A34(int x, int y);
+extern u_long func_80045A34(s16 x, s16 y);
 extern u_long func_80045B00(s16 x, s16 y);
 extern u_long DrawMode(int dfe, int dtd, u_short tpage);
 extern u_long func_80045BCC(int x, int y);
@@ -172,53 +172,58 @@ u_long DrawMode(int dfe, int dtd, u_short tpage) {
     return mode | tp;
 }
 
-/* best: 79.12% (188 bytes / 47 insns; retail is 204 / 51, so 4 instructions
-   short and unlinkable). Named residual, 2 instructions per axis: retail computes
-   the limit TWICE and both times from a caller-saved copy of the loaded global
-   (`addu a2,v0,zero` then `addiu v0,v0,-1` for the compare, `addiu v0,a2,-1` in
-   the clamp arm); ours keeps ONE pseudo for the value and copies it into the arm
-   (`addiu v1,v0,-1` / `move a0,v1`). The limit is a cheap reg+const expression
-   behind a conditional branch, so whether cse1 reuses the register or regenerates
-   it from a preserved base is the pass's decision, not the source's - 14 probe
-   spellings measured this round, every one gives a single -1 plus a move:
-   ternary on the parameter, if/else-if with and without an else arm, a
-   limitRange-style macro on a local, the same macro with the limit textually
-   duplicated, an s16 mirror local, int/u_short locals holding W-1, `>=
-   g_GpuScreenWidth` (limit then computed after the slt), `int w = g_GpuScreenWidth`
-   with `w - 1` written twice, sequential ifs, and m2c's hoisted-limit shape.
-   The x axis additionally wants `addu a3,a0,zero` (raw x preserved, truncation in
-   place in $a0); we get the truncation into a fresh register instead. Earlier
-   rounds: whole-body if/else clamps over u_long xi/yi 65.59, s32 sx/sy 78.82 at
-   196 bytes, one-expression returns 73.08; gcc-2.7.2-cdk 75.78, gcc-2.6.0 79.12.
-   Load-bearing in this body: `u_long t[4]` reproduces retail's 0x10 phantom frame
-   (`.frame $sp,16` with no store anywhere) and puts the `addiu sp,sp,-16` in the
-   bltz delay slot; `g_GraphType != 1 && g_GraphType != 2` gives retail's
-   sltiu + bnez with the 12-bit andi in the delay slot, and the masked x is a
-   u_short local (`code`) so the `or` tree keeps retail's shape.*/
+// best: 99.51% (204 bytes / 51 insns = retail exactly; the 8 differing lines are
+//    ONE register pair: retail masks the clamped x into $v0 and luis 0xE3000000 into
+//    $a0 (andi v0,a3,0x3ff / lui a0,0xe300 / or v0,v0,a0), we hold the two the other
+//    way round (andi a0,a3,0x3ff / lui v0,0xe300 / or v0,a0,v0) - same value,
+//    commuted or operands).
+//    MECHANISM, read off this body's own cc1 dumps (-dl prints the quotient terms,
+//    -dg the order and preferences): the masked x is global allocno 77, "used 4 times
+//    across 7 insns" (3 arm defs + 1 use; quotient floor_log2(4)*4/7 = 1.14) and it
+//    takes $a0 only because -dg prints "77 preferences: 4", a HARD-REGISTER
+//    PREFERENCE for $a0 that outranks the order - the clamped-x allocno gives $v0
+//    back before the arms, so without that preference 77 would take $v0. The rest
+//    then follows for free: the 0xE3000000 constant (pseudo 125, 2 refs / 4 insns)
+//    and the intermediate or result (76) are both BLOCK-LOCAL to the join block, so
+//    LOCAL-alloc hands them the free registers, and with the masked x in $v0 the
+//    first free one is $a0 - exactly retail luis into a0. So the residual is a named
+//    quantity (a hard-reg preference on the masked-x allocno), not a quotient tie.
+//    Attempts, one line each: s16 params + limitRange + u_long code + the dead
+//    duplicate arm is this body (int params 79.12; u_short code 98.14; two arms
+//    without the filler 98.14); declaration order of ret/code/fld byte-identical at
+//    99.51; or-with-the-constant inside BOTH arms re-splits the or tree, 89.51, and
+//    keeps the preference; 0xE3000000 | code 99.51; code |= 0xE3000000 99.31; a cmd
+//    local assigned at the top 91.76 (moves the lui into the entry block); the
+//    putDispEnv single-expression spelling 88.82; gcc-2.7.2-cdk 78.53. Three
+//    permuter runs on the identical sibling body (base=25 best=25) found nothing.
+//    func_80045B00 is this body with 0xE4000000 and the same 8 lines, so a fix here
+//    fixes both.
 /*
-u_long func_80045A34(int x, int y) {
-    u_long t[4];
-    u_short code;
-    u_long fld;
+u_long func_80045A34(s16 x, s16 y) {
     u_long ret;
-    u_long xi;
-    u_long yi;
+    u_long code;
+    u_long fld;
 
-    xi = ((s16)x < 0) ? 0 : (((s16)x > g_GpuScreenWidth - 1) ? g_GpuScreenWidth - 1 : x);
-    yi = ((s16)y < 0) ? 0 : (((s16)y > g_GpuScreenHeight - 1) ? g_GpuScreenHeight - 1 : y);
+    limitRange(x, 0, g_GpuScreenWidth - 1);
+    limitRange(y, 0, g_GpuScreenHeight - 1);
     if (g_GraphType != 1 && g_GraphType != 2) {
-        fld = yi & 0x3FF;
+        fld = y & 0x3FF;
         fld = fld << 10;
-        code = xi & 0x3FF;
-    } else {
-        fld = yi & 0xFFF;
+        code = x & 0x3FF;
+    } else if (fld || x) {
+        fld = y & 0xFFF;
         fld = fld << 12;
-        code = xi & 0xFFF;
+        code = x & 0xFFF;
+    } else {
+        fld = y & 0xFFF;
+        fld = fld << 12;
+        code = x & 0xFFF;
     }
     ret = code | 0xE3000000;
     return fld | ret;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
+
 
 /* best: 99.51% (204 bytes / 51 insns = retail's exact size; every instruction is
    retail's except TWO: retail masks the clamped x into $v0 and holds 0xE4000000 in
@@ -263,6 +268,17 @@ INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045A34);
 //      (x & 0x3FF) | 0xE4000000;` in each arm, no locals) folds the or tree to
 //      50 insns / 200 bytes: 88.82.
 //    Third permuter run from this body: base=25 best=25, 1953 iterations, nothing.
+// best: 99.51% (204 bytes / 51 insns = retail exactly; the 8 differing lines are
+//    ONE register pair: retail masks the clamped x into $v0 and luis 0xE4000000 into
+//    $a0, we hold the two the other way round (commuted or operands, same value).
+//    See func_80045A34 above for the measured mechanism - global allocno 77 (the
+//    masked x) carries a hard-register PREFERENCE for $a0 that outranks the
+//    allocation order, and every other instruction of the body is retail's,
+//    including the two block-local join-block quantities that local-alloc then
+//    places. Rounds 425/435 measured on this body: s16 params + limitRange + u_long
+//    code + the dead duplicate arm = this 99.51; prefix form / in-place or / cmd
+//    local / single-expression spellings all worse (99.31, 91.76, 88.82); three
+//    permuter runs, base=25 best=25.
 /*
 u_long func_80045B00(s16 x, s16 y) {
     u_long ret;
@@ -288,6 +304,7 @@ u_long func_80045B00(s16 x, s16 y) {
     return fld | ret;
 }*/
 INCLUDE_ASM("asm/slus_006.64/nonmatchings/psyq/libgpu_b", func_80045B00);
+
 
 
 /* best: 98.53% (68 bytes = retail's exact size, identical instruction
