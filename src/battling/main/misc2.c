@@ -594,6 +594,13 @@ void BattleStoreSlotPositions(BattleQuad *p0, BattleQuad *p1, s32 arg2, u8 *p3, 
    this block. Do not re-dial; the only lever left is a compiler whose
    local_alloc keeps arguments' home registers, and no preset in the repo does
    (2.6.0 98.06, -O3 98.61, 2.8.1 breaks six matched functions). */
+// Round 550 (REDO lane, un-parked and re-measured): 98.61% / 72 bytes / 18 insns,
+//    retail's exact size. The residual is one allocator pair - retail addu a1,v1,a1 /
+//    slti v1,a1,4097, ours addu v1,v1,a1 / slti v0,v1,4097 - and lever.py's
+//    a-two-use-sum-does-not-tie entry closes it: the sum is the load's own pseudo, a
+//    global allocno handed $v1 by REG_ALLOC_ORDER, and no source shape hands it the
+//    dying parameter's $a1. Already measured by a five-spelling cc1 probe, two
+//    permuter runs, and 2.6.0 / 2.7.2-cdk / -O3 / -G0 (97-98). Not re-dialled.
 /*
 s32 func_80073DE4(Actor *p0, s32 arg1) {
     s32 t;
@@ -606,6 +613,7 @@ s32 func_80073DE4(Actor *p0, s32 arg1) {
     return 1;
 }*/
 INCLUDE_ASM("asm/battling/nonmatchings/main/misc2", func_80073DE4);
+
 
 
 
