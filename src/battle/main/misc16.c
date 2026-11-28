@@ -767,6 +767,22 @@ void BattleBuildTileRow3Prims(u8 arg0, s32 arg1, s32 arg2, s32 arg3, BattleRowSi
    To resume: find why gcc 2.6.0 hoists this first call's register-argument setup to
    the entry block when retail keeps it at the call site; the rest of the diff is that
    hoist and the register assignment it forces.
+   ROUND 550 (redo lane): re-measured unchanged at 68.50% (540 bytes / 135 insns against
+   retail's 528 / 132). cc1's own .s output proves the hoist is cc1's, not the assembler's:
+   the first call's whole a0..a3 setup (`move $4,$18` / `andi $21,$11,0xffff` /
+   `move $5,$21` ...) is emitted BEFORE the eight stores. That placement is also why no
+   spelling coalesces the extend in place - an in-place `andi s1,s1,0xffff` at the entry
+   block would destroy the raw value the stores still need, so the extended value must
+   take a second register (s6) and cost the eighth save. Retail's four extends sit at
+   0x1F750 / 0x1F7B0 / 0x1F7D0 / 0x1F810, i.e. at each value's LAST RAW USE, which is what
+   in-place coalescing looks like: retail's cc1 left the setup at the call site. The
+   hoist, not the allocator, is the whole residual.
+   MEASURED WORSE (do not redo): params used directly - no u16 locals at all, the eight
+   stores and all five calls on arg1..arg4 with the sums inline (`arg1 + arg3`,
+   `arg2 + arg4`): 65.23% at 544 bytes / 136 insns. CSE still collapses each sum to one
+   `addu`, so the shape only loses the early `right`/`bottom` placement.
+   PRESET SCREEN (first for this function): 2.7.2 68.50, 2.7.2-cdk 66.19, 2.6.0 68.50 -
+   no compiler win, the unit's 2.6.0 is right for this stub too.
 */
 
 /*
