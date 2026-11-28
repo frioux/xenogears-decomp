@@ -717,6 +717,32 @@ INCLUDE_ASM("asm/lib_gear/nonmatchings/main/main", func_801DCEC8);
 
 /*
 
+
+// PARKED at 99.23% / 3376 bytes / 832 insns = retail's exact size, 78 differing lines,
+// all inside the phase-1b OT-link block. Re-measured this round from the un-parked body
+// (the note below said 87.92 when it was written).
+// - WHAT CLOSED IT (one edit, 176 -> 78 differing lines, 98.91 -> 99.23): the four
+//   corner RTPS projections plus `otz = depthBuf[0] / otz >>= g_GfxOTDepthShift;` are
+//   wrapped in one `do { } while (0);`. That block boundary alone removed the whole
+//   callee-saved rotation (retail pModel $s5 / pViewMatrix $s1 / pViewScratch $s6 /
+//   pMesh $s2 against our mirror before it). Found by the permuter (best 645 vs 915),
+//   then ported by hand: no instruction, byte or semantic change.
+// - THE RESIDUAL, one named construct: the OT-link block's temporaries. Retail holds
+//   otz in $a0, &pOt[otz] in $a1, the 0x00FFFFFF mask in $a2 and 0xFF000000 in $t0 and
+//   stores `depthBuf[0] = otz` (`sw a0,72(sp)`) BEFORE the `slti a0,a0,729` clamp test;
+//   our body holds otz in $t0, &pOt[otz] in $a0, the mask in $a1/$a3 and puts the
+//   `sw t0,72(sp)` in the clamp branch's delay slot. Same instruction set, different
+//   register roles plus that one displaced store.
+// - Measured on that residual, all 832 insns / 3376 bytes unless noted: closing the
+//   do-while AFTER the clamp and the depthShade store (172 lines, 98.92), a SECOND
+//   do-while around just the two OT tag stores (172 lines, 98.92). Retail's `addu
+//   a3,a3,s5` (index-first) against our `addu a2,s5,a2` is part of the same residual.
+// - Allocator arithmetic (cc1 -da/-dl/-dg, 2.6.0 -O2 -G8): the contested near-miss was
+//   pModel 42 refs / 647 insns (5*42/647 = 0.3246) against the phase-5 pQuadB 10 / 92
+//   (3*10/92 = 0.3261), a 0.5% margin decided by a third allocno ($s5 was held by a
+//   10-ref/92-insn pseudo when pModel was processed). The barrier above is what moved it.
+// Un-park by deleting the INCLUDE_ASM line and the enclosing comment.
+
 void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32 renderMode, s32 frameStep, u_long* pOt, s32 packetIndex) {
     ModelJoint* pSkeleton;
     ModelMesh* pMesh;
@@ -824,6 +850,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
         gte_stsxy2((u_long*)&pPoly->x0);
         gte_stszotz(&depthBuf[0]);
 
+        do {
         svec.vx = -pModel->width;
         gte_ldv0(&svec);
         gte_rtps();
@@ -854,6 +881,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 
         otz = depthBuf[0];
         otz >>= g_GfxOTDepthShift;
+        } while (0);
         pModel->polys[packetIndex].tag = (pModel->polys[packetIndex].tag & 0xFF000000) | (pOt[otz] & 0xFFFFFF);
         pOt[otz] = (pOt[otz] & 0xFF000000) | ((u32)pPoly & 0xFFFFFF);
         depthBuf[0] = otz;
@@ -1063,6 +1091,7 @@ void func_801DCEC8(Model* pModel, MATRIX* pLightMatrix, MATRIX* pViewMatrix, s32
 }
 
 */
+
 
 
 
