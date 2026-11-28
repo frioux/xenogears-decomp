@@ -586,38 +586,26 @@ void func_80023538(SpriteData* pSpriteData, u16* pAnimEntry) {
    a-unsigned-and-folds-its-own-compare-before-it-can-be-in-place.
 
 */
-INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
-/* Best attempt: 99.10% (312 bytes, 78 insns - retail's exact size). Every instruction matches
-   except ONE caller-saved pair: retail keeps the 0xFFF8007F mask of flags_0xAC in v0 and the loaded
-   word in v1, this body compiles the mask to v1 and the word to v0, and the flags_0xA8 load and
-   store that follow mirror with them (retail lw v0,168 / sw v0,168, ours lw v1,168 / sw v1,168).
-   Instruction order, the frame, the A8 mask in a0 and every other register are exact.
-
-   cc1 -dl on the live body (XenoGraphics cdk, -O2 -G8) gives the terms of local-alloc's quotient per
-   pseudo: the loaded word is reg 83 "used 6 times across 6 insns in block 0", the 0xFFF8007F mask
-   reg 112 "2 times across 6 insns", the A8 word reg 113 "2 across 8" and the 0xFFF1FFFF mask reg 115
-   "2 across 8" (dispositions 83 in 2, 112 in 3, 113 in 3, 115 in 4 - a0 for the A8 mask is retail's).
-   So the mask cannot take v0: on floor_log2(n_refs)*n_refs/live_length it is 0.33 against the word's
-   2.0, and the word's floor - it is mentioned in load, and and store, so 1.0 at best - still beats
-   0.33; on the n_deaths/n_refs reading (lever a-refs-are-three-times) the word's 1/6 is processed
-   before the mask's 1/2 for the same order. The mask could only win with 4 insns mentioning it,
-   which retail's stream does not contain, and on a tie the word still wins because force_reg creates
-   the mask's pseudo (112) AFTER the word's (83). This is the mirror image of lever
-   a-literal-constant-outranks and the same flip as func_8002435C in this unit, so it is one
-   allocator decision, not a spelling.
-
-   Tried and measured (all 99.10% / 312 bytes / same pair unless noted): a 12-bit bitfield view at
-   bit 7 (byte-identical RTL); (0x100 & 0xFFF) << 7 and | 0x8000; constant-first operand order; the
-   mask in a declared local, initialised at the top, assigned just before the load; loaded-word temp
-   (96.67%); intermediate ac = v | 0x8000 (93.78%); pFlagsA8[1]/[0] indexing (67.63%); casting EVERY
-   access through (u8*)pSpriteData (70-67%, so keep exactly this mix - raw casts for the 0x3C/0x40
-   chains, typed flag words for 0xA8/0xAC); statement swap (93.37%); and the round-417 in-place chain
-   spelling (animFlags = the field, then animFlags &= 0xFFF8007F, animFlags |= 0x8000, one store) -
-   identical stream, so an in-place chain on a named local does not reach a mask-vs-word tie.
-   Presets on this body: cdk -O2 -G0 96.54, gcc-2.6.0-psx 74.94, gcc-2.7.2-psx 77.18, cdk -O3 does
-   not compile, so the unit's XenoGraphics cdk -O2 -G8 is right. Permuter three times (1309, 1001 and
-   1342 iterations, 3 min each): base 70 best 70. Verdict: GIV_TIE - do not re-brief as a hand job.
-
+// Parked AUDIT round: 99.10% (312 bytes / 78 insns = retail exact size), re-measured from this
+// body after un-parking, unchanged. The residual is ONE mirrored caller-saved pair inside the two flag
+// read-modify-writes: retail keeps the 0xFFF8007F mask in v0 and the 0xAC word in v1 (and the 0xA8
+// word then takes the v0 the mask frees); ours compiles the mirror. Every other instruction, the
+// frame, the A8 mask in a0 and the bgez delay slot are exact.
+// Mechanism (lever a-flag-word-rmw-mask-can-never-take-v0, from cc1 -dl on the live body under this
+// unit cdk -O2 -G8): the loaded word is reg 83 "used 6 times across 6 insns", the mask reg 112
+// "2 times across 6", so local-alloc floor_log2(n_refs)*n_refs/live_length is 2.0 for the word
+// against 0.33 for the mask, and force_reg creates the mask pseudo AFTER the word one; the mask could
+// only win with 4 insns mentioning it, which the retail stream does not contain. Same flip as
+// func_8002435C, so one park covers the family.
+// Tried and measured (all 99.10% / 312 bytes / same pair unless noted): the 12-bit bitfield view,
+// (0x100 & 0xFFF) << 7 and the or with 0x8000, constant-first operand order, the mask in a declared
+// local, loaded-word temp (96.67), intermediate word-or-0x8000 (93.78), pFlagsA8[1] and [0] indexing
+// (67.63), every access cast through (u8*)pSpriteData (70-67, so keep exactly this mix), statement
+// swap (93.37), and the in-place chain on a named local (identical stream).
+// Presets: cdk -G0 96.54, gcc-2.6.0-psx 74.94, gcc-2.7.2-psx 77.18, cdk -O3 does not compile, so
+// XenoGraphics cdk -O2 -G8 is right. Permuter four runs (1309, 1001, 1342 and this round 4-minute
+// 1338 iterations): base 70 best 70 every time. Verdict: GIV_TIE, do not re-brief as a hand job.
+/*
 void func_80023804(SpriteData* pSpriteData) {
     u32* pFlagsA8;
     s32 cycles;
@@ -657,8 +645,10 @@ void func_80023804(SpriteData* pSpriteData) {
     pSpriteData->field_0x84 = 0;
     pSpriteData->field_0x6C = NULL;
     pSpriteData->field_0x50 = 0;
-}
 }*/
+INCLUDE_ASM("asm/slus_006.64/nonmatchings/system/temp1", func_80023804);
+
+
 
 
 void SpriteResetBase(SpriteDataI1* pBase) {
