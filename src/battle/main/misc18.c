@@ -1021,6 +1021,33 @@ void BattleClearAllSlotStates(void) {
 // body: PERMUTER_NONE, 986 iterations, base=330 best=330. With 5+ runs on this body and the -dl dump
 // above showing every mirrored value is a block-local local-alloc hand-out, the rank pair is closed;
 // do not spend another spelling here - the open work in this unit is elsewhere.
+// PARKED 99.56% (re-measured round 549): 3024 bytes / 752 instructions on BOTH sides, so all 76
+// residual lines are register names at identical instruction positions - three local-alloc hand-out ties:
+// (a) the characterId == 4 arm's two arms pick $a0/$a2 for the g_BattleActingSlot region copy and $v1/$a0
+//     for the workblock one;
+// (b) the doubling loops (0x106B / 0x223B) hold the base in $v0 and the row offset in $v1, retail the
+//     other way round;
+// (c) the halving loops carry j & 0xff in $v0 across the backedge where retail carries it in $v1.
+// Round 549: a 9th permuter run on this exact body (--minutes 3 -j 2, 629 iterations) is PERMUTER_NONE,
+// base=330 best=330, i.e. the same verdict as the 8 runs recorded below.
+// NEW OBSERVATION (round 549): retail RELOADS g_BattleActingSlot (lui %hi + lw) dozens of times through the
+// loop body instead of holding one long-lived copy, and this body reloads it at exactly the same
+// positions, so (a) is NOT one CSE'd pointer handed to the wrong register - it is a short-lived
+// per-region copy contending with its neighbours in a tiny block, like (b) and (c). That is why every
+// long-lived-value spelling (pointer locals, pgmname declaration orders) measured below moves nothing.
+// Source facts, do not re-derive: the four growth statements divide by 20 (retail 0x66666667 >> 3); the
+// two row tables are 0x26 and 0x2A rows of 0x28 bytes at +0x1058 and +0x2228 with the flag byte at
+// row +0x13 and must be indexed FLAT; the gates are accessoryEffectFlags4 & 0x2000 (double every row)
+// and accessoryEffectFlags5 & 0x4000 (halve); the g_GameState tail (0x1930 u16, 0x89A, 0x834, and
+// g_BattleOptionFlags + 9 == g_GameState + 0x2355) is reached through g_GameState itself, one base and
+// four displacements.
+// KEEP (measured wins): the embedded-assignment temps (snapOffset / gearRowOffset written INSIDE the
+// address) on the 0x1029..0x102E / 0x3F4 / 0x800 snapshot stores and on the 0x2814 gear-row store, and
+// pDst = (u8*)(pWorkBlock = g_BattleCurWorkBlock) + i * 8 in the characterId != 4 arm only (98.83 ->
+// 99.56 together).
+// CLOSED: -dl dump (round 461) shows the (b)/(c) pair is a local-alloc hand-out order whose ref/live
+// counts retail's own eleven instructions pin, and 9 permuter runs agree (PERMUTER_NONE every time).
+// Do not spend another spelling here.
 /*
 void func_80097D5C(void) {
     BattleTableEntry *pSlot;
@@ -1199,6 +1226,7 @@ void func_80097D5C(void) {
     }
 }*/
 INCLUDE_ASM("asm/battle/nonmatchings/main/misc18", func_80097D5C);
+
 
 void BattleResetSlotConditionCounters(void) {
     u8 i;
