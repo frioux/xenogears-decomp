@@ -1144,6 +1144,19 @@ extern void func_80031798(void* pOt, void* pPrim);
 //   map rotates one step (base a2, addr a0, mask a3, word v1 against retail's a3,
 //   a1, a2, a0). So the pTileWord local below is worth 0.96% for its SCHEDULE, not
 //   its spelling; any realistic rewrite has to recover that schedule first.
+// - ROUND 548: A NAMED `pOtLink = pOt[0] & 0xFFFFFF;` LOCAL IS A PARTIAL RECOVERY OF
+//   THAT SCHEDULE IN A REALISTIC SPELLING (round-473's three spellings were 98.03):
+//   it takes the typed body to 98.51% / 1572 / 393 with 36 differing lines, keeping
+//   retail's tag load shape (`lw v0,72(a2)` at base+offset) while moving the
+//   `0xFF000000` `lui` later than the un-named form does; still not retail's window
+//   (`lui a1,0xff00` early, tag load after the `sw v0,84(a2)`). Combining it with the
+//   `pTileWord` local below measures the same 98.99 as `pTileWord` alone but with 36
+//   differing lines instead of 34, so the plain `pTileWord` body is kept. Two more
+//   permuter runs from the 98.51 body: the first is the `pOtLink` find, the second
+//   (base 730 -> 567) proposes `tag = 0xFF000000; tag = (tag & tag) | pOtLink;` which
+//   DELETES the tile's tag bits - wrong code, rejected, so no further permuter run.
+//   A `do { } while (0)` around only the two link stores (base `$a3`) measures 32
+//   differing lines but 96.66%: the whole mult window empties and reorg refills it.
 // - A `do { } while (0)` AROUND ONLY THE LINK puts the base in `$a3` (retail's) but
 //   the block boundary also keeps the mask `lui/ori` and the address out of the mult
 //   window: one load-delay nop appears, 394 insns / 1576 bytes, 96.87%. Around all
